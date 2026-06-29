@@ -1,0 +1,3171 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import CrmLayout from '@/components/layout/CrmLayout';
+import { tenantsApi, usersApi, api } from '@/services/api';
+import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal } from '@/components/ui';
+import { useAuth } from '@/lib/store';
+import { useTheme } from '@/lib/theme';
+import { useI18n } from '@/lib/i18n';
+import toast from 'react-hot-toast';
+import { errMsg } from '@/lib/helpers';
+
+const TABS = [
+  { id: 'general',     label: '⚙ Umumiy' },
+  { id: 'phone',       label: '📞 Telefon' },
+  { id: 'whatsapp',    label: '📱 WhatsApp' },
+  { id: 'telegram',    label: '📨 Telegram' },
+  { id: 'instagram',   label: '📷 Instagram', adminOnly: true },
+  { id: 'templates',   label: '📝 Shablonlar', adminOnly: true },
+  { id: 'api',         label: '🔑 API Keys', adminOnly: true },
+  { id: 'webhooklogs', label: '📜 Webhook Logs', adminOnly: true },
+  { id: 'profile',     label: '👤 Profil' },
+  { id: 'team',        label: '👥 Jamoa', adminOnly: true },
+  { id: 'leads',       label: '🎯 Lead taqsimlash', adminOnly: true },
+  { id: 'autoreply',   label: '🤖 Auto-Reply', adminOnly: true },
+  { id: 'forms',       label: '📝 Web Forms', adminOnly: true },
+  { id: 'kpi',         label: '💰 Commission Tiers', adminOnly: true },
+  { id: 'security',    label: '🔐 Xavfsizlik' },
+];
+
+export default function SettingsPage() {
+  const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { lang, setLang } = useI18n();
+  const [tab, setTab] = useState('general');
+
+  const isAdmin = user?.role === 'TENANT_ADMIN';
+
+  return (
+    <CrmLayout>
+      <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>⚙ Sozlamalar</h1>
+        <p style={{ color: 'var(--fg-3)', fontSize: 13, margin: 0, marginBottom: 20 }}>
+          Profil, kompaniya va integratsiyalarni boshqaring
+        </p>
+
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+          {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              background: 'none', border: 'none', padding: '10px 14px',
+              color: tab === t.id ? 'var(--primary)' : 'var(--fg-2)',
+              cursor: 'pointer', fontSize: 13,
+              fontWeight: tab === t.id ? 600 : 500,
+              borderBottom: '2px solid ' + (tab === t.id ? 'var(--primary)' : 'transparent'),
+              marginBottom: -1, whiteSpace: 'nowrap',
+            }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'general' && (
+          <Card>
+            <h3 style={{ marginTop: 0, fontSize: 15 }}>Umumiy sozlamalar</h3>
+            <div style={{ marginBottom: 16 }}>
+              <Label>Tema</Label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn variant={theme === 'dark' ? 'primary' : 'secondary'} onClick={() => theme !== 'dark' && toggleTheme()}>🌙 Tungi</Btn>
+                <Btn variant={theme === 'light' ? 'primary' : 'secondary'} onClick={() => theme !== 'light' && toggleTheme()}>☀ Yorug</Btn>
+              </div>
+            </div>
+            <div>
+              <Label>Til</Label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn variant={lang === 'uz' ? 'primary' : 'secondary'} onClick={() => setLang('uz')}>O'zbek</Btn>
+                <Btn variant={lang === 'ru' ? 'primary' : 'secondary'} onClick={() => setLang('ru')}>Русский</Btn>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {tab === 'phone' && <PhoneTab isAdmin={isAdmin} />}
+        {tab === 'whatsapp' && <WhatsAppTab />}
+        {tab === 'telegram' && <TelegramTab isAdmin={isAdmin} />}
+        {tab === 'instagram' && <InstagramTab />}
+
+        {tab === 'profile' && <ProfileTab />}
+
+        {tab === 'security' && (
+          <Card>
+            <h3 style={{ marginTop: 0, fontSize: 15 }}>🔐 Xavfsizlik</h3>
+            <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>
+              Parolni o'zgartirish, 2FA va sessiyalarni boshqarish.
+            </p>
+            <Btn onClick={() => alert('Tez orada')}>Parolni o\'zgartirish</Btn>
+          </Card>
+        )}
+
+        {tab === 'team' && isAdmin && <TeamTab />}
+        {tab === 'leads' && isAdmin && <LeadAssignmentTab />}
+        {tab === 'autoreply' && isAdmin && <AutoReplyTab />}
+        {tab === 'forms' && isAdmin && <FormsTab />}
+        {tab === 'kpi' && isAdmin && <KPITab />}
+        {tab === 'templates' && isAdmin && <TemplatesTab />}
+        {tab === 'api' && isAdmin && <ApiKeysTab />}
+        {tab === 'webhooklogs' && isAdmin && <WebhookLogsTab />}
+      </div>
+    </CrmLayout>
+  );
+}
+
+// ─── Agent Extensions Card (admin uchun) ─────────────────────────────────────
+function AgentExtensionsCard() {
+  const [agents, setAgents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [vals, setVals] = useState<Record<string, { callbackPhone: string; extension: string }>>({});
+
+  useEffect(() => {
+    usersApi.list()
+      .then((r: any) => {
+        const list = Array.isArray(r.data) ? r.data : (r.data?.data || []);
+        const agents = list.filter((u: any) => ['AGENT', 'MANAGER'].includes(u.role));
+        setAgents(agents);
+        const init: Record<string, { callbackPhone: string; extension: string }> = {};
+        agents.forEach((a: any) => {
+          init[a.id] = { callbackPhone: a.callbackPhone || '', extension: a.extension || '' };
+        });
+        setVals(init);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function saveAgent(agentId: string) {
+    setSaving(s => ({ ...s, [agentId]: true }));
+    try {
+      await usersApi.update(agentId, {
+        callbackPhone: vals[agentId]?.callbackPhone || '',
+        extension: vals[agentId]?.extension || '',
+      });
+      toast.success('Saqlandi');
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(s => ({ ...s, [agentId]: false }));
+    }
+  }
+
+  function setAgentVal(agentId: string, field: 'callbackPhone' | 'extension', value: string) {
+    setVals(v => {
+      const prev = v[agentId] || { callbackPhone: '', extension: '' };
+      return { ...v, [agentId]: { callbackPhone: prev.callbackPhone, extension: prev.extension, [field]: value } };
+    });
+  }
+
+  const inp: any = {
+    padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)',
+    background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, width: '100%', boxSizing: 'border-box',
+  };
+
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <h3 style={{ marginTop: 0, fontSize: 15 }}>👥 Agentlar telefon raqamlari</h3>
+      <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '0 0 14px' }}>
+        Har bir agent uchun OnlinePBX extension va telefon raqamini belgilang.
+        Extension — ATS ichki raqam (masalan: 101, 102...).
+      </p>
+
+      {loading ? (
+        <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>
+      ) : agents.length === 0 ? (
+        <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)' }}>Agentlar topilmadi</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Header */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 2fr auto', gap: 10, padding: '6px 10px', fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+            <div>Agent</div>
+            <div>Telefon raqami</div>
+            <div>Extension (ATS)</div>
+            <div></div>
+          </div>
+
+          {agents.map((a: any) => (
+            <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 2fr auto', gap: 10, padding: '10px 10px', background: 'var(--bg-3)', borderRadius: 10, alignItems: 'center' }}>
+              {/* Agent info */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  background: 'linear-gradient(135deg, #3d7eff, #8b5cf6)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, color: 'white', fontWeight: 700,
+                }}>
+                  {a.name?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{a.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{a.role === 'MANAGER' ? 'Manager' : 'Agent'}</div>
+                </div>
+              </div>
+
+              {/* Phone */}
+              <input
+                style={inp}
+                value={vals[a.id]?.callbackPhone || ''}
+                onChange={e => setAgentVal(a.id, 'callbackPhone', e.target.value)}
+                placeholder="+998901234567"
+              />
+
+              {/* Extension */}
+              <input
+                style={{ ...inp, fontFamily: 'monospace', fontWeight: 700 }}
+                value={vals[a.id]?.extension || ''}
+                onChange={e => setAgentVal(a.id, 'extension', e.target.value)}
+                placeholder="101"
+                maxLength={6}
+              />
+
+              {/* Save */}
+              <button
+                onClick={() => saveAgent(a.id)}
+                disabled={saving[a.id]}
+                style={{
+                  padding: '7px 14px', borderRadius: 8, border: 'none',
+                  background: saving[a.id] ? '#94a3b8' : '#3d7eff',
+                  color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {saving[a.id] ? '...' : 'Saqlash'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── Phone Provider sozlash ───
+function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
+  const [tenant, setTenant] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [provider, setProvider] = useState('STUB');
+  const [config, setConfig] = useState<any>({});
+  const [saving, setSaving] = useState(false);
+
+  // User Profile (admin only manages agents, not self)
+  const [me, setMe] = useState<any>(null);
+
+  useEffect(() => {
+    if (isAdmin) {
+      api.get('/tenants/phone-provider').then((r) => {
+        setTenant(r.data);
+        setProvider(r.data?.provider || 'STUB');
+        setConfig(r.data?.config || {});
+      }).catch(() => {}).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+    usersApi.me().then((r) => {
+      setMe(r.data);
+    }).catch(() => {});
+  }, [isAdmin]);
+
+  async function saveProvider() {
+    setSaving(true);
+    try {
+      await api.patch('/tenants/phone-provider', { provider, config });
+      toast.success('Saqlandi');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <>
+      {/* Admin: barcha agentlar uchun raqam/extension boshqaruvi */}
+      {isAdmin && <AgentExtensionsCard />}
+
+      {isAdmin && (
+        <Card>
+          <h3 style={{ marginTop: 0, fontSize: 15 }}>🏢 Kompaniya telefon provayderi</h3>
+
+          <Label>Provayder</Label>
+          <Select value={provider} onChange={(e) => setProvider(e.target.value)} style={{ marginBottom: 14 }}>
+            <option value="STUB">STUB (simulyatsiya - demo uchun)</option>
+            <option value="TEL_LINK">tel: link (bepul, agent telefoni)</option>
+            <option value="ONLINEPBX">OnlinePBX.uz (O'zbek raqami + recording)</option>
+            <option value="TWILIO">Twilio (xalqaro)</option>
+          </Select>
+
+          {provider === 'CUSTOM_SIP' && (
+            <div style={{ padding: 14, background: 'var(--bg-3)', borderRadius: 10, marginBottom: 14 }}>
+              <h4 style={{ marginTop: 0, fontSize: 13 }}>🖥️ Shaxsiy server sozlamalari</h4>
+              <div style={{ padding: '10px 12px', background: '#f59e0b10', borderRadius: 8, marginBottom: 12, fontSize: 12 }}>
+                <b>Asterisk AMI</b> yoki <b>FreePBX / FusionPBX REST API</b> orqali ishlaydi.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ gridColumn: '1/-1' }}>
+                  <Label>Ulanish turi</Label>
+                  <Select
+                    value={config.customSip?.restType || 'ami'}
+                    onChange={e => setConfig({ ...config, customSip: { ...(config.customSip||{}), restType: e.target.value } })}
+                  >
+                    <option value="ami">Asterisk AMI (TCP port 5038)</option>
+                    <option value="freepbx">FreePBX REST API</option>
+                    <option value="fusionpbx">FusionPBX REST API</option>
+                    <option value="custom">Custom REST API</option>
+                  </Select>
+                </div>
+                {(config.customSip?.restType || 'ami') === 'ami' ? (<>
+                  <div>
+                    <Label>AMI Host (server IP)</Label>
+                    <Input value={config.customSip?.amiHost||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),amiHost:e.target.value}})} placeholder="192.168.1.100 yoki server.com" />
+                  </div>
+                  <div>
+                    <Label>AMI Port</Label>
+                    <Input value={config.customSip?.amiPort||'5038'} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),amiPort:e.target.value}})} placeholder="5038" />
+                  </div>
+                  <div>
+                    <Label>AMI Username</Label>
+                    <Input value={config.customSip?.amiUser||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),amiUser:e.target.value}})} placeholder="admin" />
+                  </div>
+                  <div>
+                    <Label>AMI Password</Label>
+                    <Input type="password" value={config.customSip?.amiPassword||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),amiPassword:e.target.value}})} placeholder="secret" />
+                  </div>
+                  <div>
+                    <Label>Asterisk Context</Label>
+                    <Input value={config.customSip?.context||'from-internal'} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),context:e.target.value}})} placeholder="from-internal" />
+                  </div>
+                </>) : (<>
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <Label>REST API URL</Label>
+                    <Input value={config.customSip?.restUrl||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),restUrl:e.target.value}})} placeholder="http://192.168.1.100:80/api" />
+                  </div>
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <Label>API Key / Token</Label>
+                    <Input type="password" value={config.customSip?.restKey||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),restKey:e.target.value}})} placeholder="api-key" />
+                  </div>
+                </>)}
+                <div>
+                  <Label>Caller ID (chiquvchi raqam)</Label>
+                  <Input value={config.customSip?.callerId||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),callerId:e.target.value}})} placeholder="+998712345678" />
+                </div>
+              </div>
+            </div>
+          )}
+          {provider === 'ONLINEPBX' && (
+            <div style={{ padding: 14, background: 'var(--bg-3)', borderRadius: 10, marginBottom: 14 }}>
+              <h4 style={{ marginTop: 0, fontSize: 13 }}>OnlinePBX.uz sozlamalari</h4>
+              <div style={{ padding: '10px 12px', background: '#3d7eff12', borderRadius: 8, marginBottom: 12, fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.8 }}>
+                <b>API kalitlarini qayerdan olish:</b><br />
+                1. <a href="https://onlinepbx.uz" target="_blank" style={{color:'#3d7eff'}}>onlinepbx.uz</a> → Kabinet → API sozlamalari<br />
+                2. <b>Domain:</b> yourcompany.onpbx.ru (kabinetingizdan)<br />
+                3. <b>API Key + API ID:</b> API sozlamalari bo'limidan<br />
+                4. <b>Caller ID:</b> sizning raqamingiz (+998712XXXXXX)<br />
+                5. Har bir agent uchun: <b>Agentlar jadvali</b>da extension kiriting
+              </div>
+              <Label>Domain</Label>
+              <Input
+                placeholder="kompaniyam.onpbx.ru"
+                value={config.onlinepbx?.domain || ''}
+                onChange={(e) => setConfig({ ...config, onlinepbx: { ...(config.onlinepbx || {}), domain: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <Label>API Key</Label>
+              <Input
+                placeholder="..."
+                value={config.onlinepbx?.apiKey || ''}
+                onChange={(e) => setConfig({ ...config, onlinepbx: { ...(config.onlinepbx || {}), apiKey: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <Label>API ID</Label>
+              <Input
+                placeholder="..."
+                value={config.onlinepbx?.apiId || ''}
+                onChange={(e) => setConfig({ ...config, onlinepbx: { ...(config.onlinepbx || {}), apiId: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <Label>Caller ID (kompaniya raqami)</Label>
+              <Input
+                placeholder="+998712001234"
+                value={config.onlinepbx?.callerId || ''}
+                onChange={(e) => setConfig({ ...config, onlinepbx: { ...(config.onlinepbx || {}), callerId: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <input type="checkbox"
+                  checked={config.onlinepbx?.recordingEnabled !== false}
+                  onChange={(e) => setConfig({ ...config, onlinepbx: { ...(config.onlinepbx || {}), recordingEnabled: e.target.checked } })}
+                />
+                <span>Qo'ng'iroqlarni yozib olish (recording)</span>
+              </div>
+              <div style={{ marginTop: 12, padding: '10px 12px', background: '#10b98112', borderRadius: 8, fontSize: 12 }}>
+                <b>Webhook URL (OnlinePBX kabinetiga kiriting):</b><br />
+                <code style={{ background: 'var(--bg-2)', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>
+                  {window.location.origin}/api/v1/calls/webhook
+                </code>
+              </div>
+            </div>
+          )}
+
+          {provider === 'TWILIO' && (
+            <div style={{ padding: 14, background: 'var(--bg-3)', borderRadius: 10, marginBottom: 14 }}>
+              <h4 style={{ marginTop: 0, fontSize: 13 }}>Twilio sozlamalari</h4>
+              <Label>Account SID</Label>
+              <Input
+                value={config.twilio?.accountSid || ''}
+                onChange={(e) => setConfig({ ...config, twilio: { ...(config.twilio || {}), accountSid: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <Label>Auth Token</Label>
+              <Input
+                type="password"
+                value={config.twilio?.authToken || ''}
+                onChange={(e) => setConfig({ ...config, twilio: { ...(config.twilio || {}), authToken: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <Label>From Number</Label>
+              <Input
+                placeholder="+1XXXXXXXXXX"
+                value={config.twilio?.fromNumber || ''}
+                onChange={(e) => setConfig({ ...config, twilio: { ...(config.twilio || {}), fromNumber: e.target.value } })}
+              />
+            </div>
+          )}
+
+          {provider === 'TEL_LINK' && (
+            <div style={{ padding: 14, background: 'var(--info-soft)', borderRadius: 10, marginBottom: 14, fontSize: 12 }}>
+              ℹ️ <b>tel: link rejimi:</b> Call tugmasi bosilganda agentning brauzerida telefon ilovasi ochiladi.
+              Agent o'z mobil telefonidan qo'ng'iroq qiladi. Bepul, server kerak emas.
+            </div>
+          )}
+
+          {provider === 'STUB' && (
+            <div style={{ padding: 14, background: 'var(--warning-soft)', borderRadius: 10, marginBottom: 14, fontSize: 12 }}>
+              ⚠ <b>STUB rejimi:</b> Faqat simulyatsiya — haqiqiy qo'ng'iroq qilinmaydi.
+              Demo va sotuv ko'rsatish uchun.
+            </div>
+          )}
+
+          <Btn onClick={saveProvider} loading={saving} variant="gradient">💾 Saqlash</Btn>
+        </Card>
+      )}
+    </>
+  );
+}
+
+function ProfileTab() {
+  const [me, setMe] = useState<any>(null);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    usersApi.me().then((r) => {
+      setMe(r.data);
+      setName(r.data?.name || '');
+      setPhone(r.data?.phone || '');
+    }).finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await usersApi.updateMe({ name, phone });
+      toast.success('Saqlandi');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <Card>
+      <h3 style={{ marginTop: 0, fontSize: 15 }}>👤 Mening profilim</h3>
+      <Label>Ism</Label>
+      <Input value={name} onChange={(e) => setName(e.target.value)} style={{ marginBottom: 12 }} />
+      <Label>Email</Label>
+      <Input value={me?.email || ''} disabled style={{ marginBottom: 12, opacity: 0.6 }} />
+      <Label>Telefon</Label>
+      <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998901234567" style={{ marginBottom: 16 }} />
+      <Btn onClick={save} loading={saving}>Saqlash</Btn>
+    </Card>
+  );
+}
+
+function CompanyTab() {
+  return (
+    <Card>
+      <h3 style={{ marginTop: 0, fontSize: 15 }}>🏢 Kompaniya sozlamalari</h3>
+      <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>
+        Foydalanuvchilar, rollar va kompaniya ma'lumotlari.
+      </p>
+      <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>Tez orada qo'shiladi...</p>
+    </Card>
+  );
+}
+
+// ─── v8: TEAM TAB — admin uchun jamoa ko'rinishi ───
+function TeamTab() {
+  const [members, setMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'list' | 'grid'>('list');
+  const [showCreate, setShowCreate] = useState(false);
+  const router = useRouter();
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ teamApi }) =>
+      teamApi.team()
+        .then((r: any) => setMembers(r.data || []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <>
+      <Card style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>👥 Jamoa ({members.length})</h3>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-3)' }}>
+              Agentlarni qo'shish, ko'rish va boshqarish
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {/* 2 tugma: list / grid view */}
+            <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 8, padding: 3 }}>
+              <button onClick={() => setView('list')} style={{
+                background: view === 'list' ? 'var(--bg-2)' : 'transparent',
+                border: 'none', borderRadius: 6, padding: '6px 12px',
+                color: view === 'list' ? 'var(--primary)' : 'var(--fg-3)',
+                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              }}>≡ Ro'yxat</button>
+              <button onClick={() => setView('grid')} style={{
+                background: view === 'grid' ? 'var(--bg-2)' : 'transparent',
+                border: 'none', borderRadius: 6, padding: '6px 12px',
+                color: view === 'grid' ? 'var(--primary)' : 'var(--fg-3)',
+                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              }}>▦ Kartochka</button>
+            </div>
+            <Btn variant="gradient" onClick={() => setShowCreate(true)}>+ Agent qo'shish</Btn>
+          </div>
+        </div>
+
+        {members.length === 0 ? (
+          <p style={{ color: 'var(--fg-3)', textAlign: 'center', padding: 30 }}>Jamoada hali odam yo'q</p>
+        ) : view === 'list' ? (
+          /* ─── LIST VIEW (gorizontal) ─── */
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', textAlign: 'left' }}>
+                  <th style={{ padding: 10 }}>Agent</th>
+                  <th style={{ padding: 10 }}>Rol</th>
+                  <th style={{ padding: 10 }}>Telefon</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>Leadlar</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>Bookinglar</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>Daromad (oy)</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>Foyda (oy)</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>Maoshi (oy)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => (
+                  <tr key={m.id} style={{ borderTop: '1px solid var(--border-2)' }}>
+                    <td style={{ padding: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Avatar name={m.name} size={32} />
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{m.name}</div>
+                          <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{m.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: 10 }}>
+                      <Badge color={m.role === 'TENANT_ADMIN' ? 'var(--primary)' : m.role === 'MANAGER' ? 'var(--info)' : 'var(--success)'}>
+                        {m.role}
+                      </Badge>
+                    </td>
+                    <td style={{ padding: 10, fontSize: 12, color: 'var(--fg-3)' }}>
+                      {m.callbackPhone || m.phone || '—'}
+                      {m.extension && <span style={{ marginLeft: 6, fontFamily: 'monospace' }}>(#{m.extension})</span>}
+                    </td>
+                    <td style={{ padding: 10, textAlign: 'center', fontWeight: 600 }}>{m.stats?.leadsTotal || 0}</td>
+                    <td style={{ padding: 10, textAlign: 'center', fontWeight: 600 }}>{m.stats?.bookingsTotal || 0}</td>
+                    <td style={{ padding: 10, textAlign: 'right', color: 'var(--info)' }}>${m.stats?.monthRevenue || 0}</td>
+                    <td style={{ padding: 10, textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>${m.stats?.monthProfit || 0}</td>
+                    <td style={{ padding: 10, textAlign: 'right', color: 'var(--warning)', fontWeight: 700 }}>${m.stats?.monthSalary || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* ─── GRID VIEW (vertikal) ─── */
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: 12,
+          }}>
+            {members.map((m) => (
+              <div key={m.id} style={{
+                background: 'var(--bg-3)', borderRadius: 12,
+                padding: 16, textAlign: 'center',
+                border: '1px solid var(--border)',
+              }}>
+                <Avatar name={m.name} size={56} />
+                <div style={{ fontWeight: 700, fontSize: 14, marginTop: 8 }}>{m.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{m.email}</div>
+                <div style={{ marginTop: 8 }}>
+                  <Badge color={m.role === 'TENANT_ADMIN' ? 'var(--primary)' : m.role === 'MANAGER' ? 'var(--info)' : 'var(--success)'}>
+                    {m.role}
+                  </Badge>
+                </div>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 8, marginTop: 14, padding: '12px 0',
+                  borderTop: '1px solid var(--border-2)',
+                  borderBottom: '1px solid var(--border-2)',
+                }}>
+                  <Mini label="Leads" value={m.stats?.leadsTotal || 0} color="var(--info)" />
+                  <Mini label="Bookings" value={m.stats?.bookingsTotal || 0} color="var(--primary)" />
+                  <Mini label="Maoshi" value={`$${m.stats?.monthSalary || 0}`} color="var(--warning)" />
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 10 }}>
+                  Foyda: <b style={{ color: 'var(--success)' }}>${m.stats?.monthProfit || 0}</b>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {showCreate && <CreateAgentModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />}
+    </>
+  );
+}
+
+function Mini({ label, value, color }: { label: string; value: any; color?: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 9, color: 'var(--fg-3)', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: color || 'var(--fg)' }}>{value}</div>
+    </div>
+  );
+}
+
+function CreateAgentModal({ onClose, onCreated }: any) {
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', password: '', role: 'AGENT',
+  });
+  const [loading, setLoading] = useState(false);
+
+  async function submit() {
+    if (!form.name.trim()) { toast.error("To'liq ism majburiy"); return; }
+    if (!form.email.trim()) { toast.error("Email majburiy"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {
+      toast.error("Email formati noto'g'ri"); return;
+    }
+    if (!form.password) { toast.error("Parol majburiy"); return; }
+    if (form.password.length < 8) {
+      toast.error("Parol kamida 8 belgi bo'lishi kerak"); return;
+    }
+    setLoading(true);
+    try {
+      const { usersApi } = await import('@/services/api');
+      await usersApi.create(form);
+      toast.success(`✅ ${form.name} qo'shildi! Email: ${form.email}, Parol: ${form.password}`);
+      onCreated();
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="👤 Yangi agent qo'shish" footer={
+      <>
+        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+        <Btn variant="gradient" onClick={submit} loading={loading}>+ Yaratish</Btn>
+      </>
+    }>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div>
+          <Label>To'liq ism *</Label>
+          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Aziz Aliyev" />
+        </div>
+        <div>
+          <Label>Rol *</Label>
+          <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+            <option value="AGENT">Agent</option>
+            <option value="MANAGER">Manager</option>
+            <option value="ACCOUNTANT">Buxgalter</option>
+          </Select>
+        </div>
+      </div>
+      <Label>Email *</Label>
+      <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="agent@kompaniyam.uz" style={{ marginBottom: 12 }} />
+      <Label>Telefon</Label>
+      <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+998901234567" style={{ marginBottom: 12 }} />
+      <Label>Vaqtinchalik parol *</Label>
+      <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Kamida 8 belgi" style={{ marginBottom: 8 }} />
+      <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>
+        💡 Agent birinchi marta kirganda parolni o'zgartirish so'ralishi mumkin
+      </p>
+    </Modal>
+  );
+}
+
+// ─── v9: ROUND ROBIN LEAD ASSIGNMENT ───
+function LeadAssignmentTab() {
+  const [strategy, setStrategy] = useState('MANUAL');
+  const [queue, setQueue] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(false);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [sourceRouting, setSourceRouting] = useState<any>({});
+  const [sourceRoutingSaving, setSourceRoutingSaving] = useState(false);
+
+  const LEAD_SOURCES = [
+    { id: 'TELEGRAM', label: '📨 Telegram' },
+    { id: 'INSTAGRAM', label: '📷 Instagram' },
+    { id: 'WHATSAPP', label: '💬 WhatsApp' },
+    { id: 'WEBSITE', label: '🌐 Web sayt' },
+    { id: 'FACEBOOK', label: '👥 Facebook' },
+    { id: 'GOOGLE_ADS', label: '📢 Google Ads' },
+    { id: 'REFERRAL', label: '🤝 Tavsiya' },
+    { id: 'WALKIN', label: '🚶 Shaxsan' },
+    { id: 'CALL', label: '☎ Qo\'ng\'iroq' },
+    { id: 'OTHER', label: '❓ Boshqa' },
+  ];
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ leadAssignmentApi, usersApi, tenantsApi }) =>
+      Promise.all([
+        leadAssignmentApi.getStrategy(),
+        leadAssignmentApi.queue(),
+        usersApi.list(),
+        tenantsApi.getSourceRouting(),
+      ])
+        .then(([s, q, agt, sr]: any[]) => {
+          const currentStrategy = s.data?.strategy || 'MANUAL';
+          setStrategy(currentStrategy);
+          setQueue(q.data || []);
+          setAgents(agt.data || []);
+          setSourceRouting(sr.data || {});
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  async function saveStrategy(newStrategy: string) {
+    try {
+      const { leadAssignmentApi } = await import('@/services/api');
+      await leadAssignmentApi.setStrategy(newStrategy as any);
+      setStrategy(newStrategy);
+      toast.success("Strategiya saqlandi");
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
+  async function autoAssignAll() {
+    setAssigning(true);
+    try {
+      const { leadAssignmentApi } = await import('@/services/api');
+      const r: any = await leadAssignmentApi.assignUnassigned();
+      toast.success(`✅ ${r.data.assigned} ta lead agentlarga taqsimlandi (o'tkazib yuborildi: ${r.data.skipped})`);
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setAssigning(false); }
+  }
+
+  async function saveSourceRouting() {
+    setSourceRoutingSaving(true);
+    try {
+      const { tenantsApi } = await import('@/services/api');
+      await tenantsApi.updateSourceRouting(sourceRouting);
+      toast.success("Manba bo'yicha yo'naltirish saqlandi");
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSourceRoutingSaving(false); }
+  }
+
+  const handleSourceRouting = (source: string, agentId: string | null) => {
+    setSourceRouting((prev: any) => {
+      const updated = { ...prev };
+      if (agentId === null || agentId === '') {
+        delete updated[source];
+      } else {
+        updated[source] = agentId;
+      }
+      return updated;
+    });
+  };
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <>
+      <Card style={{ marginBottom: 14 }}>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>🎯 Lead taqsimlash strategiyasi</h3>
+        <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+          Yangi mijoz/lead'lar agentlarga qanday taqsimlanadi
+        </p>
+
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div
+            onClick={() => saveStrategy('ROUND_ROBIN')}
+            style={{
+              padding: '14px 18px', borderRadius: 12, cursor: 'pointer',
+              background: strategy === 'ROUND_ROBIN' ? 'var(--primary-soft)' : 'var(--bg-3)',
+              border: strategy === 'ROUND_ROBIN' ? '2px solid var(--primary)' : '2px solid var(--bg-2)',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}
+          >
+            <span style={{ fontSize: 28 }}>🔄</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: strategy === 'ROUND_ROBIN' ? 'var(--primary)' : 'var(--fg-1)' }}>Round Robin</div>
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>
+                Yangi lead kelganda barcha agentlarga navbat bilan teng taqsimlanadi
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: strategy === 'ROUND_ROBIN' ? 'var(--success)' : 'var(--fg-3)' }}>
+              {strategy === 'ROUND_ROBIN' ? '✅ Yoqilgan' : "○ O'chirilgan"}
+            </div>
+          </div>
+          <div
+            onClick={() => saveStrategy('MANUAL')}
+            style={{
+              padding: '14px 18px', borderRadius: 12, cursor: 'pointer',
+              background: strategy === 'MANUAL' ? 'rgba(245,158,11,0.12)' : 'var(--bg-3)',
+              border: strategy === 'MANUAL' ? '2px solid #f59e0b' : '2px solid var(--bg-2)',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}
+          >
+            <span style={{ fontSize: 28 }}>✋</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: strategy === 'MANUAL' ? '#f59e0b' : 'var(--fg-1)' }}>Manual</div>
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>
+                Admin qo'lda har bir leadni agentga tayinlaydi
+              </div>
+            </div>
+            <div style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: strategy === 'MANUAL' ? '#f59e0b' : 'var(--fg-3)' }}>
+              {strategy === 'MANUAL' ? '✅ Yoqilgan' : "○ O'chirilgan"}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {true && (
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 15 }}>📋 Navbat ({queue.length} agent)</h3>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn size="sm" onClick={autoAssignAll} loading={assigning}>
+                🔄 Barcha leadlarni qayta taqsimlash
+              </Btn>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {queue.map((a) => (
+              <div key={a.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: 10, background: a.isNext ? 'var(--primary-soft)' : 'var(--bg-3)',
+                borderRadius: 8, border: a.isNext ? '1px solid var(--primary)' : '1px solid transparent',
+              }}>
+                <div style={{
+                  width: 24, height: 24, borderRadius: '50%',
+                  background: a.isNext ? 'var(--primary)' : 'var(--bg-2)',
+                  color: a.isNext ? 'white' : 'var(--fg-2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 700, fontSize: 11,
+                }}>{a.position}</div>
+                <Avatar name={a.name} size={32} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>
+                    {a.name}
+                    {a.isNext && <span style={{ marginLeft: 8, color: 'var(--primary)', fontSize: 10, fontWeight: 700 }}>← KEYINGI</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>
+                    Faol klientlar: {a.activeClients}
+                    {a.lastAssignedAt && ` • Oxirgi: ${new Date(a.lastAssignedAt).toLocaleDateString('uz-UZ')}`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>📍 Manba bo'yicha avtomatik tayinlash</h3>
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 16 }}>
+          Har bir manba uchun maxsus agentni o'rnating. Agar o'rnatilmagan bo'lsa, Round Robin ishlaydi.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {LEAD_SOURCES.map((source) => (
+            <div key={source.id} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: 12,
+              background: 'var(--bg-3)', borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, minWidth: 140 }}>{source.label}</div>
+              <Select
+                value={sourceRouting[source.id] || ''}
+                onChange={(e) => handleSourceRouting(source.id, e.target.value || null)}
+                style={{ flex: 1, maxWidth: 300 }}
+              >
+                <option value="">🔄 Round Robin (default)</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.fullName || a.email}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+          <Btn onClick={saveSourceRouting} loading={sourceRoutingSaving}>✅ Saqlash</Btn>
+          <Btn variant="secondary" onClick={() => setSourceRouting({})}>🔄 Tiklash</Btn>
+        </div>
+      </Card>
+
+      {/* v9: Agent Management */}
+      <Card style={{ marginTop: 16 }}>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>👥 Agentlarni boshqarish</h3>
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 16 }}>
+          Ta'til, kunlik limit, va Round Robin statusi
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {agents.map((agent) => (
+            <div key={agent.id} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: 12,
+              background: 'var(--bg-3)', borderRadius: 8, justifyContent: 'space-between',
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{agent.fullName || agent.email}</div>
+                <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>
+                  {agent.isPausedFromAssignment ? '⏸ Ta\'til' : '✅ Faol'}
+                  {agent.dailyLeadLimit > 0 && ` • Limit: ${agent.dailyLeadLimit}/kun`}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Btn size="sm" variant={agent.isPausedFromAssignment ? 'secondary' : 'primary'} onClick={() => {
+                  // Toggle pause — API call kerak
+                  console.log('Pause toggle:', agent.id);
+                }}>
+                  {agent.isPausedFromAssignment ? '▶️' : '⏸'}
+                </Btn>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function StrategyCard({ id, current, title, description, onSelect }: any) {
+  const active = current === id;
+  return (
+    <div onClick={() => !active && onSelect(id)} style={{
+      padding: 14,
+      background: active ? 'var(--primary-soft)' : 'var(--bg-3)',
+      border: active ? '2px solid var(--primary)' : '2px solid transparent',
+      borderRadius: 10,
+      cursor: active ? 'default' : 'pointer',
+      transition: 'all 0.15s',
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{description}</div>
+      {active && (
+        <div style={{ marginTop: 8, fontSize: 10, color: 'var(--primary)', fontWeight: 700 }}>
+          ✓ FAOL
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// v9: TELEGRAM BOT ULASH TAB
+// ═══════════════════════════════════════════════════════════
+//
+// Admin: kompaniya boti (tenant-wide)
+// Agent: o'z shaxsiy boti (faqat o'zi uchun)
+// Owner ham agent kabi shaxsiy bot ulay oladi
+//
+function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCompany, setShowCompany] = useState(false);
+  const [showPersonal, setShowPersonal] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ telegramApi }) =>
+      telegramApi.accounts()
+        .then((r: any) => setAccounts(r.data || []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  async function disconnectBot(id: string, name: string) {
+    if (!confirm(`"${name}" botni uzib qo'yishni xohlaysizmi?`)) return;
+    try {
+      const { telegramApi } = await import('@/services/api');
+      await telegramApi.disconnectBot(id);
+      toast.success("Bot uzib qo'yildi");
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
+  if (loading) return <Skeleton height={200} />;
+
+  // Botlarni 2 ga ajratamiz
+  const companyBots = accounts.filter((a) => !a.userId);
+  const personalBots = accounts.filter((a) => a.userId);
+
+  return (
+    <>
+      {/* Yo'riqnoma */}
+      <Card style={{ marginBottom: 14 }}>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>📨 Telegram Bot ulash</h3>
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '6px 0' }}>
+          Telegram bot orqali klientlar bilan inbox'da yozishasiz.
+          Bot token olish uchun Telegram'da{' '}
+          <a href="https://t.me/BotFather" target="_blank" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
+            @BotFather
+          </a>
+          {' '}ga o'ting, <b>/newbot</b> yozing va instruksiyaga ergashing.
+        </p>
+        <div style={{
+          padding: 10, background: 'var(--bg-3)', borderRadius: 8,
+          fontSize: 11, color: 'var(--fg-3)', marginTop: 8,
+        }}>
+          💡 <b>Bot token namunasi:</b> <code style={{ background: 'var(--bg-2)', padding: '2px 6px', borderRadius: 4 }}>
+            123456789:ABCDEF_ghIJKLmnopQRsTUVwxyz
+          </code>
+        </div>
+      </Card>
+
+      {/* KOMPANIYA BOTI (Admin) */}
+      {isAdmin && (
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14 }}>🏢 Kompaniya boti</h3>
+              <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: '4px 0 0' }}>
+                Barcha agentlar ishlatadi. Klientlardan kelgan xabarlar inbox'ga tushadi.
+              </p>
+            </div>
+            <Btn variant="gradient" onClick={() => setShowCompany(true)}>+ Kompaniya boti ulash</Btn>
+          </div>
+
+          {companyBots.length === 0 ? (
+            <div style={{
+              padding: 30, textAlign: 'center',
+              background: 'var(--bg-3)', borderRadius: 10,
+              color: 'var(--fg-3)',
+            }}>
+              <div style={{ fontSize: 32, opacity: 0.4 }}>🤖</div>
+              <div style={{ fontSize: 13, marginTop: 8 }}>Kompaniya boti hali ulanmagan</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {companyBots.map((b) => (
+                <BotCard key={b.id} bot={b} onDisconnect={() => disconnectBot(b.id, b.name)} />
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* SHAXSIY TELEGRAM ACCOUNT (har bir agent) */}
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 14 }}>👤 Mening shaxsiy Telegram accountim</h3>
+            <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: '4px 0 0' }}>
+              Shaxsiy Telegram accountingizni ulang — klientlar siz bilan to'g'ridan-to'g'ri suhbat qurishadi.
+            </p>
+          </div>
+          <Btn variant="primary" onClick={() => setShowPersonal(true)}>+ Account ulash</Btn>
+        </div>
+
+        {personalBots.length === 0 ? (
+          <div style={{
+            padding: 30, textAlign: 'center',
+            background: 'var(--bg-3)', borderRadius: 10,
+            color: 'var(--fg-3)',
+          }}>
+            <div style={{ fontSize: 32, opacity: 0.4 }}>👤</div>
+            <div style={{ fontSize: 13, marginTop: 8 }}>Shaxsiy bot ulanmagan</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {personalBots.map((b) => (
+              <BotCard key={b.id} bot={b} onDisconnect={() => disconnectBot(b.id, b.name)} />
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Modallar */}
+      {showCompany && (
+        <ConnectBotModal
+          isPersonal={false}
+          onClose={() => setShowCompany(false)}
+          onConnected={() => { setShowCompany(false); load(); }}
+        />
+      )}
+      {showPersonal && (
+        <PersonalAccountModal
+          onClose={() => setShowPersonal(false)}
+          onConnected={() => { setShowPersonal(false); load(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function BotCard({ bot, onDisconnect }: any) {
+  return (
+    <div style={{
+      padding: 14, background: 'var(--bg-3)', borderRadius: 10,
+      display: 'flex', alignItems: 'center', gap: 12,
+      border: '1px solid var(--border)',
+    }}>
+      <div style={{
+        width: 44, height: 44, borderRadius: 10,
+        background: 'linear-gradient(135deg, #0088cc, #229ED9)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 22,
+      }}>✈️</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>{bot.name}</span>
+          {bot.isActive ? (
+            <Badge color="var(--success)">● Faol</Badge>
+          ) : (
+            <Badge color="var(--danger)">○ Nofaol</Badge>
+          )}
+        </div>
+        {bot.botUsername && (
+          <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>
+            @{bot.botUsername}
+            <a
+              href={`https://t.me/${bot.botUsername}`}
+              target="_blank"
+              style={{ marginLeft: 8, color: 'var(--primary)', textDecoration: 'none', fontSize: 10 }}
+            >
+              Telegram'da ochish →
+            </a>
+          </div>
+        )}
+        {bot.createdAt && (
+          <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 4 }}>
+            Ulangan: {new Date(bot.createdAt).toLocaleDateString('uz-UZ')}
+          </div>
+        )}
+      </div>
+      <button onClick={onDisconnect} title="Uzib qo'yish" style={{
+        background: 'none', border: '1px solid var(--border)',
+        borderRadius: 6, padding: '6px 12px',
+        cursor: 'pointer', color: 'var(--danger)',
+        fontSize: 12, fontWeight: 600,
+      }}>
+        🔌 Uzish
+      </button>
+    </div>
+  );
+}
+
+function ConnectBotModal({ isPersonal, onClose, onConnected }: any) {
+  const [token, setToken] = useState('');
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function submit() {
+    if (isPersonal) {
+      // Personal account - connect via username
+      if (!username.trim()) {
+        toast.error("Telegram username kerak");
+        return;
+      }
+      setLoading(true);
+      try {
+        const { api } = await import('@/services/api');
+        await api.post('/users/me/telegram', { 
+          telegramUsername: username.replace('@', '').trim() 
+        });
+        toast.success("✅ Telegram username saqlandi! Klientlar @" + username.replace('@','') + " orqali sizga yozishlari mumkin");
+        onConnected();
+      } catch (e: any) {
+        toast.error(errMsg(e));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    if (!token.trim()) {
+      toast.error("Bot token kerak");
+      return;
+    }
+    if (!/^\d+:[A-Za-z0-9_-]+$/.test(token.trim())) {
+      toast.error("Token formati noto'g'ri. Namuna: 123456789:ABC...");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { telegramApi } = await import('@/services/api');
+      await telegramApi.connectBot(token.trim(), name.trim() || 'Kompaniya boti');
+      toast.success("✅ Bot muvaffaqiyatli ulandi");
+      onConnected();
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={isPersonal ? "👤 Shaxsiy Telegram account ulash" : "🏢 Kompaniya boti ulash"}
+      maxWidth={520}
+      footer={
+        <>
+          <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+          <Btn variant="gradient" onClick={submit} loading={loading}>Ulash</Btn>
+        </>
+      }
+    >
+      {/* Yo'riqnoma */}
+      <div style={{
+        padding: 12, background: 'var(--bg-3)', borderRadius: 10,
+        marginBottom: 14, fontSize: 12, color: 'var(--fg-2)',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>📖 Bot token qanday olinadi?</div>
+        <ol style={{ paddingLeft: 18, margin: 0, lineHeight: 1.7 }}>
+          <li>Telegram'da{' '}
+            <a href="https://t.me/BotFather" target="_blank" style={{ color: 'var(--primary)', fontWeight: 600 }}>@BotFather</a>{' '}
+            ga o'ting
+          </li>
+          <li><b>/newbot</b> yuboring</li>
+          <li>Bot nomini yozing (masalan: "<i>Omon Travel Bot</i>")</li>
+          <li>Bot username'ni yozing (yakuni <b>bot</b> bo'lishi shart, masalan: <code>omon_travel_bot</code>)</li>
+          <li>BotFather sizga token beradi — <b>nusxa oling va shu yerga yopishtiring</b></li>
+        </ol>
+      </div>
+
+      <Label>Bot nomi (CRM ichida)</Label>
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder={isPersonal ? "Mening boti" : "Kompaniya boti"}
+        style={{ marginBottom: 12 }}
+      />
+
+      {isPersonal ? (
+        <>
+          <Label>Telegram Username *</Label>
+          <Input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="@username (masalan: @john_doe)"
+            style={{ marginBottom: 10 }}
+          />
+          <div style={{ padding: 10, background: 'var(--bg-3)', borderRadius: 8, fontSize: 11, color: 'var(--fg-2)', marginBottom: 8 }}>
+            Username saqlanganda klient kartasida Telegram link ko'rinadi. Inbox orqali yozishish uchun kompaniya botini ulang.
+          </div>
+        </>
+      ) : (
+        <>
+          <Label>Bot token *</Label>
+          <Input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="123456789:ABCDEF_ghIJKLmnopQRsTUVwxyz"
+            style={{ marginBottom: 8, fontFamily: 'monospace', fontSize: 12 }}
+          />
+        </>
+      )}
+
+      <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+        🔒 Token shifrlangan holatda saqlanadi. Hech kim ko'rmaydi.
+      </div>
+
+      {isPersonal && (
+        <div style={{
+          marginTop: 12, padding: 10,
+          background: 'var(--bg-3)', borderRadius: 8,
+          fontSize: 11, color: 'var(--fg-3)',
+        }}>
+          💡 <b>Shaxsiy bot:</b> Faqat sizning klientlaringiz bilan ishlatiladi.
+          Sizning ismingiz bilan yozishadi. Boshqa agentlar ko'rmaydi.
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// v9-FINAL: 🔑 API KEYS TAB
+// Admin lead qabul qilish uchun API key yaratadi
+// Yaratilgan key faqat 1 marta ko'rsatiladi (xavfsizlik)
+// ═══════════════════════════════════════════════════════════
+function ApiKeysTab() {
+  const [keys, setKeys] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createdKey, setCreatedKey] = useState<any>(null);
+  const [guide, setGuide] = useState<any>(null);
+  // v9-FINAL: Test modal uchun
+  const [testingKey, setTestingKey] = useState<any>(null);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then((m: any) => {
+      // apiKeysApi mavjud bo'lmasa - to'g'ridan-to'g'ri api ishlatamiz
+      const apiClient = (m as any).api || m.default;
+      Promise.all([
+        apiClient.get('/api-keys'),
+        apiClient.get('/api-keys/integration-guide').catch(() => ({ data: null })),
+      ])
+        .then(([r1, r2]: any[]) => {
+          setKeys(r1.data || []);
+          setGuide(r2.data);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    });
+  };
+
+  useEffect(() => { load(); }, []);
+
+  async function revokeKey(id: string, name: string) {
+    if (!confirm(`"${name}" key bekor qilinsinmi?`)) return;
+    try {
+      const { api } = await import('@/services/api');
+      await api.post(`/api-keys/${id}/revoke`);
+      toast.success("Bekor qilindi");
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
+  async function deleteKey(id: string, name: string) {
+    if (!confirm(`"${name}" key butunlay o'chirilsinmi?`)) return;
+    try {
+      const { api } = await import('@/services/api');
+      await api.delete(`/api-keys/${id}`);
+      toast.success("O'chirildi");
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <>
+      <Card style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>🔑 Lead Webhook API Keys</h3>
+            <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '4px 0 0' }}>
+              Tashqi web sayt yoki bot orqali lead qabul qilish uchun API key yarating
+            </p>
+          </div>
+          <Btn variant="gradient" onClick={() => setShowCreate(true)}>+ Yangi API Key</Btn>
+        </div>
+
+        {/* Integratsiya ko'rsatmasi */}
+        {guide && (
+          <div style={{
+            padding: 12, background: 'var(--bg-3)', borderRadius: 10,
+            marginBottom: 14, fontSize: 12,
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>📋 Endpoint:</div>
+            <code style={{
+              display: 'block', padding: 8, background: 'var(--bg-2)',
+              borderRadius: 6, fontSize: 11, wordBreak: 'break-all',
+            }}>{guide.endpoint}</code>
+            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--fg-3)' }}>
+              Avtorizatsiya: <code>?key=API_KEY</code> yoki header <code>X-API-Key</code>
+            </div>
+          </div>
+        )}
+
+        {keys.length === 0 ? (
+          <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)' }}>
+            <div style={{ fontSize: 32, opacity: 0.4 }}>🔑</div>
+            <div style={{ fontSize: 13, marginTop: 8 }}>API Key yo'q</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {keys.map((k) => (
+              <div key={k.id} style={{
+                padding: 12, background: 'var(--bg-3)', borderRadius: 10,
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                <div style={{ fontSize: 22 }}>🔑</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{k.name}</span>
+                    {k.isActive ? (
+                      <Badge color="var(--success)">● Faol</Badge>
+                    ) : (
+                      <Badge color="var(--danger)">○ Bekor</Badge>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2, fontFamily: 'monospace' }}>
+                    {k.prefix}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 4 }}>
+                    {k.lastUsedAt ? `Oxirgi: ${new Date(k.lastUsedAt).toLocaleString('uz-UZ')}` : 'Hech qachon ishlatilmagan'}
+                    {k.expiresAt && ` • Muddati: ${new Date(k.expiresAt).toLocaleDateString('uz-UZ')}`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {/* v9-FINAL: Test tugmasi - real API'ga test lead jo'natadi */}
+                  {k.isActive && (
+                    <button onClick={() => setTestingKey(k)} title="Test yuborish" style={{
+                      background: 'var(--primary-soft, rgba(99,102,241,0.15))',
+                      border: '1px solid var(--primary)', borderRadius: 6,
+                      padding: '4px 10px', cursor: 'pointer', color: 'var(--primary)',
+                      fontSize: 11, fontWeight: 600,
+                    }}>🧪 Test</button>
+                  )}
+                  {k.isActive && (
+                    <button onClick={() => revokeKey(k.id, k.name)} title="Bekor qilish" style={{
+                      background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                      padding: '4px 10px', cursor: 'pointer', color: 'var(--warning)', fontSize: 11,
+                    }}>Bekor</button>
+                  )}
+                  <button onClick={() => deleteKey(k.id, k.name)} title="O'chirish" style={{
+                    background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                    padding: '4px 10px', cursor: 'pointer', color: 'var(--danger)', fontSize: 11,
+                  }}>🗑</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Yangi key yaratish modal */}
+      {showCreate && (
+        <CreateApiKeyModal
+          onClose={() => setShowCreate(false)}
+          onCreated={(k) => { setShowCreate(false); setCreatedKey(k); load(); }}
+        />
+      )}
+
+      {/* Yaratilgan key'ni ko'rsatish (1 marta!) */}
+      {createdKey && (
+        <Modal open onClose={() => setCreatedKey(null)} title="✅ API Key yaratildi" maxWidth={520} footer={
+          <Btn variant="primary" onClick={() => setCreatedKey(null)}>Yopildi</Btn>
+        }>
+          <div style={{
+            padding: 14, background: 'var(--danger-soft, rgba(239,68,68,0.1))',
+            borderRadius: 10, marginBottom: 14,
+            border: '1px solid var(--danger)',
+          }}>
+            <div style={{ fontWeight: 700, color: 'var(--danger)', marginBottom: 6 }}>
+              ⚠ {createdKey.warning || 'Bu key faqat hozir ko\'rsatiladi!'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+              Hozir nusxa oling — keyin ko'rinmaydi.
+            </div>
+          </div>
+
+          <Label>API Key:</Label>
+          <div style={{
+            padding: 12, background: 'var(--bg-3)', borderRadius: 8,
+            fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all',
+            border: '1px dashed var(--primary)',
+          }}>
+            {createdKey.key}
+          </div>
+          <Btn
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              navigator.clipboard.writeText(createdKey.key);
+              toast.success('Nusxa olindi');
+            }}
+            style={{ marginTop: 8 }}
+          >
+            📋 Nusxa olish
+          </Btn>
+        </Modal>
+      )}
+      {/* v9-FINAL: API Key test modal */}
+      {testingKey && (
+        <TestApiKeyModal
+          apiKey={testingKey}
+          guide={guide}
+          onClose={() => setTestingKey(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function CreateApiKeyModal({ onClose, onCreated }: any) {
+  const [name, setName] = useState('');
+  const [expiresInDays, setExpiresInDays] = useState<number | ''>(365);
+  const [loading, setLoading] = useState(false);
+
+  async function submit() {
+    if (!name.trim()) { toast.error("Nom kerak"); return; }
+    setLoading(true);
+    try {
+      const { api } = await import('@/services/api');
+      const r: any = await api.post('/api-keys', {
+        name: name.trim(),
+        expiresInDays: expiresInDays || undefined,
+      });
+      onCreated(r.data);
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="🔑 Yangi API Key" maxWidth={460} footer={
+      <>
+        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+        <Btn variant="gradient" onClick={submit} loading={loading}>Yaratish</Btn>
+      </>
+    }>
+      <Label>Nom *</Label>
+      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Website Form, Telegram Bot, ..." style={{ marginBottom: 12 }} />
+
+      <Label>Amal qilish muddati (kun)</Label>
+      <Input
+        type="number"
+        value={expiresInDays}
+        onChange={(e) => setExpiresInDays(e.target.value ? Number(e.target.value) : '')}
+        placeholder="365 (1 yil)"
+      />
+      <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+        Bo'sh qoldirsangiz — muddatsiz (cheksiz)
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// v9-FINAL: 📝 SHABLONLAR TAB
+// Admin tez-tez ishlatiladigan xabar shablonlarini saqlaydi
+// Inbox'da har bir agent ulardan foydalanadi
+// ═══════════════════════════════════════════════════════════
+const TEMPLATE_CATEGORIES = [
+  { value: 'GREETING',    label: '👋 Salomlashish' },
+  { value: 'PRICING',     label: '💰 Narxlar' },
+  { value: 'CONFIRM',     label: '✅ Tasdiq' },
+  { value: 'FOLLOWUP',    label: '🔁 Eslatma' },
+  { value: 'INFO',        label: 'ℹ Ma\'lumot' },
+  { value: 'FAREWELL',    label: '👋 Xayrlashish' },
+  { value: 'OTHER',       label: '📝 Boshqa' },
+];
+
+function TemplatesTab() {
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ telegramApi }) =>
+      telegramApi.templates()
+        .then((r: any) => setTemplates(r.data || []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  async function deleteTemplate(id: string, name: string) {
+    if (!confirm(`"${name}" shablon o'chirilsinmi?`)) return;
+    try {
+      const { telegramApi } = await import('@/services/api');
+      await telegramApi.deleteTemplate(id);
+      toast.success("O'chirildi");
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <>
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>📝 Xabar shablonlari</h3>
+            <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '4px 0 0' }}>
+              Tez-tez ishlatiladigan xabarlarni saqlang. Inbox'da bir tugmada yuboriladi.
+            </p>
+          </div>
+          <Btn variant="gradient" onClick={() => { setEditing(null); setShowForm(true); }}>+ Yangi shablon</Btn>
+        </div>
+
+        {templates.length === 0 ? (
+          <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)' }}>
+            <div style={{ fontSize: 32, opacity: 0.4 }}>📝</div>
+            <div style={{ fontSize: 13, marginTop: 8 }}>Shablonlar yo'q</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {templates.map((t) => {
+              const catLabel = TEMPLATE_CATEGORIES.find((c) => c.value === t.category)?.label || t.category;
+              return (
+                <div key={t.id} style={{
+                  padding: 12, background: 'var(--bg-3)', borderRadius: 10,
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{t.name}</span>
+                      <Badge color="var(--info)">{catLabel}</Badge>
+                      {t.usageCount > 0 && (
+                        <span style={{ fontSize: 10, color: 'var(--fg-3)' }}>
+                          {t.usageCount} marta ishlatildi
+                        </span>
+                      )}
+                    </div>
+                    <div style={{
+                      fontSize: 12, color: 'var(--fg-2)', marginTop: 6,
+                      padding: 8, background: 'var(--bg-2)', borderRadius: 6,
+                      whiteSpace: 'pre-wrap', maxHeight: 80, overflow: 'hidden',
+                    }}>
+                      {t.text}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={() => { setEditing(t); setShowForm(true); }} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--fg-2)', fontSize: 14, padding: 4,
+                    }}>✏</button>
+                    <button onClick={() => deleteTemplate(t.id, t.name)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--danger)', fontSize: 14, padding: 4,
+                    }}>🗑</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {showForm && (
+        <TemplateFormModal
+          editing={editing}
+          onClose={() => setShowForm(false)}
+          onSaved={() => { setShowForm(false); load(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function TemplateFormModal({ editing, onClose, onSaved }: any) {
+  const [form, setForm] = useState({
+    name: editing?.name || '',
+    category: editing?.category || 'GREETING',
+    text: editing?.text || '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  async function save() {
+    if (!form.name.trim()) { toast.error("Nom kerak"); return; }
+    if (!form.text.trim()) { toast.error("Matn kerak"); return; }
+    setLoading(true);
+    try {
+      const { telegramApi } = await import('@/services/api');
+      if (editing) {
+        await telegramApi.updateTemplate(editing.id, form);
+      } else {
+        await telegramApi.createTemplate(form);
+      }
+      toast.success("Saqlandi");
+      onSaved();
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={editing ? "Shablonni tahrirlash" : "Yangi shablon"} maxWidth={560} footer={
+      <>
+        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+        <Btn variant="gradient" onClick={save} loading={loading}>Saqlash</Btn>
+      </>
+    }>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div>
+          <Label>Shablon nomi *</Label>
+          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Salomlashish" />
+        </div>
+        <div>
+          <Label>Kategoriya</Label>
+          <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+            {TEMPLATE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </Select>
+        </div>
+      </div>
+
+      <Label>Matn *</Label>
+      <Textarea
+        value={form.text}
+        onChange={(e) => setForm({ ...form, text: e.target.value })}
+        rows={6}
+        placeholder="Assalomu alaykum! Omon Travel'ga xush kelibsiz. Sizga qanday yordam berishim mumkin?"
+      />
+
+      <div style={{
+        marginTop: 10, padding: 8, background: 'var(--bg-3)',
+        borderRadius: 6, fontSize: 11, color: 'var(--fg-3)',
+      }}>
+        💡 <b>Maslahatlar:</b><br />
+        — <code>{'{{client.fullName}}'}</code> — klient ismini avtomatik qo'shadi<br />
+        — <code>{'{{booking.tourName}}'}</code> — tur nomini qo'shadi<br />
+        — Inbox'da ushbu shablon bir tugma orqali yuboriladi
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// v9-FINAL: 🧪 API KEY TEST MODAL
+// Admin real test lead jo'natadi va natijani ko'radi
+// ═══════════════════════════════════════════════════════════
+function TestApiKeyModal({ apiKey, guide, onClose }: any) {
+  const [form, setForm] = useState({
+    fullName: 'Test Klient',
+    phone: '+998901234567',
+    email: 'test@example.com',
+    source: 'WEB',
+    message: 'Bu test lead. Dubay turi haqida bilmoqchiman.',
+    tourInterest: 'Dubay 7 kunlik',
+    utmSource: '',
+    utmMedium: '',
+    utmCampaign: '',
+  });
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [showCode, setShowCode] = useState<'curl' | 'js' | 'html' | null>(null);
+
+  // Test key — bu xaqiqiy key emas, lekin admin uchun namuna
+  const baseUrl = guide?.endpoint?.replace(`/public/leads/${guide?.endpoint?.split('/').pop()}`, '') 
+    || 'http://localhost:3000/api/v1';
+  const endpoint = guide?.endpoint || `${baseUrl}/public/leads/TENANT_ID`;
+
+  async function sendTest() {
+    setSending(true);
+    setResult(null);
+    try {
+      // guide.endpoint: "POST http://host/api/v1/public/leads/:tenantId"
+      // rawUrl — "POST " prefixini olib tashlaymiz
+      const rawUrl = (guide?.endpoint || '').replace(/^POST\s+/i, '').trim();
+      if (!rawUrl) {
+        setResult({ success: false, error: 'Endpoint aniqlanmadi. Integration guide yuklanmagan.' });
+        return;
+      }
+      // API key prefix — apiKey.prefix "lk_xxxx…" ko'rinishida, lekin to'liq key yo'q.
+      // Shuning uchun admin uchun JWT bilan /api-keys/:id/test-send ishlatamiz
+      const { api } = await import('@/services/api');
+      const res: any = await api.post(`/api-keys/${apiKey.id}/test-send`, form);
+      setResult({ success: true, data: res.data });
+      toast.success('✅ Test lead yaratildi!');
+    } catch (e: any) {
+      setResult({
+        success: false,
+        error: e?.response?.data?.message || e.message || 'Xato',
+      });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function copy(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    toast.success(`📋 ${label} nusxa olindi`);
+  }
+
+  // Tayyor namuna kodlari
+  const curlCmd = `curl -X POST "${endpoint}?key=YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify({
+    fullName: form.fullName,
+    phone: form.phone,
+    email: form.email,
+    source: form.source,
+    message: form.message,
+  }, null, 2).replace(/\n/g, '\n')}'`;
+
+  const jsCode = `// JavaScript / Node.js
+fetch("${endpoint}?key=YOUR_API_KEY", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    fullName: "${form.fullName}",
+    phone: "${form.phone}",
+    email: "${form.email}",
+    source: "${form.source}",
+    message: "${form.message}"
+  })
+})
+.then(r => r.json())
+.then(data => console.log(data));`;
+
+  const htmlCode = `<!-- HTML Web Form -->
+<form id="leadForm">
+  <input name="fullName" placeholder="Ism *" required />
+  <input name="phone" placeholder="+998..." required />
+  <input name="email" placeholder="Email" />
+  <textarea name="message" placeholder="Xabaringiz"></textarea>
+  <button type="submit">Yuborish</button>
+</form>
+
+<script>
+document.getElementById('leadForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  data.source = 'WEB';
+  
+  const res = await fetch(
+    '${endpoint}?key=YOUR_API_KEY',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }
+  );
+  const json = await res.json();
+  if (json.ok) {
+    alert("Rahmat! Tez orada bog'lanamiz.");
+    e.target.reset();
+  } else {
+    alert("Xato: " + json.message);
+  }
+};
+</script>`;
+
+  return (
+    <Modal open onClose={onClose} title={`🧪 Test: ${apiKey.name}`} maxWidth={700} footer={
+      <Btn variant="secondary" onClick={onClose}>Yopish</Btn>
+    }>
+      {/* API key info */}
+      <div style={{
+        padding: 10, background: 'var(--bg-3)', borderRadius: 8,
+        marginBottom: 14, fontSize: 11, color: 'var(--fg-3)',
+      }}>
+        🔑 <b>{apiKey.name}</b> • <code>{apiKey.prefix}</code>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <Label>Klient ismi *</Label>
+          <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+        </div>
+        <div>
+          <Label>Telefon</Label>
+          <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+        </div>
+        <div>
+          <Label>Email</Label>
+          <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        </div>
+        <div>
+          <Label>Manba</Label>
+          <Select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
+            <option value="WEB">🌐 Web sayt</option>
+            <option value="TELEGRAM">📨 Telegram</option>
+            <option value="INSTAGRAM">📷 Instagram</option>
+            <option value="WHATSAPP">💚 WhatsApp</option>
+            <option value="FACEBOOK">👤 Facebook</option>
+            <option value="GOOGLE_ADS">🔍 Google Ads</option>
+            <option value="REFERRAL">🤝 Referral</option>
+            <option value="WALKIN">🚶 Walk-in</option>
+            <option value="CALL">📞 Qo'ng'iroq</option>
+            <option value="OTHER">📋 Boshqa</option>
+          </Select>
+        </div>
+        <div>
+          <Label>Tour qiziqishi</Label>
+          <Input value={form.tourInterest} onChange={(e) => setForm({ ...form, tourInterest: e.target.value })} />
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <Label>Xabar</Label>
+          <Textarea
+            value={form.message}
+            onChange={(e) => setForm({ ...form, message: e.target.value })}
+            rows={2}
+          />
+        </div>
+        {/* UTM tracking */}
+        <div>
+          <Label style={{ fontSize: 10 }}>UTM Source</Label>
+          <Input value={form.utmSource} onChange={(e) => setForm({ ...form, utmSource: e.target.value })} placeholder="google" />
+        </div>
+        <div>
+          <Label style={{ fontSize: 10 }}>UTM Medium</Label>
+          <Input value={form.utmMedium} onChange={(e) => setForm({ ...form, utmMedium: e.target.value })} placeholder="cpc" />
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <Label style={{ fontSize: 10 }}>UTM Campaign</Label>
+          <Input value={form.utmCampaign} onChange={(e) => setForm({ ...form, utmCampaign: e.target.value })} placeholder="summer2024" />
+        </div>
+      </div>
+
+      {/* Test yuborish tugmasi */}
+      <Btn
+        variant="gradient"
+        onClick={sendTest}
+        loading={sending}
+        style={{ width: '100%', marginBottom: 12 }}
+      >
+        📤 Test lead yuborish
+      </Btn>
+
+      {/* Natija */}
+      {result && (
+        <div style={{
+          padding: 12,
+          background: result.success ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+          border: `1px solid ${result.success ? 'var(--success)' : 'var(--danger)'}`,
+          borderRadius: 8, marginBottom: 14,
+        }}>
+          <div style={{ fontWeight: 700, color: result.success ? 'var(--success)' : 'var(--danger)', marginBottom: 6 }}>
+            {result.success ? '✅ Muvaffaqiyatli!' : '❌ Xato'}
+          </div>
+          {result.success ? (
+            <>
+              <div style={{ fontSize: 12 }}>
+                Klient ID: <code>{result.data?.clientId}</code>
+              </div>
+              {result.data?.assignedAgentId && (
+                <div style={{ fontSize: 12 }}>
+                  Tayinlangan agent: <code>{result.data.assignedAgentId}</code>
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                {result.data?.message}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 12 }}>{result.error}</div>
+              {result.info && (
+                <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                  ℹ {result.info}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Kod namunalari */}
+      <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>
+        Tayyor kod namunalari
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {[
+          { id: 'curl', label: '🖥 cURL' },
+          { id: 'js', label: '📜 JavaScript' },
+          { id: 'html', label: '🌐 HTML' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setShowCode(showCode === t.id ? null : (t.id as any))}
+            style={{
+              padding: '6px 12px', fontSize: 11, fontWeight: 600,
+              background: showCode === t.id ? 'var(--primary)' : 'var(--bg-3)',
+              color: showCode === t.id ? 'white' : 'var(--fg-2)',
+              border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
+            }}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      {showCode && (
+        <div style={{ position: 'relative' }}>
+          <pre style={{
+            background: 'var(--bg-2)', padding: 12, borderRadius: 8,
+            fontSize: 11, lineHeight: 1.5, overflow: 'auto',
+            maxHeight: 240, margin: 0,
+            fontFamily: 'Monaco, monospace',
+          }}>
+            <code>{showCode === 'curl' ? curlCmd : showCode === 'js' ? jsCode : htmlCode}</code>
+          </pre>
+          <button
+            onClick={() => copy(showCode === 'curl' ? curlCmd : showCode === 'js' ? jsCode : htmlCode, showCode.toUpperCase())}
+            style={{
+              position: 'absolute', top: 8, right: 8,
+              padding: '4px 10px', fontSize: 11, fontWeight: 600,
+              background: 'var(--primary)', color: 'white',
+              border: 'none', borderRadius: 5, cursor: 'pointer',
+            }}
+          >📋 Nusxa</button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// v9-FINAL: 📜 WEBHOOK LOGS TAB
+// Admin har bir public lead so'rovini ko'radi (audit trail)
+// Failed lead'larni qayta urinish mumkin
+// ═══════════════════════════════════════════════════════════
+function WebhookLogsTab() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'success' | 'failed'>('all');
+  const [selectedLog, setSelectedLog] = useState<any>(null);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ api }) => {
+      const params: any = { limit: 100 };
+      if (filter === 'success') params.success = 'true';
+      if (filter === 'failed') params.success = 'false';
+      api.get('/webhook-logs', { params })
+        .then((r: any) => {
+          setLogs(r.data?.data || []);
+          setStats(r.data?.stats || {});
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    });
+  };
+
+  useEffect(() => { load(); }, [filter]);
+
+  async function retry(id: string) {
+    try {
+      const { api } = await import('@/services/api');
+      await api.post(`/webhook-logs/${id}/retry`);
+      toast.success('✅ Qayta urinish muvaffaqiyatli');
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
+  async function deleteLog(id: string) {
+    if (!confirm('Log o\'chirilsinmi?')) return;
+    try {
+      const { api } = await import('@/services/api');
+      await api.delete(`/webhook-logs/${id}`);
+      toast.success('O\'chirildi');
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <>
+      <Card style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>📜 Webhook Audit Log</h3>
+            <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '4px 0 0' }}>
+              Har bir public API so'rov shu yerda yoziladi
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[
+              { id: 'all', label: 'Hammasi' },
+              { id: 'success', label: '✅ Muvaffaq' },
+              { id: 'failed', label: '❌ Xato' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id as any)}
+                style={{
+                  padding: '6px 12px', fontSize: 11, fontWeight: 600,
+                  background: filter === f.id ? 'var(--primary)' : 'var(--bg-3)',
+                  color: filter === f.id ? 'white' : 'var(--fg-2)',
+                  border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
+                }}
+              >{f.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
+          <div style={{ padding: 12, background: 'var(--bg-3)', borderRadius: 8 }}>
+            <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700 }}>Muvaffaq</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--success)' }}>{stats.successCount || 0}</div>
+          </div>
+          <div style={{ padding: 12, background: 'var(--bg-3)', borderRadius: 8 }}>
+            <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700 }}>Xato</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--danger)' }}>{stats.failedCount || 0}</div>
+          </div>
+          <div style={{ padding: 12, background: 'var(--bg-3)', borderRadius: 8 }}>
+            <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700 }}>Success Rate</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)' }}>
+              {(stats.successRate || 0).toFixed(1)}%
+            </div>
+          </div>
+        </div>
+
+        {logs.length === 0 ? (
+          <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)' }}>
+            <div style={{ fontSize: 32, opacity: 0.4 }}>📜</div>
+            <div style={{ fontSize: 13, marginTop: 8 }}>Log yo'q</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {logs.map((log) => (
+              <div key={log.id} style={{
+                padding: 12, background: 'var(--bg-3)', borderRadius: 8,
+                display: 'flex', alignItems: 'center', gap: 10,
+                borderLeft: `3px solid ${log.success ? 'var(--success)' : 'var(--danger)'}`,
+                cursor: 'pointer',
+              }} onClick={() => setSelectedLog(log)}>
+                <div style={{ fontSize: 18 }}>
+                  {log.success ? '✅' : '❌'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>
+                      {log.apiKeyName || log.apiKeyPrefix || 'Noma\'lum key'}
+                    </span>
+                    <Badge color={log.success ? 'var(--success)' : 'var(--danger)'}>
+                      {log.statusCode}
+                    </Badge>
+                    {log.duration && (
+                      <span style={{ fontSize: 10, color: 'var(--fg-3)' }}>
+                        {log.duration}ms
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>
+                    {(log.requestBody as any)?.fullName || '—'}
+                    {(log.requestBody as any)?.phone && ` • ${(log.requestBody as any).phone}`}
+                    {log.errorMessage && (
+                      <span style={{ color: 'var(--danger)' }}> • {log.errorMessage.substring(0, 60)}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 2 }}>
+                    {new Date(log.createdAt).toLocaleString('uz-UZ')}
+                    {log.ip && ` • ${log.ip}`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                  {!log.success && log.apiKeyId && (
+                    <button onClick={() => retry(log.id)} style={{
+                      background: 'var(--primary-soft, rgba(99,102,241,0.15))',
+                      border: '1px solid var(--primary)', borderRadius: 6,
+                      padding: '4px 10px', cursor: 'pointer', color: 'var(--primary)',
+                      fontSize: 11, fontWeight: 600,
+                    }}>🔁 Retry</button>
+                  )}
+                  <button onClick={() => deleteLog(log.id)} style={{
+                    background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                    padding: '4px 10px', cursor: 'pointer', color: 'var(--danger)', fontSize: 11,
+                  }}>🗑</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Log detail modal */}
+      {selectedLog && (
+        <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />
+      )}
+    </>
+  );
+}
+
+function LogDetailModal({ log, onClose }: any) {
+  return (
+    <Modal open onClose={onClose} title={`📜 Log: ${log.id.substring(0, 12)}...`} maxWidth={680} footer={
+      <Btn variant="secondary" onClick={onClose}>Yopish</Btn>
+    }>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14, fontSize: 12 }}>
+        <div><b>Status:</b> {log.success ? '✅ Muvaffaq' : '❌ Xato'}</div>
+        <div><b>Code:</b> {log.statusCode}</div>
+        <div><b>Method:</b> {log.method}</div>
+        <div><b>Duration:</b> {log.duration}ms</div>
+        <div style={{ gridColumn: '1 / -1' }}><b>Endpoint:</b> <code>{log.endpoint}</code></div>
+        <div><b>API Key:</b> {log.apiKeyName || '—'}</div>
+        <div><b>IP:</b> {log.ip || '—'}</div>
+      </div>
+
+      {log.errorMessage && (
+        <div style={{
+          padding: 10, background: 'rgba(239,68,68,0.1)',
+          border: '1px solid var(--danger)', borderRadius: 6,
+          marginBottom: 12, fontSize: 12, color: 'var(--danger)',
+        }}>
+          ❌ {log.errorMessage}
+        </div>
+      )}
+
+      <Label>Request Body:</Label>
+      <pre style={{
+        background: 'var(--bg-3)', padding: 10, borderRadius: 6,
+        fontSize: 10, overflow: 'auto', maxHeight: 200,
+        fontFamily: 'monospace', margin: '4px 0 10px',
+      }}>{JSON.stringify(log.requestBody, null, 2)}</pre>
+
+      <Label>Response Body:</Label>
+      <pre style={{
+        background: 'var(--bg-3)', padding: 10, borderRadius: 6,
+        fontSize: 10, overflow: 'auto', maxHeight: 200,
+        fontFamily: 'monospace', margin: '4px 0 0',
+      }}>{JSON.stringify(log.responseBody, null, 2)}</pre>
+    </Modal>
+  );
+}
+
+
+// v9: AUTO-REPLY TAB
+function AutoReplyTab() {
+  const [rules, setRules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', source: '', channel: 'TELEGRAM', template: '', delayMs: 0 });
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ autoReplyApi }) =>
+      autoReplyApi.list()
+        .then((r: any) => setRules(r.data || []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleSave = async () => {
+    if (!form.name.trim() || !form.template.trim()) {
+      toast.error('Nom va matn majburiy');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { autoReplyApi } = await import('@/services/api');
+      await autoReplyApi.create({
+        name: form.name,
+        source: form.source || null,
+        channel: form.channel,
+        template: form.template,
+        delayMs: parseInt(form.delayMs as any) || 0,
+      });
+      toast.success('Auto-reply qoida qo\'shildi');
+      setForm({ name: '', source: '', channel: 'TELEGRAM', template: '', delayMs: 0 });
+      setShowForm(false);
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  };
+
+  const handleToggle = async (ruleId: string) => {
+    try {
+      const { autoReplyApi } = await import('@/services/api');
+      await autoReplyApi.toggle(ruleId);
+      toast.success('Holat o\'zgartirildi');
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  };
+
+  const handleDelete = async (ruleId: string) => {
+    if (!confirm('O\'chirasizmi?')) return;
+    try {
+      const { autoReplyApi } = await import('@/services/api');
+      await autoReplyApi.delete(ruleId);
+      toast.success('Qoida o\'chirildi');
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  };
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <>
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 15 }}>🤖 Auto-Reply Qoidalari</h3>
+          <Btn onClick={() => setShowForm(!showForm)}>+ Yangi qoida</Btn>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: 0 }}>
+          Lead kelganda avtomatik javob yuborish (Telegram, Email)
+        </p>
+      </Card>
+
+      {showForm && (
+        <Card style={{ marginBottom: 16, background: 'var(--bg-2)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Input placeholder="Qoida nomi (misol: Xush kelibsiz)" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} />
+            <Select value={form.source} onChange={(e) => setForm({...form, source: e.target.value})}>
+              <option value="">Barchasi uchun</option>
+              <option value="TELEGRAM">Telegram</option>
+              <option value="INSTAGRAM">Instagram</option>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="WEBSITE">Web sayt</option>
+              <option value="EMAIL">Email</option>
+            </Select>
+            <Select value={form.channel} onChange={(e) => setForm({...form, channel: e.target.value})}>
+              <option value="TELEGRAM">📨 Telegram</option>
+              <option value="EMAIL">📧 Email</option>
+            </Select>
+            <Textarea placeholder="Matn ({{client.fullName}}, {{client.phone}} ishlatish mumkin)" value={form.template} onChange={(e) => setForm({...form, template: e.target.value})} style={{ minHeight: 80 }} />
+            <div>
+              <Label>Kechikish (millisekund)</Label>
+              <Input type="number" value={form.delayMs} onChange={(e) => setForm({...form, delayMs: Number(e.target.value) || 0})} placeholder="0 = darhol, 3000 = 3 sekund" />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn onClick={handleSave} loading={saving}>Saqlash</Btn>
+              <Btn variant="secondary" onClick={() => setShowForm(false)}>Bekor qilish</Btn>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {rules.length === 0 ? (
+        <Card style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🤖</div>
+          <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Hali qoida yo'q</p>
+        </Card>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {rules.map((rule) => (
+            <Card key={rule.id} style={{ padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{rule.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
+                    {rule.source ? `📍 ${rule.source}` : '🌐 Barchasi'} • {rule.channel === 'TELEGRAM' ? '📨 Telegram' : '📧 Email'}
+                    {rule.delayMs > 0 && ` • ${rule.delayMs}ms`}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-2)', whiteSpace: 'pre-wrap', maxHeight: 60, overflow: 'hidden' }}>
+                    {rule.template}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <Btn size="sm" variant={rule.isActive ? 'primary' : 'secondary'} onClick={() => handleToggle(rule.id)}>
+                    {rule.isActive ? '✅' : '⏸'}
+                  </Btn>
+                  <Btn size="sm" variant="danger" onClick={() => handleDelete(rule.id)}>🗑</Btn>
+                </div>
+              </div>
+              {rule.triggerCount > 0 && (
+                <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 6 }}>
+                  ✨ {rule.triggerCount} marta ishladi
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// v9: LEAD FORMS TAB
+function FormsTab() {
+  const { user } = useAuth();
+  const [forms, setForms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', slug: '', description: '', fields: [], successMsg: 'Rahmat!' });
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ leadFormsApi }) =>
+      leadFormsApi.list()
+        .then((r: any) => setForms(r.data || []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleSave = async () => {
+    if (!form.name.trim() || !form.slug.trim()) {
+      toast.error('Nom va slug majburiy');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { leadFormsApi } = await import('@/services/api');
+      await leadFormsApi.create(form);
+      toast.success('Forma qo\'shildi');
+      setForm({ name: '', slug: '', description: '', fields: [], successMsg: 'Rahmat!' });
+      setShowForm(false);
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (formId: string) => {
+    if (!confirm('O\'chirasizmi?')) return;
+    try {
+      const { leadFormsApi } = await import('@/services/api');
+      await leadFormsApi.delete(formId);
+      toast.success('Forma o\'chirildi');
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  };
+
+  const getEmbedCode = (slug: string) => {
+    const tenantId = user?.tenantId || '';
+    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/public/forms/${tenantId}/${slug}`;
+    return `<iframe src="${url}" width="100%" height="600" frameborder="0" style="border: none; border-radius: 8px;"></iframe>`;
+  };
+
+  if (loading) return <Skeleton height={200} />;
+
+  return (
+    <>
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 15 }}>📝 Web Formalar</h3>
+          <Btn onClick={() => setShowForm(!showForm)}>+ Yangi forma</Btn>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: 0 }}>
+          Lead capture formalar — embed kod bilan website'ga qo'ying
+        </p>
+      </Card>
+
+      {showForm && (
+        <Card style={{ marginBottom: 16, background: 'var(--bg-2)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Input placeholder="Forma nomi (Tur buyurtma)" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} />
+            <Input placeholder="Slug (tour-booking)" value={form.slug} onChange={(e) => setForm({...form, slug: e.target.value})} />
+            <Textarea placeholder="Tavsif (ixtiyoriy)" value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} style={{ minHeight: 60 }} />
+            <Input placeholder="Success xabari" value={form.successMsg} onChange={(e) => setForm({...form, successMsg: e.target.value})} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn onClick={handleSave} loading={saving}>Saqlash</Btn>
+              <Btn variant="secondary" onClick={() => setShowForm(false)}>Bekor</Btn>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {forms.length === 0 ? (
+        <Card style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>📝</div>
+          <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Hali forma yo'q</p>
+        </Card>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {forms.map((f: any) => (
+            <Card key={f.id} style={{ padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{f.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
+                    📍 /{f.slug} • {f.submitCount} submit {f.lastSubmitAt && `• ${new Date(f.lastSubmitAt).toLocaleDateString('uz-UZ')}`}
+                  </div>
+                  {f.description && (
+                    <div style={{ fontSize: 11, color: 'var(--fg-2)', marginBottom: 6 }}>
+                      {f.description}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, background: 'var(--bg-2)', padding: '6px', borderRadius: 4, fontFamily: 'monospace', overflow: 'auto', maxHeight: 60, marginTop: 6 }}>
+                    {getEmbedCode(f.slug)}
+                  </div>
+                </div>
+                <Btn size="sm" variant="danger" onClick={() => handleDelete(f.id)}>🗑</Btn>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// v9-FINAL: KPI COMMISSION TIERS TAB
+function KPITab() {
+  const [tiers, setTiers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [newTier, setNewTier] = useState({ minRevenue: 0, maxRevenue: null, commissionPercent: 8 });
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ kpiApi }) =>
+      kpiApi.getTiers()
+        .then((r: any) => setTiers(Array.isArray(r.data) ? r.data : r))
+        .catch(() => toast.error('Tierlari yuklab bo\'lmadi'))
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleAddTier = () => {
+    if (newTier.minRevenue < 0 || newTier.commissionPercent < 0 || newTier.commissionPercent > 100) {
+      toast.error('Noto\'g\'ri qiymatlar');
+      return;
+    }
+    const updated = [...tiers, newTier];
+    setTiers(updated.sort((a: any, b: any) => a.minRevenue - b.minRevenue));
+    setNewTier({ minRevenue: 0, maxRevenue: null, commissionPercent: 8 });
+  };
+
+  const handleRemoveTier = (index: number) => {
+    setTiers(tiers.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateTier = (index: number, key: string, value: any) => {
+    const updated = [...tiers];
+    updated[index] = { ...updated[index], [key]: value };
+    setTiers(updated);
+  };
+
+  const handleSave = async () => {
+    if (tiers.length === 0) {
+      toast.error('Kamita 1 ta tier bo\'lishi kerak');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { kpiApi } = await import('@/services/api');
+      await kpiApi.saveTiers(tiers);
+      toast.success('Commission tiers saqlandi');
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <Skeleton height={300} />;
+
+  return (
+    <>
+      <Card style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 15, marginBottom: 12 }}>💰 Commission Tiers</h3>
+        <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>
+          Agent foizini daromad bo'yicha o'rnating. Misol: 0-2000 = 8%, 2000-4000 = 10%
+        </p>
+      </Card>
+
+      {/* Existing tiers */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        {tiers.map((tier: any, i: number) => (
+          <Card key={i} style={{ padding: 14, background: 'var(--bg-3)' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 4 }}>Daromad:</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Input 
+                    type="number" 
+                    value={tier.minRevenue} 
+                    onChange={(e) => handleUpdateTier(i, 'minRevenue', parseFloat(e.target.value) || 0)}
+                    style={{ width: 100, fontSize: 12 }}
+                    placeholder="Min"
+                  />
+                  <span style={{ padding: '6px 0' }}>—</span>
+                  <Input 
+                    type="number" 
+                    value={tier.maxRevenue || ''} 
+                    onChange={(e) => handleUpdateTier(i, 'maxRevenue', e.target.value ? parseFloat(e.target.value) : null)}
+                    style={{ width: 100, fontSize: 12 }}
+                    placeholder="Max (bo'sh = unlimited)"
+                  />
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 4 }}>Commission %:</div>
+                <Input 
+                  type="number" 
+                  value={tier.commissionPercent} 
+                  onChange={(e) => handleUpdateTier(i, 'commissionPercent', parseFloat(e.target.value) || 0)}
+                  min="0" max="100"
+                  style={{ fontSize: 12 }}
+                />
+              </div>
+              <Btn size="sm" variant="danger" onClick={() => handleRemoveTier(i)} style={{ alignSelf: 'flex-end' }}>🗑</Btn>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Add new tier */}
+      <Card style={{ padding: 14, background: 'var(--bg-2)', marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>➕ Yanyi Tier Qo'shish</div>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          <Input 
+            type="number" 
+            value={newTier.minRevenue} 
+            onChange={(e) => setNewTier({ ...newTier, minRevenue: parseFloat(e.target.value) || 0 })}
+            placeholder="Min daromad"
+            style={{ flex: 1 }}
+          />
+          <Input 
+            type="number" 
+            value={newTier.maxRevenue || ''} 
+            onChange={(e) => setNewTier({ ...newTier, maxRevenue: e.target.value ? parseFloat(e.target.value) : null })}
+            placeholder="Max daromad (ixtiyoriy)"
+            style={{ flex: 1 }}
+          />
+          <Input 
+            type="number" 
+            value={newTier.commissionPercent} 
+            onChange={(e) => setNewTier({ ...newTier, commissionPercent: parseFloat(e.target.value) || 0 })}
+            min="0" max="100"
+            placeholder="Commission %"
+            style={{ flex: 1 }}
+          />
+          <Btn onClick={handleAddTier}>Qo'sh</Btn>
+        </div>
+      </Card>
+
+      {/* Save */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn onClick={handleSave} loading={saving}>💾 Saqlash</Btn>
+        <Btn variant="secondary" onClick={() => load()}>↺ Bekor</Btn>
+      </div>
+
+      {/* Info */}
+      <Card style={{ marginTop: 16, padding: 12, background: 'var(--bg-2)' }}>
+        <div style={{ fontSize: 11, color: 'var(--fg-2)', lineHeight: '1.6' }}>
+          <strong>📌 Qanday ishlaydi:</strong><br/>
+          Agent daromadi qancha bo'lsa, shunga mos foiz qo'llaniladi.<br/>
+          Misol: Agar daromad 2500 bo'lsa, 2000-4000 tier'ni qo'llaydi (10%)
+        </div>
+      </Card>
+    </>
+  );
+}
+
+// ─── Personal Telegram Account Modal (MTProto phone auth) ─────────────────────
+function PersonalAccountModal({ onClose, onConnected }: any) {
+  const [step, setStep] = useState<'phone' | 'code' | '2fa' | 'done'>('phone');
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [apiId, setApiId] = useState('');
+  const [apiHash, setApiHash] = useState('');
+  const [showApiFields, setShowApiFields] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const inp: any = { width: '100%', padding: '10px 13px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 14, boxSizing: 'border-box', marginBottom: 10 };
+
+  async function sendCode() {
+    if (!phone.trim()) { setError('Telefon raqami kerak'); return; }
+    setLoading(true); setError('');
+    try {
+      const { userTelegramApi } = await import('@/services/api');
+      const res = await userTelegramApi.sendCode(
+        phone.trim(),
+        apiId ? parseInt(apiId) : undefined,
+        apiHash || undefined
+      );
+      if ((res.data as any).status === 'already_connected') {
+        toast.success('Account allaqachon ulangan!');
+        onConnected();
+        return;
+      }
+      setStep('code');
+    } catch (e: any) {
+      setError(errMsg(e));
+    } finally { setLoading(false); }
+  }
+
+  async function verifyCode() {
+    if (!code.trim()) { setError('Kodni kiriting'); return; }
+    setLoading(true); setError('');
+    try {
+      const { userTelegramApi } = await import('@/services/api');
+      const res = await userTelegramApi.verifyCode(
+        phone.trim(), code.trim(),
+        apiId ? parseInt(apiId) : undefined,
+        apiHash || undefined
+      );
+      if ((res.data as any).status === 'need_2fa') {
+        setStep('2fa');
+      } else {
+        setStep('done');
+        toast.success('✅ ' + ((res.data as any).message || 'Ulandi!'));
+        setTimeout(() => onConnected(), 1500);
+      }
+    } catch (e: any) {
+      setError(errMsg(e));
+    } finally { setLoading(false); }
+  }
+
+  async function verify2FA() {
+    if (!password.trim()) { setError('Parolni kiriting'); return; }
+    setLoading(true); setError('');
+    try {
+      const { userTelegramApi } = await import('@/services/api');
+      await userTelegramApi.verify2FA(
+        phone.trim(), password.trim(),
+        apiId ? parseInt(apiId) : undefined,
+        apiHash || undefined
+      );
+      setStep('done');
+      toast.success('✅ Shaxsiy account ulandi!');
+      setTimeout(() => onConnected(), 1500);
+    } catch (e: any) {
+      setError(errMsg(e));
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="📱 Shaxsiy Telegram Account ulash" maxWidth={480}>
+      {/* Steps indicator */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+        {[['phone','1. Raqam'],['code','2. Kod'],['2fa','3. Parol (ixtiyoriy)'],['done','✅']].map(([s, label]) => (
+          <div key={s} style={{
+            flex: 1, padding: '5px 4px', borderRadius: 7, textAlign: 'center',
+            fontSize: 11, fontWeight: 600,
+            background: step === s ? '#3d7eff' : (
+              ['phone','code','2fa','done'].indexOf(s) < ['phone','code','2fa','done'].indexOf(step)
+                ? '#10b98130' : 'var(--bg-3)'
+            ),
+            color: step === s ? 'white' : 'var(--fg-3)',
+          }}>{label}</div>
+        ))}
+      </div>
+
+      {step === 'phone' && (
+        <div>
+          <div style={{ padding: 12, background: '#3d7eff15', borderRadius: 10, marginBottom: 16, fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.7 }}>
+            <b>🚀 Shaxsiy account bilan nima qilish mumkin:</b>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 16 }}>
+              <li>Klientlarga <b>birinchi bo'lib</b> xabar yuboring</li>
+              <li>Klient /start yozmagan bo'lsa ham xabar boring</li>
+              <li>Xabarlar sizning ismingiz bilan ketadi</li>
+            </ul>
+          </div>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Telefon raqamingiz *</label>
+          <input
+            style={inp}
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            placeholder="+998901234567"
+            onKeyDown={e => e.key === 'Enter' && sendCode()}
+          />
+
+          <button
+            onClick={() => setShowApiFields(!showApiFields)}
+            style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', fontSize: 12, marginBottom: 10, textDecoration: 'underline' }}
+          >
+            {showApiFields ? '▲ API sozlamalarini yashirish' : '▼ API ID/Hash (ixtiyoriy)'}
+          </button>
+
+          {showApiFields && (
+            <div style={{ padding: 12, background: 'var(--bg-3)', borderRadius: 8, marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 8 }}>
+                Agar standart sozlamalar ishlamasa, <a href="https://my.telegram.org/apps" target="_blank" style={{ color: '#3d7eff' }}>my.telegram.org/apps</a> dan oling
+              </div>
+              <input style={{ ...inp, marginBottom: 8 }} value={apiId} onChange={e => setApiId(e.target.value)} placeholder="API ID (raqam)" />
+              <input style={inp} value={apiHash} onChange={e => setApiHash(e.target.value)} placeholder="API Hash (matn)" />
+            </div>
+          )}
+
+          {error && <div style={{ padding: '8px 12px', background: '#ef444415', borderRadius: 8, color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-3)', cursor: 'pointer', fontSize: 13 }}>Bekor</button>
+            <button onClick={sendCode} disabled={loading} style={{ flex: 2, padding: '10px', borderRadius: 9, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+              {loading ? 'Yuklanmoqda...' : '📱 Kod yuborish'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'code' && (
+        <div>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 40 }}>📬</div>
+            <div style={{ fontWeight: 600, marginTop: 8 }}>Telegram ilovangizni oching</div>
+            <div style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 4 }}>
+              <b>{phone}</b> raqamiga kod yuborildi.<br />Telegram ilovasidagi xabarga qarang.
+            </div>
+          </div>
+          <input
+            style={{ ...inp, textAlign: 'center', fontSize: 24, letterSpacing: 8, fontWeight: 700 }}
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="· · · · · ·"
+            maxLength={6}
+            onKeyDown={e => e.key === 'Enter' && verifyCode()}
+            autoFocus
+          />
+          {error && <div style={{ padding: '8px 12px', background: '#ef444415', borderRadius: 8, color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setStep('phone')} style={{ flex: 1, padding: '10px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-3)', cursor: 'pointer', fontSize: 13 }}>← Orqaga</button>
+            <button onClick={verifyCode} disabled={loading || code.length < 5} style={{ flex: 2, padding: '10px', borderRadius: 9, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+              {loading ? '...' : '✅ Tasdiqlash'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === '2fa' && (
+        <div>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 40 }}>🔐</div>
+            <div style={{ fontWeight: 600, marginTop: 8 }}>Ikki bosqichli autentifikatsiya</div>
+            <div style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 4 }}>Telegram account parolingizni kiriting</div>
+          </div>
+          <input
+            type="password"
+            style={inp}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="2FA parol"
+            onKeyDown={e => e.key === 'Enter' && verify2FA()}
+            autoFocus
+          />
+          {error && <div style={{ padding: '8px 12px', background: '#ef444415', borderRadius: 8, color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+          <button onClick={verify2FA} disabled={loading} style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+            {loading ? '...' : '🔓 Kirish'}
+          </button>
+        </div>
+      )}
+
+      {step === 'done' && (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ fontSize: 60 }}>✅</div>
+          <div style={{ fontSize: 18, fontWeight: 700, marginTop: 12 }}>Ulandi!</div>
+          <div style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 6 }}>Shaxsiy Telegram accountingiz muvaffaqiyatli ulandi</div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ─── Instagram Lead Bot Tab ───────────────────────────────────────────────────
+function WhatsAppTab() {
+  const [cfg, setCfg] = useState({ instanceId: '', token: '', webhookUrl: '' });
+  const [status, setStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [sendForm, setSendForm] = useState({ to: '', message: '' });
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      import('@/services/api').then(m => m.whatsappApi.getConfig()),
+      import('@/services/api').then(m => m.whatsappApi.getStatus()),
+    ]).then(([cfgRes, statusRes]) => {
+      const c = cfgRes.data;
+      if (c?.connected) setCfg(p => ({ ...p, instanceId: c.instanceId || '', webhookUrl: c.webhookUrl || '' }));
+      setStatus(statusRes.data);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  async function saveConfig() {
+    if (!cfg.instanceId.trim() || !cfg.token.trim()) { toast.error('Instance ID va Token majburiy'); return; }
+    setSaving(true);
+    try {
+      const { whatsappApi } = await import('@/services/api');
+      await whatsappApi.saveConfig(cfg);
+      toast.success('✅ WhatsApp sozlandi!');
+      const s = await whatsappApi.getStatus();
+      setStatus(s.data);
+    } catch (e: any) { toast.error(errMsg(e)); } finally { setSaving(false); }
+  }
+
+  async function sendMsg() {
+    if (!sendForm.to.trim() || !sendForm.message.trim()) { toast.error('Telefon va xabar majburiy'); return; }
+    setSending(true);
+    try {
+      const { whatsappApi } = await import('@/services/api');
+      await whatsappApi.send(sendForm);
+      toast.success('✅ Xabar yuborildi!');
+      setSendForm({ to: '', message: '' });
+    } catch (e: any) { toast.error(errMsg(e)); } finally { setSending(false); }
+  }
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}><span className="spinner" /></div>;
+
+  const isConnected = status?.status === 'authenticated';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 32 }}>📱</div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>WhatsApp (UltraMsg)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: isConnected ? 'var(--success)' : '#94a3b8' }} />
+              <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+                {isConnected ? `Ulangan${status?.phoneNumber ? ` · ${status.phoneNumber}` : ''}` : 'Ulanmagan'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div>
+            <Label>Instance ID *</Label>
+            <Input value={cfg.instanceId} onChange={e => setCfg({...cfg, instanceId: e.target.value})} placeholder="instance123456" />
+          </div>
+          <div>
+            <Label>Token *</Label>
+            <Input type="password" value={cfg.token} onChange={e => setCfg({...cfg, token: e.target.value})} placeholder="••••••••" />
+          </div>
+        </div>
+        <Label>Webhook URL (UltraMsg panelida kiriting)</Label>
+        <Input value={cfg.webhookUrl} onChange={e => setCfg({...cfg, webhookUrl: e.target.value})}
+          placeholder="https://api.sizning-domen.uz/api/v1/public/whatsapp/webhook/TENANT_ID"
+          style={{ marginBottom: 12, fontSize: 11, fontFamily: 'monospace' }} />
+        <Btn onClick={saveConfig} loading={saving} variant="gradient">💾 Saqlash</Btn>
+      </Card>
+
+      {isConnected && (
+        <Card>
+          <div style={{ fontWeight: 700, marginBottom: 12 }}>Test xabar</div>
+          <Label>Telefon</Label>
+          <Input value={sendForm.to} onChange={e => setSendForm({...sendForm, to: e.target.value})} placeholder="+998901234567" style={{ marginBottom: 10 }} />
+          <Label>Xabar</Label>
+          <textarea value={sendForm.message} onChange={e => setSendForm({...sendForm, message: e.target.value})}
+            placeholder="Xabar..." style={{ width: '100%', minHeight: 72, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' as const, marginBottom: 12 }} />
+          <Btn onClick={sendMsg} loading={sending}>📤 Yuborish</Btn>
+        </Card>
+      )}
+
+      <Card style={{ background: 'var(--bg-3)' }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>📋 Qo'llanma</div>
+        <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--fg-2)', lineHeight: 2 }}>
+          <li><a href="https://ultramsg.com" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>ultramsg.com</a> — ro'yxatdan o'ting (3 kun bepul)</li>
+          <li>Yangi Instance yarating va QR kodni WhatsApp bilan skanlang</li>
+          <li>Instance ID va Token ni kiriting → Saqlang</li>
+          <li>Webhook URL ni UltraMsg panelida "Webhook URL" ga kiriting</li>
+          <li>Tayyor! Xabarlar Inbox ga tushadi</li>
+        </ol>
+      </Card>
+    </div>
+  );
+}
+
+function InstagramTab() {
+  const [cfg, setCfg] = useState<any>({
+    accessToken: '', pageId: '', verifyToken: 'omoncrm_verify',
+    botName: 'Travel Bot', greetingMessage: '', assignToAgentId: '',
+  });
+  const [stats, setStats] = useState<any>(null);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      import('@/services/api').then(m => m.instagramApi.getConfig()),
+      import('@/services/api').then(m => m.instagramApi.getStats()),
+      import('@/services/api').then(m => m.usersApi.list()),
+    ]).then(([cfgR, statsR, usersR]: any) => {
+      const d = cfgR.data;
+      setCfg({
+        accessToken: d.accessToken || '',
+        pageId: d.pageId || '',
+        verifyToken: d.verifyToken || 'omoncrm_verify',
+        botName: d.botName || 'Travel Bot',
+        greetingMessage: d.greetingMessage || '',
+        farewell: d.farewell || '',
+        botSteps: d.botSteps || null,
+        assignToAgentId: d.assignToAgentId || '',
+      });
+      setStats(statsR.data);
+      const list = Array.isArray(usersR.data) ? usersR.data : (usersR.data?.data || []);
+      setAgents(list.filter((u: any) => u.role === 'AGENT'));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const { instagramApi } = await import('@/services/api');
+      await instagramApi.saveConfig(cfg);
+      toast.success('Instagram sozlamalari saqlandi');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 8,
+    border: '1px solid var(--border)', background: 'var(--bg-2)',
+    color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box',
+  };
+  const lbl: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, color: 'var(--fg-2)',
+    display: 'block', marginBottom: 5,
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
+
+  const tenantId = typeof window !== 'undefined'
+    ? (JSON.parse(localStorage.getItem('user') || '{}').tenantId || '')
+    : '';
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  const webhookUrl = `${API_BASE}/api/v1/instagram/webhook/${tenantId}`;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+          {[
+            { label: 'Jami Instagram leadlar', value: stats.total ?? 0, color: '#e1306c' },
+            { label: 'Bu oy', value: stats.thisMonth ?? 0, color: '#f97316' },
+            { label: 'Faol suhbatlar', value: stats.activeSessions ?? 0, color: '#3d7eff' },
+          ].map((s, i) => (
+            <Card key={i} style={{ textAlign: 'center', padding: '14px 16px' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>{s.label}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Setup instructions */}
+      <Card>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>📋 Meta Developer sozlash</h3>
+        <div style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.9, padding: '10px 14px', background: 'var(--bg-3)', borderRadius: 8 }}>
+          <b>1.</b> <a href="https://developers.facebook.com" target="_blank" style={{ color: '#3d7eff' }}>developers.facebook.com</a> → My Apps → Create App<br />
+          <b>2.</b> App → Instagram → Settings → Basic → Access Token oling<br />
+          <b>3.</b> App → Webhooks → Instagram → Subscribe → quyidagi URL kiriting:<br />
+          <code style={{ display: 'block', background: 'var(--bg-2)', padding: '6px 10px', borderRadius: 6, margin: '6px 0', fontSize: 11, wordBreak: 'break-all' }}>
+            {webhookUrl}
+          </code>
+          <b>4.</b> Verify Token: quyida belgilangan tokenni kiriting<br />
+          <b>5.</b> Subscribe: <code>messages</code> va <code>messaging_postbacks</code>
+        </div>
+      </Card>
+
+      {/* Config form */}
+      <Card>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>⚙️ Instagram Bot sozlamalari</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Access Token (Page Token) *</label>
+            <input style={inp} value={cfg.accessToken} onChange={e => setCfg({ ...cfg, accessToken: e.target.value })} placeholder="EAAG..." type="password" />
+          </div>
+          <div>
+            <label style={lbl}>Page ID</label>
+            <input style={inp} value={cfg.pageId} onChange={e => setCfg({ ...cfg, pageId: e.target.value })} placeholder="123456789" />
+          </div>
+          <div>
+            <label style={lbl}>Verify Token</label>
+            <input style={inp} value={cfg.verifyToken} onChange={e => setCfg({ ...cfg, verifyToken: e.target.value })} placeholder="omoncrm_verify" />
+          </div>
+          <div>
+            <label style={lbl}>Bot nomi</label>
+            <input style={inp} value={cfg.botName} onChange={e => setCfg({ ...cfg, botName: e.target.value })} placeholder="Travel Bot" />
+          </div>
+          <div>
+            <label style={lbl}>Leadni kim qabul qilsin</label>
+            <select style={inp} value={cfg.assignToAgentId} onChange={e => setCfg({ ...cfg, assignToAgentId: e.target.value })}>
+              <option value="">Avtomatik (birinchi agent)</option>
+              {agents.map((a: any) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Birinchi xabar (greeting)</label>
+            <textarea
+              style={{ ...inp, minHeight: 80, resize: 'vertical' }}
+              value={cfg.greetingMessage}
+              onChange={e => setCfg({ ...cfg, greetingMessage: e.target.value })}
+              placeholder="Salom! Ismingizni yuboring."
+            />
+          </div>
+        </div>
+
+        {/* Dynamic bot steps editor */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={lbl}>Bot savollari tartibi</label>
+            <button onClick={() => {
+              const newSteps = [...(cfg.botSteps || []), { id: Date.now().toString(), question: '', field: 'custom_' + Date.now() }];
+              setCfg({ ...cfg, botSteps: newSteps });
+            }} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: 'var(--primary)', color: 'white', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+              + Savol qosh
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(cfg.botSteps || [
+              { id: 'name', question: 'Ismingizni yozing', field: 'name' },
+              { id: 'destination', question: 'Qayerga bormoqchisiz?', field: 'destination' },
+              { id: 'phone', question: 'Telefon raqamingiz?', field: 'phone' },
+              { id: 'date', question: 'Qachon ketmoqchisiz?', field: 'date' },
+            ]).map((step: any, i: number) => (
+              <div key={step.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 100px auto', gap: 6, alignItems: 'center', padding: '8px 10px', background: 'var(--bg-3)', borderRadius: 8 }}>
+                <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                <input
+                  style={{ ...inp, marginBottom: 0 }}
+                  value={step.question}
+                  onChange={e => {
+                    const steps = [...(cfg.botSteps || [])];
+                    steps[i] = { ...steps[i], question: e.target.value };
+                    setCfg({ ...cfg, botSteps: steps });
+                  }}
+                  placeholder="Savol matni..."
+                />
+                <select style={{ ...inp, marginBottom: 0 }} value={step.field} onChange={e => {
+                  const steps = [...(cfg.botSteps || [])];
+                  steps[i] = { ...steps[i], field: e.target.value };
+                  setCfg({ ...cfg, botSteps: steps });
+                }}>
+                  <option value="name">Ism</option>
+                  <option value="destination">Yonalish</option>
+                  <option value="phone">Telefon</option>
+                  <option value="date">Sana</option>
+                  <option value={'custom_' + i}>Boshqa</option>
+                </select>
+                <button onClick={() => {
+                  const steps = (cfg.botSteps || []).filter((_: any, idx: number) => idx !== i);
+                  setCfg({ ...cfg, botSteps: steps });
+                }} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', background: 'var(--danger-soft)', color: 'var(--danger)', cursor: 'pointer', fontSize: 13 }}>✕</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <label style={lbl}>Yakuniy xabar (farewell)</label>
+            <input style={inp} value={cfg.farewell || ''} onChange={e => setCfg({ ...cfg, farewell: e.target.value })} placeholder="Rahmat! Tez orada boglanamiz." />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <button onClick={save} disabled={saving} style={{ padding: '10px 24px', borderRadius: 9, border: 'none', background: '#e1306c', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+            {saving ? 'Saqlanmoqda...' : '💾 Saqlash'}
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+}

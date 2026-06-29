@@ -1,0 +1,916 @@
+'use client';
+import KalendarTab from './KalendarTab';
+import dynamic from 'next/dynamic';
+const OnboardingWizard = dynamic(() => import('@/components/OnboardingWizard'), { ssr: false });
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+
+import { useRouter } from 'next/navigation';
+import CrmLayout from '@/components/layout/CrmLayout';
+import { Card, Stat, Btn, Empty, Skeleton, Avatar, Badge } from '@/components/ui';
+import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, api } from '@/services/api';
+import { useAuth } from '@/lib/store';
+import { useI18n } from '@/lib/i18n';
+import { useDialer } from '@/lib/dialer';
+import { useSocket, getSocket } from '@/hooks/useSocket';
+import { fmtDate, fmtMoney } from '@/lib/helpers';
+import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+
+function ExportButton() {
+  const [exporting, setExporting] = React.useState(false);
+
+  async function doExport(type: string) {
+    setExporting(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+      const res = await fetch(`${API_URL}/api/v1/reports/export?type=${type}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { toast.error('Export xatosi'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${type}-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error('Export xatosi'); }
+    finally { setExporting(false); }
+  }
+
+  return (
+    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: '0 16px' }}>
+      <select
+        onChange={e => { if (e.target.value) { doExport(e.target.value); e.target.value = ''; } }}
+        defaultValue=""
+        disabled={exporting}
+        style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, cursor: 'pointer' }}
+      >
+        <option value="" disabled>{exporting ? 'Yuklanmoqda...' : 'Export CSV'}</option>
+        <option value="bookings">Bookinglar</option>
+        <option value="clients">Klientlar</option>
+        <option value="payments">Payments</option>
+        <option value="calls">Calls</option>
+      </select>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    // Birinchi kirish - onboarding ko'rsatish
+    if (user?.role === 'TENANT_ADMIN') {
+      const key = `onboarding_done_${user.tenantId || user.id}`;
+      if (!localStorage.getItem(key)) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [user]);
+
+  function completeOnboarding() {
+    if (user) {
+      const key = `onboarding_done_${user.tenantId || user.id}`;
+      localStorage.setItem(key, '1');
+    }
+    setShowOnboarding(false);
+  }
+  const { t } = useI18n();
+  const { callClient } = useDialer();
+  const isAgent = user?.role === 'AGENT';
+
+  const [activeTab, setActiveTab] = useState('overview');
+  const [stats, setStats] = useState<any>(null);
+  // Date range
+  const today = new Date().toISOString().slice(0,10);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10);
+  const [dateFrom, setDateFrom] = useState(monthStart);
+  const [dateTo,   setDateTo]   = useState(today);
+  const [revenueChart, setRevenueChart] = useState<any[]>([]);
+  const [bySource, setBySource] = useState<any[]>([]);
+  const [todayTasks, setTodayTasks] = useState<any[]>([]);
+  const [callData, setCallData] = useState<any>(null);
+  const [leadData, setLeadData] = useState<any>(null);
+  const [agentsList, setAgentsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useSocket();
+
+  const reload = () => {
+    setLoading(true);
+    const ps: Promise<any>[] = [
+      isAgent
+        ? reportsV6.myStats(dateFrom, dateTo).catch(() => ({ data: null }))
+        : reportsApi.dashboard(dateFrom, dateTo).catch(() => ({ data: null })),
+      reportsV6.revenueChart('month').catch(() => ({ data: [] })),
+      followUpsApi.list({ done: 'false', limit: '6' }).catch(() => ({ data: [] })),
+    ];
+    if (!isAgent) {
+      ps.push(reportsApi.agents ? reportsApi.agents().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }));
+    }
+    Promise.all(ps).then(([s, rc, fu, ag]) => {
+      setStats(s?.data || null);
+      setRevenueChart(Array.isArray(rc?.data) ? rc.data : (rc?.data?.data || []));
+      const fuArr = Array.isArray(fu?.data) ? fu.data : (fu?.data?.data || []);
+      setTodayTasks(fuArr.slice(0, 6));
+      if (ag) setAgentsList(Array.isArray(ag.data) ? ag.data : (ag?.data?.agents || []));
+    }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    reload();
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => {
+    const days = 30;
+    api.get('/reports/call-analytics', { params: { days } }).then(r => setCallData(r.data)).catch(() => {});
+    if (!isAgent) {
+      api.get('/reports/lead-analytics', { params: { days } }).then(r => setLeadData(r.data)).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const onUpdate = () => reload();
+    socket.on('dashboard:update', onUpdate);
+    socket.on('lead:assigned', (data: any) => {
+      // Agent yangi lead olganini toast bilan ko'rsatish
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.success(`🎯 Yangi lead: ${data.fullName}`, { duration: 5000 });
+      });
+      onUpdate(); // Dashboardni yangilash
+    });
+    socket.on('notification:new', (notif: any) => {
+      if (notif.type === 'CLIENT_ASSIGNED') {
+        onUpdate();
+      }
+    });
+    return () => {
+      socket.off('dashboard:update', onUpdate);
+      socket.off('lead:assigned');
+      socket.off('notification:new');
+    };
+  }, []);
+
+  // Bir xil manba - booking.totalPrice (agent uchun o'z bookinglar)
+  const totalRevenue = stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? 0;
+  const totalCost    = stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0;
+  const totalProfit  = stats?.thisMonth?.profit ?? stats?.profit?.thisMonth ?? 0;
+  const netProfit    = stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? 0;
+
+  const tabs = isAgent
+    ? [
+        { id: 'overview', label: 'Umumiy' },
+        { id: 'calls', label: "Qo'ng'iroqlarim" },
+      ]
+    : [
+        { id: 'overview', label: 'Umumiy' },
+        { id: 'revenue', label: 'Moliya' },
+        { id: 'agents', label: 'Agentlar' },
+        { id: 'calls', label: "Qo'ng'iroqlar" },
+        { id: 'leads', label: 'Lead Manbalar' },
+      { id: 'calendar', label: 'Kalendar' },
+      ];
+
+  return (
+    <CrmLayout>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Tab bar */}
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-2)', flexShrink: 0 }}>
+          {/* Tabs + Date range */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px', overflowX: 'auto', gap: 4 }}>
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                padding: '12px 18px', fontSize: 13, fontWeight: 600, border: 'none',
+                background: 'none', cursor: 'pointer', flexShrink: 0,
+                borderBottom: activeTab === tab.id ? '2px solid #3d7eff' : '2px solid transparent',
+                color: activeTab === tab.id ? '#3d7eff' : 'var(--fg-2)', whiteSpace: 'nowrap',
+              }}>
+                {tab.id === 'overview' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                ) : tab.id === 'revenue' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                ) : tab.id === 'agents' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
+                ) : tab.id === 'calls' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 11 19.79 19.79 0 0 1 1.08 2.18 2 2 0 0 1 3.07.01h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 15l.92 1.92z"/></svg>
+                ) : tab.id === 'calendar' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+                )}
+                {tab.label}
+              </button>
+            ))}
+            <div style={{ flex: 1 }}/>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+              <ExportButton />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {loading ? <Skeleton height={400} /> : (
+            <>
+              {activeTab === 'overview' && (
+                <OverviewTab stats={stats} isAgent={isAgent} revenueChart={revenueChart} todayTasks={todayTasks} totalRevenue={totalRevenue} router={router} />
+              )}
+              {activeTab === 'revenue' && !isAgent && (
+                <RevenueTab stats={stats} revenueChart={revenueChart} from={dateFrom} to={dateTo} />
+              )}
+              {activeTab === 'agents' && !isAgent && (
+                <AgentsTab agents={agentsList} from={dateFrom} to={dateTo} onDateChange={(f,t)=>{setDateFrom(f);setDateTo(t);}} />
+              )}
+              {activeTab === 'calls' && (
+                <CallsTab data={callData} isAgent={isAgent} />
+              )}
+              {activeTab === 'leads' && !isAgent && (
+                <LeadsTab data={leadData} from={dateFrom} to={dateTo} />
+              )}
+              {activeTab === 'calendar' && (
+                <KalendarTab calendarApi={reportsV6.calendar} />
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </CrmLayout>
+  );
+}
+
+function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, router }: any) {
+  // Agent salary loaded separately
+  const [mySalary, setMySalary] = useState<any>(null);
+  useEffect(() => {
+    if (isAgent) {
+      api.get('/reports/my-salary').then((r: any) => setMySalary(r.data)).catch(() => {});
+    }
+  }, [isAgent]);
+
+  const conversionRate = stats?.conversion?.rate ?? 0;
+  const salaryAmount = mySalary?.grossSalary ?? mySalary?.pending ?? 0;
+  const salaryPercent = mySalary?.myCommissionPercent ?? 0;
+  const companyProfit = stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? 0;
+
+  // Komisyon foizi — myStats.salary.kpiPercent yoki mySalary.myCommissionPercent
+  const kpiPct = stats?.salary?.kpiPercent ?? mySalary?.myCommissionPercent ?? salaryPercent ?? 10;
+  const myProfit = stats?.thisMonth?.profit ?? stats?.profit?.thisMonth ?? 0;
+  const myCommissionAmount = mySalary?.grossSalary ?? salaryAmount ?? Math.round(myProfit * kpiPct / 100);
+  const wonCount = stats?.bookings?.won ?? stats?.conversion?.won ?? stats?.bookings?.thisMonth ?? 0;
+  const totalLeads = stats?.leads?.total ?? stats?.conversion?.total ?? 0;
+
+  const kpis = isAgent ? [
+    { label: 'Daromadim (oy)', value: `$${totalRevenue.toLocaleString()}`, color: '#10b981', sub: 'Booking narxlari jami' },
+    { label: 'Komissiyam', value: `$${myCommissionAmount.toLocaleString()}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${myProfit.toLocaleString()} x ${kpiPct}%)` : '') },
+    { label: 'Bookinglarim', value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}` },
+    { label: 'Conversion rate', value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead` },
+    { label: 'Leadlarim', value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}` },
+    { label: 'Kompaniyaga', value: `$${companyProfit > 0 ? companyProfit.toLocaleString() : 0}`, color: '#94a3b8', sub: 'Mening ulushim chiqarilgandan' },
+  ] : [
+    { label: 'Jami daromad', value: `$${(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0).toLocaleString()}`, color: '#10b981', sub: 'Booking narxlari jami' },
+    { label: 'Operator narxi', value: `$${(stats?.cost?.thisMonth || 0).toLocaleString()}`, color: '#ef4444', sub: 'Tannarx jami' },
+
+    { label: 'Sof foyda', value: `$${(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0).toLocaleString()}`, color: '#8b5cf6', sub: 'Daromad - Xarajat - Maosh' },
+    { label: 'Klientlar', value: stats?.clients?.total ?? 0, color: '#3d7eff' },
+    { label: 'Yangi leadlar', value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `Bugun: +${stats?.clients?.newToday ?? 0}` },
+    { label: 'Agent maoshlari', value: `$${(stats?.salary?.totalAgentSalariesThisMonth || 0).toLocaleString()}`, color: '#ec4899', sub: `${stats?.salary?.kpiPercent || 0}% foydadan` },
+    { label: 'Bookinglar (oy)', value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `Jami: ${stats?.bookings?.total ?? 0}` },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        {kpis.map((k, i) => (
+          <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{k.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+        <RevenueChart data={revenueChart} />
+
+        <div style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Bugungi eslatmalar ({todayTasks.length})</h3>
+          {todayTasks.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Bugun eslatma yo\'q</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {todayTasks.map((t: any) => (
+                <div key={t.id} onClick={() => router.push(t.clientId ? `/clients/${t.clientId}` : '/followups')}
+                  style={{ padding: '8px 10px', background: 'var(--bg-3)', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
+                  <div style={{ fontWeight: 600 }}>{t.title}</div>
+                  {t.dueAt && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>
+                    {new Date(t.dueAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                  </div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RevenueTab({ stats, revenueChart }: any) {
+  const items = [
+    { label: 'Jami daromad', value: `$${(stats?.revenue?.thisMonth || stats?.cost?.totalSales || 0).toLocaleString()}`, color: '#10b981' },
+    { label: 'Operator narxi', value: `$${(stats?.cost?.thisMonth || 0).toLocaleString()}`, color: '#ef4444', sub: 'Tannarx jami' },
+
+    { label: 'Sof foyda', value: `$${(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0).toLocaleString()}`, color: '#8b5cf6', sub: 'Foyda - Agent maosh' },
+    { label: 'Agent maoshlari', value: `$${(stats?.salary?.totalAgentSalariesThisMonth || stats?.agentSalaries || 0).toLocaleString()}`, color: '#06b6d4' },
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        {items.map((it, i) => (
+          <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{it.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: it.color }}>{it.value}</div>
+          </div>
+        ))}
+      </div>
+      <RevenueChart data={revenueChart} />
+    </div>
+  );
+}
+
+function AgentsTab({ agents }: any) {
+  const [salaries, setSalaries] = useState<Record<string, any>>({});
+  const [payStatus, setPayStatus] = useState<Record<string, { paid: boolean; note: string; saving: boolean }>>({});
+
+  useEffect(() => {
+    if (!agents?.length) return;
+    agents.forEach((a: any) => {
+      const agentId = a.agent?.id;
+      if (!agentId) return;
+      api.get('/reports/my-salary', { params: { agentId } })
+        .then((r: any) => {
+          setSalaries((prev: any) => ({ ...prev, [agentId]: r.data }));
+          setPayStatus((prev: any) => ({
+            ...prev,
+            [agentId]: {
+              paid: r.data?.isPaid || false,
+              note: r.data?.adminNote || '',
+              saving: false,
+            },
+          }));
+        })
+        .catch(() => {});
+    });
+  }, [agents]);
+
+  async function savePay(agentId: string, newPaid?: boolean) {
+    const ps = payStatus[agentId];
+    if (!ps) return;
+    const isPaid = newPaid !== undefined ? newPaid : ps.paid;
+    setPayStatus((prev: any) => ({ ...prev, [agentId]: { ...prev[agentId], saving: true } }));
+    try {
+      await api.post('/reports/mark-salary-paid', {
+        agentId,
+        isPaid,
+        note: ps.note,
+      });
+      toast.success(isPaid ? 'Tolov belgilandi ✓' : 'Tolov bekor qilindi');
+    } catch { toast.error('Saqlab bolmadi'); }
+    finally { setPayStatus((prev: any) => ({ ...prev, [agentId]: { ...prev[agentId], saving: false } })); }
+  }
+
+  if (!agents || agents.length === 0) return (
+    <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Agent malumoti yoq</div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 14px' }}>Agentlar samaradorligi</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+              {['Agent', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Komissiya %', 'Maosh (oy)', "Tolov holati", 'Note'].map(h => (
+                <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {agents.map((a: any, i: number) => {
+              const agentId = a.agent?.id;
+              const sal = salaries[agentId] || {};
+              const ps = payStatus[agentId] || { paid: false, note: '', saving: false };
+              return (
+                <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ fontWeight: 600 }}>{a.agent?.name || a.name || 'N/A'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{a.agent?.role}</div>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>{a.leadsInPeriod ?? 0}</td>
+                  <td style={{ padding: '10px 12px' }}>{a.bookingsInPeriod ?? 0}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                      background: (a.conversion ?? 0) >= 30 ? '#10b98120' : '#f59e0b20',
+                      color: (a.conversion ?? 0) >= 30 ? '#10b981' : '#f59e0b' }}>
+                      {a.conversion ?? 0}%
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#10b981' }}>
+                    ${(a.revenue ?? 0).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: '#f59e0b', fontWeight: 600 }}>
+                    {sal.myCommissionPercent != null ? sal.myCommissionPercent + '%' : '-'}
+                    {sal.appliedTier && <div style={{ fontSize: 9, color: 'var(--fg-3)' }}>KPI tier</div>}
+                  </td>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#8b5cf6' }}>
+                    {sal.grossSalary != null ? ('$' + sal.grossSalary.toLocaleString()) : '-'}
+                  </td>
+                  {/* Payment status */}
+                  <td style={{ padding: '10px 12px' }}>
+                    <button
+                      onClick={() => {
+                        const next = !ps.paid;
+                        setPayStatus((prev: any) => ({ ...prev, [agentId]: { ...prev[agentId], paid: next } }));
+                        savePay(agentId, next);
+                      }}
+                      style={{
+                        padding: '5px 12px', borderRadius: 7, border: 'none',
+                        background: ps.paid ? '#10b98120' : '#f43f5e20',
+                        color: ps.paid ? '#10b981' : '#f43f5e',
+                        cursor: 'pointer', fontWeight: 700, fontSize: 11,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {ps.saving ? '...' : ps.paid ? 'Tolandi' : "Tolanmagan"}
+                    </button>
+                  </td>
+                  {/* Note */}
+                  <td style={{ padding: '10px 12px', minWidth: 160 }}>
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      <input
+                        style={{
+                          flex: 1, padding: '4px 8px', borderRadius: 6,
+                          border: '1px solid var(--border)',
+                          background: 'var(--bg-input)',
+                          color: 'var(--fg)', fontSize: 11, outline: 'none',
+                        }}
+                        value={ps.note}
+                        placeholder="Izoh..."
+                        onChange={e => setPayStatus((prev: any) => ({
+                          ...prev,
+                          [agentId]: { ...ps, note: e.target.value },
+                        }))}
+                        onBlur={() => savePay(agentId)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+function CallsTab({ data, isAgent }: any) {
+  if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
+  const { summary = {}, byDay = [] } = data;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Jami', value: summary.total || 0, color: '#3d7eff' },
+          { label: 'Javob berildi', value: summary.answered || 0, color: '#10b981' },
+          { label: 'Javob yo\'q', value: summary.noAnswer || 0, color: '#ef4444' },
+          { label: 'Conversion', value: `${summary.conversionRate || 0}%`, color: '#f59e0b' },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+      {byDay.length > 0 && (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Kunlik</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={byDay}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
+              <YAxis stroke="#64748b" fontSize={11} />
+              <Tooltip contentStyle={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 8 }} />
+              <Bar dataKey="total" fill="#3d7eff" name="Jami" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="answered" fill="#10b981" name="Javob berildi" radius={[3, 3, 0, 0]} />
+              <Legend />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LeadsTab({ data, from, to }: any) {
+  const [activeSource, setActiveSource] = useState<string>('ALL');
+  if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
+  const { summary = {}, bySource = [] } = data;
+
+  const SRC: Record<string, { icon: string; color: string }> = {
+    TELEGRAM:  { icon: '✈️', color: '#3d7eff' },
+    INSTAGRAM: { icon: '📷', color: '#ec4899' },
+    WHATSAPP:  { icon: '💚', color: '#10b981' },
+    WEBSITE:   { icon: '🌐', color: '#8b5cf6' },
+    REFERRAL:  { icon: '🤝', color: '#f59e0b' },
+    FACEBOOK:  { icon: '📘', color: '#3b82f6' },
+    CALL:      { icon: '📞', color: '#06b6d4' },
+    OTHER:     { icon: '📋', color: '#94a3b8' },
+  };
+
+  // Filter by source
+  const filtered = activeSource === 'ALL' ? bySource : bySource.filter((s: any) => s.source === activeSource);
+  
+  // Sort by revenue desc
+  const sorted = [...filtered].sort((a: any, b: any) => (b.revenue || 0) - (a.revenue || 0));
+  
+  // Best source
+  const best = bySource.reduce((a: any, b: any) => (b.revenue || 0) > (a.revenue || 0) ? b : a, bySource[0] || null);
+  
+  const totalRevenue = bySource.reduce((s: number, r: any) => s + (r.revenue || 0), 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        {[
+          { label: 'Jami leadlar', value: summary.totalLeads || 0, color: '#3d7eff', sub: "barcha manba" },
+          { label: 'Bookinglar', value: summary.totalBookings || 0, color: '#10b981', sub: "muvaffaqiyatli" },
+          { label: 'Avg conversion', value: `${(summary.avgConversionRate || 0).toFixed(1)}%`, color: '#f59e0b', sub: "o'rtacha" },
+          { label: 'Jami daromad', value: `$${totalRevenue.toLocaleString()}`, color: '#8b5cf6', sub: "barcha manbadan" },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-5)', marginTop: 3 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Best source highlight */}
+      {best && (
+        <div style={{ padding: '14px 18px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 28 }}>{SRC[best.source]?.icon || '🏆'}</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#10b981' }}>🏆 Eng yaxshi manba: {best.source}</div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>
+              {best.leads} lead · {best.bookings} booking · ${(best.revenue||0).toLocaleString()} daromad · {best.conversionRate?.toFixed(1)}% conversion
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Source filter chips */}
+      {bySource.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => setActiveSource('ALL')} style={{
+            padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            background: activeSource === 'ALL' ? '#3d7eff' : 'rgba(255,255,255,0.05)',
+            color: activeSource === 'ALL' ? '#fff' : 'var(--fg-3)',
+            fontSize: 12, fontWeight: 600,
+          }}>Hammasi ({bySource.length})</button>
+          {bySource.map((s: any) => (
+            <button key={s.source} onClick={() => setActiveSource(s.source === activeSource ? 'ALL' : s.source)} style={{
+              padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: activeSource === s.source ? (SRC[s.source]?.color || '#6b7194') : 'rgba(255,255,255,0.05)',
+              color: activeSource === s.source ? '#fff' : 'var(--fg-3)',
+              fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              {SRC[s.source]?.icon || '📋'} {s.source}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Table */}
+      {sorted.length > 0 ? (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ fontSize: 11, color: 'var(--fg-5)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {['Manba', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Ulush'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700, borderBottom: '1px solid var(--border)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((s: any, i: number) => {
+                const share = totalRevenue > 0 ? Math.round((s.revenue || 0) / totalRevenue * 100) : 0;
+                const isTop = i === 0 && activeSource === 'ALL';
+                return (
+                  <tr key={i} style={{ borderTop: '1px solid var(--border)', background: isTop ? 'rgba(16,185,129,0.03)' : 'transparent' }}>
+                    <td style={{ padding: '12px 14px', fontWeight: 700 }}>
+                      <span style={{ marginRight: 8 }}>{SRC[s.source]?.icon || '📋'}</span>
+                      <span style={{ color: isTop ? '#10b981' : 'var(--fg)' }}>{s.source}</span>
+                      {isTop && <span style={{ marginLeft: 8, fontSize: 10, color: '#10b981', background: 'rgba(16,185,129,0.12)', padding: '2px 7px', borderRadius: 20, fontWeight: 700 }}>TOP</span>}
+                    </td>
+                    <td style={{ padding: '12px 14px', color: '#3d7eff', fontWeight: 600 }}>{s.leads || 0}</td>
+                    <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 600 }}>{s.bookings || 0}</td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                        background: (s.conversionRate || 0) >= 50 ? 'rgba(16,185,129,0.15)' : (s.conversionRate || 0) >= 20 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.1)',
+                        color: (s.conversionRate || 0) >= 50 ? '#10b981' : (s.conversionRate || 0) >= 20 ? '#f59e0b' : '#ef4444',
+                      }}>{(s.conversionRate || 0).toFixed(1)}%</span>
+                    </td>
+                    <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 700 }}>${(s.revenue || 0).toLocaleString()}</td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', minWidth: 60 }}>
+                          <div style={{ height: '100%', borderRadius: 99, background: SRC[s.source]?.color || '#6b7194', width: `${share}%`, transition: 'width 0.4s' }}/>
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--fg-3)', fontWeight: 600, minWidth: 30 }}>{share}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-4)', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🎯</div>
+          <div>Ma'lumot yo'q</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ─── DATE RANGE PICKER ────────────────────────────────────────
+function DateRangePicker({ from, to, onChange }: {
+  from: string; to: string;
+  onChange: (from: string, to: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [lFrom, setLFrom] = useState(from);
+  const [lTo,   setLTo]   = useState(to);
+
+  const presets = [
+    { label: "Bu oy",        f: () => { const n = new Date(); return [new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "O'tgan oy",   f: () => { const n = new Date(); return [new Date(n.getFullYear(),n.getMonth()-1,1).toISOString().slice(0,10), new Date(n.getFullYear(),n.getMonth(),0).toISOString().slice(0,10)]; } },
+    { label: "Bu hafta",     f: () => { const n = new Date(); const d = n.getDay()||7; return [new Date(n.getFullYear(),n.getMonth(),n.getDate()-d+1).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "Bu yil",       f: () => { const n = new Date(); return [new Date(n.getFullYear(),0,1).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "So'nggi 7 kun", f: () => { const n = new Date(); return [new Date(n.getTime()-6*864e5).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "So'nggi 30 kun", f: () => { const n = new Date(); return [new Date(n.getTime()-29*864e5).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "So'nggi 90 kun", f: () => { const n = new Date(); return [new Date(n.getTime()-89*864e5).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+  ];
+
+  const label = from && to ? `${from.slice(5)} → ${to.slice(5)}` : 'Sana';
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        padding: '7px 14px', borderRadius: 9, border: '1px solid #1e2440',
+        background: '#0c0e1a', color: '#c4c9e0', fontSize: 12.5, fontWeight: 600,
+        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7,
+        fontFamily: 'inherit', whiteSpace: 'nowrap',
+      }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>{label}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }}/>
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 100,
+            background: '#0c0e1a', border: '1px solid #2a3258', borderRadius: 14,
+            padding: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+            minWidth: 320,
+          }}>
+            {/* Presets */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {presets.map(p => (
+                <button key={p.label} onClick={() => {
+                  const [f, t] = p.f();
+                  onChange(f, t); setOpen(false);
+                }} style={{
+                  padding: '5px 11px', borderRadius: 20, border: '1px solid #1e2440',
+                  background: 'rgba(61,126,255,0.06)', color: '#9aa0c0',
+                  fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit',
+                  fontWeight: 500, transition: 'all 0.12s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(61,126,255,0.15)'; e.currentTarget.style.color='#3d7eff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(61,126,255,0.06)'; e.currentTarget.style.color='#9aa0c0'; }}
+                >{p.label}</button>
+              ))}
+            </div>
+
+            <div style={{ height: 1, background: '#1e2440', marginBottom: 14 }}/>
+
+            {/* Custom range */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#3d4568', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Dan</div>
+                <input type="date" value={lFrom} onChange={e => setLFrom(e.target.value)} style={{
+                  width: '100%', padding: '8px 10px', background: '#111420',
+                  border: '1px solid #1e2440', borderRadius: 8, color: '#e8eaf2',
+                  fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const,
+                }}/>
+              </div>
+              <div style={{ color: '#3d4568', paddingBottom: 10 }}>→</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#3d4568', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Gacha</div>
+                <input type="date" value={lTo} onChange={e => setLTo(e.target.value)} style={{
+                  width: '100%', padding: '8px 10px', background: '#111420',
+                  border: '1px solid #1e2440', borderRadius: 8, color: '#e8eaf2',
+                  fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const,
+                }}/>
+              </div>
+              <button onClick={() => { onChange(lFrom, lTo); setOpen(false); }} style={{
+                padding: '8px 14px', borderRadius: 8, border: 'none',
+                background: 'linear-gradient(135deg,#3d7eff,#a855f7)',
+                color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                paddingBottom: 10,
+              }}>✓</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── PREMIUM REVENUE CHART ──────────────────────────────────────────
+function RevenueChart({ data }: { data: any[] }) {
+  const [view, setView] = useState<'year' | 'quarter'>('year');
+  const months = ['','Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
+
+  const chartData = data.map((d: any) => ({
+    ...d,
+    label: d.period
+      ? d.period.slice(0,7).replace(/-(\d+)$/, (_: any, m: string) => ' ' + (months[parseInt(m)] || m))
+      : d.month
+        ? (() => { const parts = d.month.split('-'); return parts[1] ? months[parseInt(parts[1])] + ' ' + parts[0] : d.month; })()
+        : (d.label || ''),
+    revenue: d.revenue ?? d.amount ?? 0,
+    profit: d.profit ?? d.netProfit ?? 0,
+  }));
+
+  const displayed = view === 'quarter' ? chartData.slice(-3) : chartData;
+
+  const isEmpty = displayed.length === 0;
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <div style={{
+      padding: '22px 24px',
+      background: 'var(--bg-2)',
+      borderRadius: 16,
+      border: '1px solid var(--border)',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Subtle glow bg */}
+      <div style={{
+        position: 'absolute', top: -40, right: -40,
+        width: 220, height: 220, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(91,110,245,0.07) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', letterSpacing: -0.3 }}>Revenue & Profit</div>
+          <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 3, fontWeight: 500 }}>
+            Monthly performance · {currentYear}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#5b8def', display: 'inline-block' }}/>
+              <span style={{ fontSize: 11.5, color: 'var(--fg-2)', fontWeight: 500 }}>Revenue</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7', display: 'inline-block' }}/>
+              <span style={{ fontSize: 11.5, color: 'var(--fg-2)', fontWeight: 500 }}>Profit</span>
+            </div>
+          </div>
+
+          {/* Year / Quarter toggle */}
+          <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 8, padding: 3, border: '1px solid var(--border)', gap: 2 }}>
+            {(['year','quarter'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)} style={{
+                padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                fontSize: 11.5, fontWeight: 600,
+                background: view === v ? 'var(--bg-4)' : 'transparent',
+                color: view === v ? 'var(--fg)' : 'var(--fg-3)',
+                transition: 'all 0.14s',
+                boxShadow: view === v ? 'var(--shadow-xs)' : 'none',
+              }}>
+                {v === 'year' ? 'Year' : 'Quarter'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Chart */}
+      {isEmpty ? (
+        <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-3)', fontSize: 13 }}>
+          Ma'lumot yo'q
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={displayed} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              {/* Revenue — ko'k-indigo gradient */}
+              <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#4f72e3" stopOpacity={0.5}/>
+                <stop offset="60%"  stopColor="#3d5fc0" stopOpacity={0.25}/>
+                <stop offset="100%" stopColor="#1a2a6e" stopOpacity={0.05}/>
+              </linearGradient>
+              {/* Profit — violet gradient */}
+              <linearGradient id="profGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#a855f7" stopOpacity={0.45}/>
+                <stop offset="60%"  stopColor="#7c3aed" stopOpacity={0.18}/>
+                <stop offset="100%" stopColor="#3b0764" stopOpacity={0.04}/>
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid
+              strokeDasharray="0"
+              stroke="rgba(255,255,255,0.04)"
+              vertical={false}
+              horizontal={true}
+            />
+
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: 'var(--fg-3)', fontSize: 11, fontWeight: 500 }}
+              dy={8}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: 'var(--fg-3)', fontSize: 10.5, fontWeight: 500 }}
+              tickFormatter={(v: any) => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
+              width={44}
+            />
+
+            <Tooltip
+              cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
+              contentStyle={{
+                background: 'var(--bg-4)',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 10,
+                fontSize: 12,
+                padding: '10px 14px',
+                boxShadow: 'var(--shadow-lg)',
+              }}
+              labelStyle={{ color: 'var(--fg)', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
+              formatter={(v: any, name: string) => [
+                `$${Number(v).toLocaleString()}`,
+                name === 'revenue' ? 'Revenue' : 'Profit'
+              ]}
+            />
+
+            {/* Revenue — ustida */}
+            <Area
+              type="monotone"
+              dataKey="revenue"
+              stroke="#5b8def"
+              strokeWidth={2.2}
+              fill="url(#revGrad)"
+              dot={false}
+              activeDot={{ r: 5, fill: '#5b8def', stroke: '#fff', strokeWidth: 2 }}
+            />
+            {/* Profit — pastida */}
+            <Area
+              type="monotone"
+              dataKey="profit"
+              stroke="#a855f7"
+              strokeWidth={2}
+              fill="url(#profGrad)"
+              dot={false}
+              activeDot={{ r: 4.5, fill: '#a855f7', stroke: '#fff', strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
