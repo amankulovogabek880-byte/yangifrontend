@@ -47,7 +47,8 @@ export default function BookingDetailPage() {
   const [showSendInvoice, setShowSendInvoice] = useState(false);
   // v9-FINAL: Approval modal (chegirma/refund so'rash uchun)
   const [showApproval, setShowApproval] = useState<{ type: string } | null>(null);
-  const [showEditPrice, setShowEditPrice] = useState(false);
+  // BUG FIX: Booking ma'lumotlarini (narx, tannarx, chegirma...) to'g'ridan-to'g'ri tahrirlash modali
+  const [showEdit, setShowEdit] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -82,14 +83,18 @@ export default function BookingDetailPage() {
           </div>
 
           <div style={{ textAlign: 'right' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
               <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>Sale Price</div>
               {isAdmin && (
-                <button onClick={() => setShowEditPrice(true)} title="Narxni tahrirlash" style={{
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 2,
-                  color: 'var(--fg-3)', display: 'flex', alignItems: 'center',
-                }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <button
+                  onClick={() => setShowEdit(true)}
+                  title="Narxlarni tahrirlash"
+                  style={{
+                    background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                    cursor: 'pointer', color: 'var(--fg-2)', fontSize: 11, padding: '2px 6px',
+                  }}
+                >
+                  ✏️ Tahrirlash
                 </button>
               )}
             </div>
@@ -388,106 +393,18 @@ export default function BookingDetailPage() {
         />
       )}
 
-      {/* Narxni tahrirlash modali */}
-      {showEditPrice && (
-        <EditPriceModal
+      {/* BUG FIX: Narx/tannarx/chegirma to'g'ridan-to'g'ri tahrirlash modali.
+          Saqlangach booking qayta yuklanadi (load()) — backend esa
+          'dashboard:update' socket eventini yuboradi, shu sababli
+          Dashboard sahifasidagi raqamlar ham avtomatik yangilanadi. */}
+      {showEdit && (
+        <EditBookingModal
           booking={b}
-          onClose={() => setShowEditPrice(false)}
-          onSaved={() => { setShowEditPrice(false); load(); toast.success('✅ Narx yangilandi'); }}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => { setShowEdit(false); load(); }}
         />
       )}
     </CrmLayout>
-  );
-}
-
-// ─── Narxni tahrirlash modali ────────────────────────────────────────
-function EditPriceModal({ booking, onClose, onSaved }: any) {
-  const [totalPrice, setTotalPrice] = useState(String(booking.totalPrice ?? ''));
-  const [supplierCost, setSupplierCost] = useState(String(booking.supplierCost ?? ''));
-  const [discount, setDiscount] = useState(String(booking.discount ?? ''));
-  const [saving, setSaving] = useState(false);
-
-  const total = Number(totalPrice) || 0;
-  const cost = Number(supplierCost) || 0;
-  const disc = Number(discount) || 0;
-  const profit = Math.max(0, total - cost - disc);
-
-  async function save() {
-    if (!totalPrice || total <= 0) {
-      toast.error('Jami narx musbat bo\'lishi kerak');
-      return;
-    }
-    setSaving(true);
-    try {
-      await bookingsApi.update(booking.id, {
-        totalPrice: total,
-        supplierCost: cost,
-        discount: disc,
-      });
-      onSaved();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Xatolik yuz berdi');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title="💰 Narxni tahrirlash" maxWidth={420} footer={
-      <>
-        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
-        <Btn variant="gradient" onClick={save} disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</Btn>
-      </>
-    }>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <Label>Jami narx (Sale Price) — {booking.currency}</Label>
-          <input
-            type="number" value={totalPrice} onChange={e => setTotalPrice(e.target.value)}
-            style={{
-              width: '100%', padding: '10px 12px', borderRadius: 9,
-              background: 'var(--bg-3)', border: '1px solid var(--border)',
-              color: 'var(--fg)', fontSize: 15, fontWeight: 700, boxSizing: 'border-box',
-            }}
-          />
-        </div>
-        <div>
-          <Label>Provider narxi (Cost)</Label>
-          <input
-            type="number" value={supplierCost} onChange={e => setSupplierCost(e.target.value)}
-            style={{
-              width: '100%', padding: '10px 12px', borderRadius: 9,
-              background: 'var(--bg-3)', border: '1px solid var(--border)',
-              color: 'var(--fg)', fontSize: 14, boxSizing: 'border-box',
-            }}
-          />
-        </div>
-        <div>
-          <Label>Chegirma (Discount)</Label>
-          <input
-            type="number" value={discount} onChange={e => setDiscount(e.target.value)}
-            style={{
-              width: '100%', padding: '10px 12px', borderRadius: 9,
-              background: 'var(--bg-3)', border: '1px solid var(--border)',
-              color: 'var(--fg)', fontSize: 14, boxSizing: 'border-box',
-            }}
-          />
-        </div>
-        <div style={{
-          padding: '12px 14px', borderRadius: 10,
-          background: 'var(--bg-3)', border: '1px solid var(--border)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        }}>
-          <span style={{ fontSize: 12, color: 'var(--fg-3)', fontWeight: 600 }}>Yangi foyda:</span>
-          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}>
-            {booking.currency} {profit.toLocaleString()}
-          </span>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-          Bu o'zgarish booking, mijoz profili va dashboard statistikasida avtomatik yangilanadi.
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -1112,13 +1029,99 @@ function ServiceForm({ bookingId, editing, onClose, onSaved }: any) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// v9: MIJOZGA INVOICE YUBORISH MODALI
+// BUG FIX: BOOKING NARX/TANNARX/CHEGIRMANI TAHRIRLASH MODALI
 // ═══════════════════════════════════════════════════════════
 //
-// Booking detail sahifasida "📤 Mijozga yuborish" tugmasidan
-// chiqadi. Klient bilan suhbat mavjud bo'lsa Telegram orqali
-// yuboriladi. Bo'lmasa - WhatsApp link ko'rsatamiz.
-//
+// Avval booking detail sahifasida narxni to'g'ridan-to'g'ri
+// tahrirlash imkoni umuman yo'q edi (faqat admin tasdiqlash
+// orqali chegirma/refund so'rash mumkin edi). Bu modal admin/
+// manager uchun tourName, destination, totalPrice, supplierCost
+// va discount'ni bevosita PUT /bookings/:id orqali yangilaydi.
+// Backend profit'ni avtomatik qayta hisoblaydi va klient
+// statistikasini (recalcStats) hamda dashboard'ni
+// (dashboard:update socket event) yangilaydi.
+function EditBookingModal({ booking, onClose, onSaved }: any) {
+  const [form, setForm] = useState({
+    tourName: booking.tourName || '',
+    destination: booking.destination || '',
+    totalPrice: booking.totalPrice ?? '',
+    supplierCost: booking.supplierCost ?? '',
+    discount: booking.discount ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const set = (k: string, v: any) => setForm((p) => ({ ...p, [k]: v }));
+
+  const totalPrice = Number(form.totalPrice) || 0;
+  const supplierCost = Number(form.supplierCost) || 0;
+  const discount = Number(form.discount) || 0;
+  const previewProfit = Math.max(0, totalPrice - supplierCost - discount);
+
+  async function save() {
+    if (!form.tourName.trim() || !form.destination.trim()) {
+      toast.error("Tur nomi va manzil to'ldirilishi shart");
+      return;
+    }
+    if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+      toast.error("Narx musbat son bo'lishi kerak");
+      return;
+    }
+    setSaving(true);
+    try {
+      await bookingsApi.update(booking.id, {
+        tourName: form.tourName.trim(),
+        destination: form.destination.trim(),
+        totalPrice,
+        supplierCost,
+        discount,
+      });
+      toast.success('✅ Saqlandi');
+      onSaved();
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="✏️ Booking narxlarini tahrirlash" maxWidth={460} footer={
+      <>
+        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+        <Btn variant="gradient" onClick={save} loading={saving}>Saqlash</Btn>
+      </>
+    }>
+      <Label>Tur nomi *</Label>
+      <Input value={form.tourName} onChange={(e) => set('tourName', e.target.value)} style={{ marginBottom: 12 }} />
+
+      <Label>Manzil *</Label>
+      <Input value={form.destination} onChange={(e) => set('destination', e.target.value)} style={{ marginBottom: 12 }} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+        <div>
+          <Label>Sotuv narxi ({booking.currency}) *</Label>
+          <Input type="number" value={form.totalPrice} onChange={(e) => set('totalPrice', e.target.value)} placeholder="0" />
+        </div>
+        <div>
+          <Label>Chegirma ({booking.currency})</Label>
+          <Input type="number" value={form.discount} onChange={(e) => set('discount', e.target.value)} placeholder="0" />
+        </div>
+      </div>
+
+      <Label>Tannarx / Provayder narxi ({booking.currency})</Label>
+      <Input type="number" value={form.supplierCost} onChange={(e) => set('supplierCost', e.target.value)} placeholder="0" style={{ marginBottom: 12 }} />
+
+      <div style={{
+        padding: 10, background: 'var(--bg-3)', borderRadius: 8,
+        fontSize: 12, display: 'flex', justifyContent: 'space-between',
+      }}>
+        <span style={{ color: 'var(--fg-3)' }}>Yangi foyda (avtomatik hisoblanadi)</span>
+        <b style={{ color: 'var(--success)' }}>{booking.currency} {previewProfit.toLocaleString()}</b>
+      </div>
+    </Modal>
+  );
+}
+
 function SendInvoiceModal({ booking, onClose, onSent }: any) {
   const [client360, setClient360] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1467,11 +1470,9 @@ function DocumentsTab({ bookingId, booking }: any) {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const r = await api.post(
-        `/uploads?entityType=booking&entityId=${bookingId}`,
-        fd,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
+      fd.append('entityType', 'booking');
+      fd.append('entityId', bookingId);
+      const r = await api.post('/uploads', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setDocs((prev: any[]) => [...prev, r.data]);
       toast.success('Hujjat yuklandi');
     } catch (e: any) { toast.error(errMsg(e)); }
