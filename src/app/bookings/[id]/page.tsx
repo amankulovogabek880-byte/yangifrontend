@@ -47,6 +47,7 @@ export default function BookingDetailPage() {
   const [showSendInvoice, setShowSendInvoice] = useState(false);
   // v9-FINAL: Approval modal (chegirma/refund so'rash uchun)
   const [showApproval, setShowApproval] = useState<{ type: string } | null>(null);
+  const [showEditPrice, setShowEditPrice] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -81,7 +82,17 @@ export default function BookingDetailPage() {
           </div>
 
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>Sale Price</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>Sale Price</div>
+              {isAdmin && (
+                <button onClick={() => setShowEditPrice(true)} title="Narxni tahrirlash" style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+                  color: 'var(--fg-3)', display: 'flex', alignItems: 'center',
+                }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+              )}
+            </div>
             <div style={{ fontSize: 28, fontWeight: 800 }}>{b.currency} {b.totalPrice}</div>
             {isAdmin && b.supplierCost > 0 && (
               <div style={{ fontSize: 12, marginTop: 4 }}>
@@ -376,7 +387,107 @@ export default function BookingDetailPage() {
           onSent={() => { setShowApproval(null); toast.success("✅ Tasdiq so'rovi yuborildi"); }}
         />
       )}
+
+      {/* Narxni tahrirlash modali */}
+      {showEditPrice && (
+        <EditPriceModal
+          booking={b}
+          onClose={() => setShowEditPrice(false)}
+          onSaved={() => { setShowEditPrice(false); load(); toast.success('✅ Narx yangilandi'); }}
+        />
+      )}
     </CrmLayout>
+  );
+}
+
+// ─── Narxni tahrirlash modali ────────────────────────────────────────
+function EditPriceModal({ booking, onClose, onSaved }: any) {
+  const [totalPrice, setTotalPrice] = useState(String(booking.totalPrice ?? ''));
+  const [supplierCost, setSupplierCost] = useState(String(booking.supplierCost ?? ''));
+  const [discount, setDiscount] = useState(String(booking.discount ?? ''));
+  const [saving, setSaving] = useState(false);
+
+  const total = Number(totalPrice) || 0;
+  const cost = Number(supplierCost) || 0;
+  const disc = Number(discount) || 0;
+  const profit = Math.max(0, total - cost - disc);
+
+  async function save() {
+    if (!totalPrice || total <= 0) {
+      toast.error('Jami narx musbat bo\'lishi kerak');
+      return;
+    }
+    setSaving(true);
+    try {
+      await bookingsApi.update(booking.id, {
+        totalPrice: total,
+        supplierCost: cost,
+        discount: disc,
+      });
+      onSaved();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Xatolik yuz berdi');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="💰 Narxni tahrirlash" maxWidth={420} footer={
+      <>
+        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+        <Btn variant="gradient" onClick={save} disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</Btn>
+      </>
+    }>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <Label>Jami narx (Sale Price) — {booking.currency}</Label>
+          <input
+            type="number" value={totalPrice} onChange={e => setTotalPrice(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: 9,
+              background: 'var(--bg-3)', border: '1px solid var(--border)',
+              color: 'var(--fg)', fontSize: 15, fontWeight: 700, boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div>
+          <Label>Provider narxi (Cost)</Label>
+          <input
+            type="number" value={supplierCost} onChange={e => setSupplierCost(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: 9,
+              background: 'var(--bg-3)', border: '1px solid var(--border)',
+              color: 'var(--fg)', fontSize: 14, boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div>
+          <Label>Chegirma (Discount)</Label>
+          <input
+            type="number" value={discount} onChange={e => setDiscount(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: 9,
+              background: 'var(--bg-3)', border: '1px solid var(--border)',
+              color: 'var(--fg)', fontSize: 14, boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div style={{
+          padding: '12px 14px', borderRadius: 10,
+          background: 'var(--bg-3)', border: '1px solid var(--border)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 12, color: 'var(--fg-3)', fontWeight: 600 }}>Yangi foyda:</span>
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}>
+            {booking.currency} {profit.toLocaleString()}
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+          Bu o'zgarish booking, mijoz profili va dashboard statistikasida avtomatik yangilanadi.
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -1356,9 +1467,11 @@ function DocumentsTab({ bookingId, booking }: any) {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('entityType', 'booking');
-      fd.append('entityId', bookingId);
-      const r = await api.post('/uploads', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const r = await api.post(
+        `/uploads?entityType=booking&entityId=${bookingId}`,
+        fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
       setDocs((prev: any[]) => [...prev, r.data]);
       toast.success('Hujjat yuklandi');
     } catch (e: any) { toast.error(errMsg(e)); }
