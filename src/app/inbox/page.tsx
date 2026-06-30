@@ -25,6 +25,59 @@ const CHANNEL_COLORS: Record<string, string> = {
   INSTAGRAM: '#E1306C',
 };
 
+// ── Telegram profil rasmini ko'rsatuvchi Avatar komponenti ──
+function TelegramAvatar({ conv, size = 40 }: { conv: any; size?: number }) {
+  const [imgErr, setImgErr] = useState(false);
+  const name = conv.client?.fullName
+    || [conv.firstName, conv.lastName].filter(Boolean).join(' ')
+    || conv.username
+    || conv.externalUsername
+    || '?';
+
+  // photoUrl backend conversation'dan keladi
+  const photoUrl = conv.photoUrl || conv.client?.telegramPhotoUrl || null;
+
+  if (photoUrl && !imgErr) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name}
+        onError={() => setImgErr(true)}
+        style={{
+          width: size, height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          flexShrink: 0,
+          background: 'var(--bg-3)',
+        }}
+      />
+    );
+  }
+
+  // Fallback: initials avatar
+  const initials = name
+    .split(' ')
+    .map((w: string) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const colors = ['#3d7eff','#e05c5c','#2eb872','#f5a623','#8b5cf6','#0088cc','#e91e8c'];
+  const colorIndex = name.charCodeAt(0) % colors.length;
+
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: colors[colorIndex],
+      color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.35, fontWeight: 700, flexShrink: 0,
+      userSelect: 'none',
+    }}>
+      {initials || '?'}
+    </div>
+  );
+}
+
 function InboxPageInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -34,7 +87,6 @@ function InboxPageInner() {
 
   const [convs, setConvs] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  // Filtered conversations based on search
   const filteredConvs = searchQuery.trim()
     ? convs.filter(c => {
         const q = searchQuery.toLowerCase().replace(/^@/, '');
@@ -47,6 +99,10 @@ function InboxPageInner() {
     : convs;
 
   const [active, setActive] = useState<any>(null);
+  const activeRef = useRef<any>(null);
+  // Sync activeRef with active state for use in socket closures
+  useEffect(() => { activeRef.current = active; }, [active]);
+
   const [messages, setMessages] = useState<any[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
@@ -62,7 +118,6 @@ function InboxPageInner() {
 
   useSocket();
 
-  // Check if user has personal Telegram account
   useEffect(() => {
     userTelegramApi.getMyAccount()
       .then(r => setHasPersonalAccount(!!r.data))
@@ -73,7 +128,6 @@ function InboxPageInner() {
     setLoading(true);
     telegramApi.conversations()
       .then((r: any) => {
-        // Backend xar xil format qaytarishi mumkin — defensive
         const list = Array.isArray(r.data) ? r.data
           : Array.isArray(r.data?.data) ? r.data.data
           : Array.isArray(r.data?.conversations) ? r.data.conversations
@@ -90,8 +144,6 @@ function InboxPageInner() {
   const [createClientModal, setCreateClientModal] = useState<any>(null);
   const [clientFormData, setClientFormData] = useState({ phone: '', notes: '' });
 
-  // v9-SECURITY: Telegram suhbatdan klient yaratish (phone optional)
-  // Modal orqali agent telefonni kiritishi mumkin
   const openCreateClientModal = (conv: any) => {
     if (!conv) return;
     setCreateClientModal(conv);
@@ -101,44 +153,40 @@ function InboxPageInner() {
   const createClientFromConv = async () => {
     if (!createClientModal) return;
     const conv = createClientModal;
-    
+
     const fullName = [conv.firstName, conv.lastName].filter(Boolean).join(' ')
       || conv.username
       || conv.externalUsername
       || 'Telegram klient';
 
-    // v9-SECURITY: Validate phone format if provided
     let phone = clientFormData.phone.trim();
     if (phone && !phone.match(/^[0-9\+\-\(\) ]{5,20}$/)) {
-      toast.error('Telefon raqam noto\'g\'ri formatda (kamita 5 ta raqam)');
+      toast.error('Telefon raqam noto\'g\'ri formatda');
       return;
     }
 
     try {
       const created: any = await clientsApi.create({
         fullName,
-        phone: phone || null, // ✅ OPTIONAL: Can be null
+        phone: phone || null,
         telegramUsername: conv.username || null,
         source: 'TELEGRAM',
         pipelineStage: 'NEW_LEAD',
         notes: clientFormData.notes || null,
         conversationId: conv.id,
       });
-      
+
       const newClient = created.data;
-      toast.success("✅ Klient yaratildi: " + newClient.fullName);
-      
-      // Suhbatga klientni bog'lash
+      toast.success('✅ Klient yaratildi: ' + newClient.fullName);
+
       try {
         await telegramApi.linkClient(conv.id, newClient.id);
       } catch (e) {
         console.error('Link client error:', e);
       }
-      
+
       loadConvs();
       setCreateClientModal(null);
-      
-      // Yangi klient sahifasiga o'tish
       router.push(`/clients/${newClient.id}`);
     } catch (e: any) {
       toast.error(errMsg(e));
@@ -149,7 +197,6 @@ function InboxPageInner() {
     loadConvs();
     const convId = params.get('conv');
     if (convId) {
-      // ochaman
       setTimeout(() => {
         setActive({ id: convId });
       }, 100);
@@ -161,13 +208,11 @@ function InboxPageInner() {
     setLoadingMessages(true);
     telegramApi.messages(active.id)
       .then((r: any) => {
-        // Defensive: backend response formatga moslashish
         const list = Array.isArray(r.data) ? r.data
           : Array.isArray(r.data?.data) ? r.data.data
           : Array.isArray(r.data?.messages) ? r.data.messages
           : [];
         setMessages(list);
-        // Refresh conv from list
         const c = convs.find((c) => c.id === active.id);
         if (c) setActive(c);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -179,59 +224,118 @@ function InboxPageInner() {
       .finally(() => setLoadingMessages(false));
   }, [active?.id, msgRefresh]);
 
-  // Socket: new message
+  // ── Socket: real-time xabarlar va suhbat yangilanishlari ──
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
+
+    // Yangi kiruvchi xabar
     const onNew = (msg: any) => {
-      // Always update conversation list (unread badge)
-      setConvs((prev: any[]) => prev.map((cv: any) => {
-        if (cv.id === msg.conversationId) {
-          const isActive = cv.id === active?.id;
-          return {
-            ...cv,
-            lastMessageText: msg.text || '',
-            lastMessageAt: msg.createdAt || new Date().toISOString(),
-            unreadCount: isActive ? 0 : (cv.unreadCount || 0) + 1,
-          };
+      const currentActive = activeRef.current;
+      setConvs((prev: any[]) => {
+        const updated = prev.map((cv: any) => {
+          if (cv.id === msg.conversationId) {
+            const isActive = cv.id === currentActive?.id;
+            return {
+              ...cv,
+              lastMessageText: msg.text || '',
+              lastMessageAt: msg.createdAt || new Date().toISOString(),
+              unreadCount: isActive ? 0 : (cv.unreadCount || 0) + 1,
+            };
+          }
+          return cv;
+        });
+        // ── Tepaga ko'tarish: so'nggi xabar kelgan suhbat birinchi ──
+        const idx = updated.findIndex((cv: any) => cv.id === msg.conversationId);
+        if (idx > 0) {
+          const [moved] = updated.splice(idx, 1);
+          return [moved, ...updated];
         }
-        return cv;
-      }));
-      // If active conversation - append message to chat
-      if (msg.conversationId === active?.id) {
+        return updated;
+      });
+
+      if (msg.conversationId === activeRef.current?.id) {
         setMessages((m: any[]) => {
-          // Don't duplicate if already exists
           if (m.some((x: any) => x.externalMsgId && x.externalMsgId === msg.externalMsgId)) return m;
           return [...m, msg];
         });
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       }
     };
-    // Also listen for template/invoice sent confirmation
+
+    // Shablon/invoice yuborilganda real-time ko'rinishi
     const onSent = (msg: any) => {
-      if (msg.conversationId === active?.id) {
+      const currentActive = activeRef.current;
+      if (msg.conversationId === currentActive?.id) {
         setMessages((m: any[]) => {
-          // Remove tmp if exists, add real
+          // tmp xabarni o'chirib, haqiqiysini qo'yamiz
           const filtered = m.filter((x: any) => !x.id?.toString().startsWith('tmp_'));
+          if (filtered.some((x: any) => x.id === msg.id)) return filtered;
           return [...filtered, msg];
         });
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       }
+      // Suhbat listini ham yangilaymiz
+      setConvs((prev: any[]) => {
+        const updated = prev.map((cv: any) => {
+          if (cv.id === msg.conversationId) {
+            return {
+              ...cv,
+              lastMessageText: msg.text || '',
+              lastMessageAt: msg.createdAt || new Date().toISOString(),
+            };
+          }
+          return cv;
+        });
+        // Tepaga ko'tarish
+        const idx = updated.findIndex((cv: any) => cv.id === msg.conversationId);
+        if (idx > 0) {
+          const [moved] = updated.splice(idx, 1);
+          return [moved, ...updated];
+        }
+        return updated;
+      });
     };
+
+    // Suhbat yangilanganda (shablon, invoice) — refresh qilmasdan ko'rinsin
+    const onConvUpdated = (data: any) => {
+      setConvs((prev: any[]) => {
+        const updated = prev.map((cv: any) => {
+          if (cv.id === data.conversationId) {
+            return {
+              ...cv,
+              lastMessageText: data.lastMessageText || cv.lastMessageText,
+              lastMessageAt: data.lastMessageAt || cv.lastMessageAt,
+            };
+          }
+          return cv;
+        });
+        // Tepaga ko'tarish
+        const idx = updated.findIndex((cv: any) => cv.id === data.conversationId);
+        if (idx > 0) {
+          const [moved] = updated.splice(idx, 1);
+          return [moved, ...updated];
+        }
+        return updated;
+      });
+    };
+
     socket.on('message:sent', onSent);
     socket.on('message:new', onNew);
+    socket.on('conversation:updated', onConvUpdated);
+
     return () => {
       socket.off('message:new', onNew);
       socket.off('message:sent', onSent);
+      socket.off('conversation:updated', onConvUpdated);
     };
-  }, [active?.id]);
+  }, []); // ← bo'sh dependency, activeRef orqali ishlaydi
 
   async function sendText() {
     if (!draft.trim() || !active?.id) return;
     setSending(true);
     const text = draft;
     setDraft('');
-    // 1. Darhol ko'rsatish (optimistic)
     const tmpMsg = {
       id: 'tmp_' + Date.now(),
       text,
@@ -242,7 +346,6 @@ function InboxPageInner() {
     };
     setMessages((prev: any[]) => [...prev, tmpMsg]);
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 30);
-    // 2. Mark conv unread = 0
     setConvs((prev: any[]) => prev.map((cv: any) =>
       cv.id === active.id ? { ...cv, unreadCount: 0, lastMessageText: text, lastMessageAt: new Date().toISOString() } : cv
     ));
@@ -256,12 +359,10 @@ function InboxPageInner() {
       } else {
         await telegramApi.sendMessage(active.id, text);
       }
-      // 3. Mark delivered
       setMessages((prev: any[]) => prev.map((m: any) =>
         m.id === tmpMsg.id ? { ...m, isDelivered: true } : m
       ));
     } catch (e: any) {
-      // 4. Xato - olib tashla, draft'ga qaytarish
       setMessages((prev: any[]) => prev.filter((m: any) => m.id !== tmpMsg.id));
       setDraft(text);
       toast.error(errMsg(e));
@@ -282,11 +383,20 @@ function InboxPageInner() {
         fileUrl: url, mimeType, mediaType,
         caption: draft || undefined,
       });
-      // Show sent media in chat
       setDraft('');
       setMsgRefresh((n: number) => n + 1);
       toast.success('Yuborildi', { id: 'upload' });
     } catch (e: any) { toast.error(errMsg(e), { id: 'upload' }); }
+  }
+
+  // Conversation nomini aniqlash (Telegram ism ko'rsatish)
+  function getConvName(c: any) {
+    if (c.client?.fullName) return c.client.fullName;
+    const tgName = [c.firstName, c.lastName].filter(Boolean).join(' ');
+    if (tgName) return tgName;
+    if (c.username) return '@' + c.username;
+    if (c.externalUsername) return c.externalUsername;
+    return 'Foydalanuvchi';
   }
 
   return (
@@ -347,6 +457,7 @@ function InboxPageInner() {
             )}
             {!loading && filteredConvs.map((c) => {
               const isActive = active?.id === c.id;
+              const displayName = getConvName(c);
               return (
                 <div key={c.id} onClick={() => setActive(c)} style={{
                   padding: '12px 14px',
@@ -360,8 +471,9 @@ function InboxPageInner() {
                 onMouseEnter={(e) => !isActive && (e.currentTarget.style.background = 'var(--bg-hover)')}
                 onMouseLeave={(e) => !isActive && (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div style={{ position: 'relative' }}>
-                    <Avatar name={c.client?.fullName || c.externalUsername || '?'} size={40} />
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    {/* ── Telegram profil rasmi yoki initials ── */}
+                    <TelegramAvatar conv={c} size={40} />
                     <div style={{
                       position: 'absolute', bottom: -2, right: -2,
                       width: 16, height: 16, borderRadius: '50%',
@@ -383,25 +495,24 @@ function InboxPageInner() {
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <div style={{ fontWeight: c.unreadCount > 0 ? 800 : 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: c.unreadCount > 0 ? 'var(--fg)' : undefined }}>
-                        {c.client?.fullName
-                          || [c.firstName, c.lastName].filter(Boolean).join(' ')
-                          || (c.username ? '@' + c.username : null)
-                          || c.externalUsername
-                          || 'Notanish'}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{
+                        fontWeight: c.unreadCount > 0 ? 800 : 600, fontSize: 13,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        color: c.unreadCount > 0 ? 'var(--fg)' : undefined,
+                      }}>
+                        {displayName}
                       </div>
                       {c.unreadCount > 0 && (
                         <span style={{
                           background: 'var(--primary)', color: 'white',
                           fontSize: 10, fontWeight: 700,
                           padding: '1px 6px', borderRadius: 10,
-                          minWidth: 18, textAlign: 'center',
+                          minWidth: 18, textAlign: 'center', flexShrink: 0,
                         }}>{c.unreadCount}</span>
                       )}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {/* Agar client bog'lanmagan bo'lsa — username ko'rsatamiz */}
                       {!c.client && c.username && (
                         <span style={{ color: 'var(--primary)' }}>@{c.username} • </span>
                       )}
@@ -432,18 +543,15 @@ function InboxPageInner() {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Avatar name={active.client?.fullName || [active.firstName, active.lastName].filter(Boolean).join(' ') || active.username || '?'} size={40} />
+                  {/* Header avatarida ham Telegram rasmi */}
+                  <TelegramAvatar conv={active} size={40} />
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>
-                      {active.client?.fullName
-                        || [active.firstName, active.lastName].filter(Boolean).join(' ')
-                        || (active.username ? '@' + active.username : null)
-                        || active.externalUsername
-                        || 'Notanish'}
+                      {getConvName(active)}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>
                       {active.client?.phone
-                        || (active.username ? `@${active.username}` : 'Telefon yo\'q')}
+                        || (active.username ? `@${active.username}` : 'Telegram')}
                       {active.assignedAgent && ` • ${active.assignedAgent.name}`}
                     </div>
                   </div>
@@ -459,7 +567,6 @@ function InboxPageInner() {
                       👤 Profil
                     </Btn>
                   ) : (
-                    // v9-SECURITY: Modal orqali client yaratish
                     <Btn size="sm" variant="gradient" onClick={() => openCreateClientModal(active)}>
                       👤 Yaratish
                     </Btn>
@@ -477,18 +584,31 @@ function InboxPageInner() {
                   const isOut = m.direction === 'OUTBOUND' || m.direction === 'outbound' || m.isOutbound === true;
                   return (
                     <div key={m.id} style={{
-                      display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start',
+                      display: 'flex',
+                      justifyContent: isOut ? 'flex-end' : 'flex-start',
                       marginBottom: 10,
+                      alignItems: 'flex-end',
+                      gap: 8,
                     }}>
+                      {/* Kiruvchi xabarda mini avatar */}
+                      {!isOut && (
+                        <TelegramAvatar conv={active} size={28} />
+                      )}
                       <div style={{
                         maxWidth: '70%',
-                        background: isOut ? '#3d7eff' : 'var(--bg-2)',
+                        // ── RANGI: kiruvchi kulrang, chiquvchi ko'k ──
+                        background: isOut ? 'var(--primary, #3d7eff)' : 'var(--bg-2)',
                         color: isOut ? 'white' : 'var(--fg)',
                         padding: '10px 14px',
                         borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                         boxShadow: 'var(--shadow-sm)',
                       }}>
                         {m.messageType === 'IMAGE' && m.fileUrl && (
+                          <img src={m.fileUrl} alt="" style={{
+                            maxWidth: '100%', borderRadius: 8, marginBottom: m.caption ? 6 : 0,
+                          }} />
+                        )}
+                        {(m.messageType === 'PHOTO') && m.fileUrl && (
                           <img src={m.fileUrl} alt="" style={{
                             maxWidth: '100%', borderRadius: 8, marginBottom: m.caption ? 6 : 0,
                           }} />
@@ -506,6 +626,7 @@ function InboxPageInner() {
                         <div style={{
                           fontSize: 9, marginTop: 4,
                           opacity: 0.7, textAlign: 'right',
+                          color: isOut ? 'rgba(255,255,255,0.8)' : 'var(--fg-3)',
                         }}>
                           {new Date(m.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                           {isOut && m.isDelivered && ' ✓'}
@@ -573,11 +694,14 @@ function InboxPageInner() {
         <TemplatesPanel
           conversationId={active.id}
           onClose={() => setShowTemplates(false)}
-          onSent={() => { setShowTemplates(false); }}
+          onSent={() => {
+            setShowTemplates(false);
+            // Refresh messages to show sent template immediately
+            setMsgRefresh((n: number) => n + 1);
+          }}
         />
       )}
 
-      {/* v9-SECURITY: Create Client Modal */}
       <CreateClientModal
         conv={createClientModal}
         onClose={() => setCreateClientModal(null)}
@@ -590,7 +714,12 @@ function InboxPageInner() {
         <SendInvoiceModal
           conversation={active}
           onClose={() => setShowInvoice(false)}
-          onSent={() => { setShowInvoice(false); toast.success('Invoice yuborildi!'); }}
+          onSent={() => {
+            setShowInvoice(false);
+            toast.success('Invoice yuborildi!');
+            // Refresh messages to show sent invoice immediately
+            setMsgRefresh((n: number) => n + 1);
+          }}
         />
       )}
       {showNewPersonal && (
@@ -598,7 +727,6 @@ function InboxPageInner() {
           onClose={() => setShowNewPersonal(false)}
           onSent={(convId: string) => {
             setShowNewPersonal(false);
-            // Reload and open conversation
             setTimeout(() => {
               loadConvs();
               if (convId) {
@@ -697,13 +825,12 @@ function TemplatesPanel({ conversationId, onClose, onSent }: any) {
   );
 }
 
-// v9-SECURITY: Create Client from Telegram Modal
-function CreateClientModal({ 
-  conv, 
-  onClose, 
-  onConfirm, 
-  formData, 
-  setFormData 
+function CreateClientModal({
+  conv,
+  onClose,
+  onConfirm,
+  formData,
+  setFormData
 }: any) {
   const fullName = [conv?.firstName, conv?.lastName].filter(Boolean).join(' ')
     || conv?.username
@@ -715,12 +842,11 @@ function CreateClientModal({
   return (
     <Modal open={!!conv} onClose={onClose} title="👤 Yanyi klient yaratish" maxWidth={500}>
       <div style={{ padding: '0 20px 20px' }}>
-        {/* Client name (read-only) */}
         <div style={{ marginBottom: 16 }}>
           <Label>To'liq ismi</Label>
-          <Input 
-            value={fullName} 
-            disabled 
+          <Input
+            value={fullName}
+            disabled
             style={{ background: 'var(--bg-2)' }}
           />
           <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
@@ -728,24 +854,19 @@ function CreateClientModal({
           </div>
         </div>
 
-        {/* Phone number (optional) */}
         <div style={{ marginBottom: 16 }}>
           <Label>📱 Telefon raqami <span style={{ color: 'var(--fg-3)' }}>(ixtiyoriy)</span></Label>
-          <Input 
+          <Input
             placeholder="Masalan: +998901234567"
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             style={{ fontSize: 13 }}
           />
-          <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
-            Agar Telegram'dan raqam kelib tushgun: +998, () -  olib tashlang
-          </div>
         </div>
 
-        {/* Notes */}
         <div style={{ marginBottom: 16 }}>
           <Label>Izohlar</Label>
-          <Textarea 
+          <Textarea
             placeholder="Qandaydir izoh..."
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -753,21 +874,6 @@ function CreateClientModal({
           />
         </div>
 
-        {/* Info */}
-        <div style={{
-          padding: 12,
-          background: 'var(--bg-2)',
-          borderRadius: 8,
-          fontSize: 12,
-          color: 'var(--fg-2)',
-          lineHeight: '1.5',
-          marginBottom: 16,
-        }}>
-          <strong>ℹ️ Malumot:</strong><br/>
-          Bu Telegram suhbati yanyi klientga bog'lanadi. Telefon raqam qo'shishingiz ixtiyoriy.
-        </div>
-
-        {/* Actions */}
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn onClick={onConfirm} style={{ flex: 1 }}>✅ Yaratish</Btn>
           <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>Bekor</Btn>
@@ -851,7 +957,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
           <div style={{ marginBottom: 12 }}>
             <Label>Booking *</Label>
             {loading ? <Skeleton height={40} /> : bookings.length === 0 ? (
-              <p style={{ color: 'var(--fg-3)', fontSize: 12 }}>Bu klient uchun booking yo'q. Avval booking yarating.</p>
+              <p style={{ color: 'var(--fg-3)', fontSize: 12 }}>Bu klient uchun booking yo'q.</p>
             ) : (
               <Select value={form.bookingId} onChange={(e) => setForm({ ...form, bookingId: e.target.value })}>
                 <option value="">— Tanlang —</option>
@@ -904,7 +1010,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
                   <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--fg-2)' }}>${cost.toFixed(0)}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Sizning foydangiz</div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Foydangiz</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)' }}>${profit.toFixed(0)}</div>
                 </div>
               </>
@@ -921,7 +1027,6 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
   );
 }
 
-// ─── Personal Message Modal (birinchi xabar - MTProto orqali) ────────────────
 function PersonalMessageModal({ onClose, onSent }: any) {
   const [phone, setPhone] = useState('');
   const [username, setUsername] = useState('');
@@ -972,7 +1077,6 @@ function PersonalMessageModal({ onClose, onSent }: any) {
 
         <div style={{ height: 1, background: 'var(--border)', margin: '14px 0' }} />
 
-        {/* Method tabs */}
         <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 10, padding: 3, marginBottom: 14, border: '1px solid var(--border)' }}>
           {([['phone', 'Telefon raqam'], ['username', 'Username']] as const).map(([m, label]) => (
             <button key={m} onClick={() => setMethod(m as any)} style={{
@@ -980,52 +1084,34 @@ function PersonalMessageModal({ onClose, onSent }: any) {
               background: method === m ? 'var(--bg-2)' : 'transparent',
               color: method === m ? 'var(--primary)' : 'var(--fg-3)',
               fontSize: 12.5, fontWeight: method === m ? 700 : 500,
-              boxShadow: method === m ? 'var(--shadow-xs)' : 'none',
-              transition: 'all 0.14s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              transition: 'all 0.14s',
             }}>
-              {m === 'phone'
-                ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 11 19.79 19.79 0 0 1 1.08 2.18 2 2 0 0 1 3.07 0h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 15l.92 1.92z"/></svg>
-                : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              }
               {label}
             </button>
           ))}
         </div>
 
         {method === 'phone' ? (
-          <div style={{ position: 'relative', marginBottom: 10 }}>
-            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)' }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 11 19.79 19.79 0 0 1 1.08 2.18 2 2 0 0 1 3.07 0h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 15l.92 1.92z"/></svg>
-            </span>
-            <input style={{ ...inp, paddingLeft: 32, marginBottom: 0 }} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+998 90 123 45 67" autoFocus />
-          </div>
+          <input style={inp} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+998 90 123 45 67" autoFocus />
         ) : (
-          <div style={{ position: 'relative', marginBottom: 10 }}>
-            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', fontSize: 13, fontWeight: 600 }}>@</span>
-            <input style={{ ...inp, paddingLeft: 26, marginBottom: 0 }} value={username} onChange={e => setUsername(e.target.value.replace(/^@/, ''))} placeholder="username" autoFocus />
-          </div>
+          <input style={inp} value={username} onChange={e => setUsername(e.target.value.replace(/^@/, ''))} placeholder="username" autoFocus />
         )}
 
-        <div style={{ marginTop: 10 }}>
-          <textarea
-            style={{ ...inp, minHeight: 100, resize: 'vertical', marginBottom: 4 }}
-            value={text}
-            onChange={e => setText(e.target.value)}
-            placeholder="Xabar matni..."
-            onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) send(); }}
-          />
-          <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginBottom: 14 }}>
-            <kbd style={{ padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10 }}>Ctrl</kbd>+<kbd style={{ padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10 }}>Enter</kbd> — yuborish
-          </div>
+        <textarea
+          style={{ ...inp, minHeight: 100, resize: 'vertical', marginBottom: 4 }}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Xabar matni..."
+          onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) send(); }}
+        />
+        <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginBottom: 14 }}>
+          <kbd style={{ padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10 }}>Ctrl</kbd>+<kbd style={{ padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10 }}>Enter</kbd> — yuborish
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--fg-2)', fontWeight: 500 }}>Bekor</button>
-          <button onClick={send} disabled={loading} style={{ flex: 2, padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#3d7eff,#5b6ef5)', color: 'white', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: loading ? 0.7 : 1 }}>
-            {loading
-              ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }}/>Yuborilmoqda...</>
-              : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Yuborish</>
-            }
+          <button onClick={send} disabled={loading} style={{ flex: 2, padding: '10px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#3d7eff,#5b6ef5)', color: 'white', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700, opacity: loading ? 0.7 : 1 }}>
+            {loading ? 'Yuborilmoqda...' : 'Yuborish'}
           </button>
         </div>
       </div>
