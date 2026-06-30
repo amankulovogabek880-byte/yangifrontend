@@ -530,8 +530,20 @@ function InboxPageInner() {
       {showTemplates && active && (
         <TemplatesPanel
           conversationId={active.id}
+          conversation={active}
           onClose={() => setShowTemplates(false)}
-          onSent={() => { setShowTemplates(false); }}
+          onSent={(msgs: any[]) => {
+            setShowTemplates(false);
+            // Yuborilgan xabarlarni darhol chatga qo'shamiz — refresh shart emas
+            if (msgs?.length) {
+              setMessages((prev: any[]) => {
+                const existingIds = new Set(prev.map((m: any) => m.id));
+                const fresh = msgs.filter((m: any) => !existingIds.has(m.id));
+                return [...prev, ...fresh];
+              });
+              setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            }
+          }}
         />
       )}
 
@@ -572,10 +584,11 @@ function InboxPageInner() {
   );
 }
 
-function TemplatesPanel({ conversationId, onClose, onSent }: any) {
+function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) {
   const [templates, setTemplates] = useState<any[]>([]);
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState<string | null>(null);
 
   useEffect(() => {
     telegramApi.templates({ category: category || undefined } as any)
@@ -585,11 +598,14 @@ function TemplatesPanel({ conversationId, onClose, onSent }: any) {
   }, [category]);
 
   async function send(tplId: string) {
+    setSending(tplId);
     try {
-      await telegramV6.sendTemplate(conversationId, tplId);
+      const r: any = await telegramV6.sendTemplate(conversationId, tplId);
       toast.success('Shablon yuborildi');
-      onSent();
+      // Backend qaytargan real xabarlarni chatga qo'shamiz
+      onSent(r.data?.messages || []);
     } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSending(null); }
   }
 
   const categories = ['hotel', 'greeting', 'booking', 'payment', 'reminder', 'visa', 'feedback'];
@@ -645,7 +661,7 @@ function TemplatesPanel({ conversationId, onClose, onSent }: any) {
                         .catch((e: any) => toast.error('Xato'));
                     }
                   }}>✏️ Tahrir</Btn>
-                  <Btn size="sm" variant="gradient" onClick={() => send(tpl.id)}>Yuborish</Btn>
+                  <Btn size="sm" variant="gradient" onClick={() => send(tpl.id)} loading={sending === tpl.id} disabled={!!sending}>Yuborish</Btn>
                 </div>
             </div>
           ))}
