@@ -45,6 +45,9 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'nav.kpi': { uz: 'KPI', ru: 'KPI' },
   'nav.security': { uz: 'Xavfsizlik', ru: 'Безопасность' },
   'nav.settings': { uz: 'Sozlamalar', ru: 'Настройки' },
+  'nav.owner': { uz: 'Owner', ru: 'Владелец' },
+  'nav.calls': { uz: "Qo'ng'iroq", ru: 'Звонки' },
+  'nav.approvals': { uz: 'Tasdiqlar', ru: 'Согласования' },
 
   // Dashboard
   'dashboard.title': { uz: 'Bosh sahifa', ru: 'Главная' },

@@ -109,16 +109,16 @@ const Icons = {
 };
 
 const NAV = [
-  { href: '/owner',     label: 'Owner',        Icon: Icons.Owner,     roles: ['PLATFORM_OWNER'] },
-  { href: '/dashboard', label: 'Dashboard',    Icon: Icons.Dashboard, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/inbox',     label: 'Inbox',        Icon: Icons.Inbox,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/pipeline',  label: 'Pipeline',     Icon: Icons.Pipeline,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/clients',   label: 'Mijozlar',     Icon: Icons.Clients,   roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/tasks',     label: 'Vazifalar',    Icon: Icons.Tasks,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/bookings',  label: 'Bookinglar',   Icon: Icons.Bookings,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/calls',     label: "Qo'ng'iroq",   Icon: Icons.Calls,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/approvals', label: 'Tasdiqlar',    Icon: Icons.Approvals, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/settings',  label: 'Sozlamalar',   Icon: Icons.Settings,  roles: ['*'] },
+  { href: '/owner',     labelKey: 'nav.owner',     label: 'Owner',        Icon: Icons.Owner,     roles: ['PLATFORM_OWNER'] },
+  { href: '/dashboard', labelKey: 'nav.dashboard', label: 'Dashboard',    Icon: Icons.Dashboard, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/inbox',     labelKey: 'nav.inbox',     label: 'Inbox',        Icon: Icons.Inbox,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/pipeline',  labelKey: 'nav.pipeline',  label: 'Pipeline',     Icon: Icons.Pipeline,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/clients',   labelKey: 'nav.clients',   label: 'Mijozlar',     Icon: Icons.Clients,   roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/tasks',     labelKey: 'nav.tasks',     label: 'Vazifalar',    Icon: Icons.Tasks,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/bookings',  labelKey: 'nav.bookings',  label: 'Bookinglar',   Icon: Icons.Bookings,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/calls',     labelKey: 'nav.calls',     label: "Qo'ng'iroq",   Icon: Icons.Calls,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/approvals', labelKey: 'nav.approvals', label: 'Tasdiqlar',    Icon: Icons.Approvals, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/settings',  labelKey: 'nav.settings',  label: 'Sozlamalar',   Icon: Icons.Settings,  roles: ['*'] },
 ];
 
 const MOBILE_NAV_KEYS = ['/dashboard', '/clients', '/bookings', '/inbox', '/pipeline'];
@@ -139,7 +139,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
   const router    = useRouter();
   const { user, logout, hydrate, hydrated } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { lang, setLang } = useI18n();
+  const { lang, setLang, t } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -272,7 +272,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
                       transition: 'all 0.14s',
                     }}>
                       <item.Icon />
-                      {item.label}
+                      {t(item.labelKey)}
                     </Link>
                   );
                 })}
@@ -312,7 +312,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
                 transition: 'color 0.14s',
               }}>
                 <item.Icon />
-                <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, lineHeight: 1 }}>{item.label}</span>
+                <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, lineHeight: 1 }}>{t(item.labelKey)}</span>
               </Link>
             );
           })}
@@ -367,7 +367,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
           {visible.map(item => {
             const active = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
-              <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined} style={{
+              <Link key={item.href} href={item.href} title={collapsed ? t(item.labelKey) : undefined} style={{
                 display: 'flex', alignItems: 'center',
                 gap: 10,
                 padding: collapsed ? '10px 0' : '9px 12px',
@@ -388,7 +388,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
                   }} />
                 )}
                 <item.Icon />
-                {!collapsed && item.label}
+                {!collapsed && t(item.labelKey)}
               </Link>
             );
           })}

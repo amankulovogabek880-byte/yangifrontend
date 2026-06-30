@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { tenantsApi, usersApi, auditApi, api } from '@/services/api';
+import { tenantsApi, usersApi, api } from '@/services/api';
 import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal } from '@/components/ui';
 import { useAuth } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
@@ -19,7 +19,6 @@ const TABS = [
   { id: 'templates',   label: '📝 Shablonlar', adminOnly: true },
   { id: 'api',         label: '🔑 API Keys', adminOnly: true },
   { id: 'webhooklogs', label: '📜 Webhook Logs', adminOnly: true },
-  { id: 'auditlog',    label: '🕵 Audit Log', adminOnly: true },
   { id: 'profile',     label: '👤 Profil' },
   { id: 'team',        label: '👥 Jamoa', adminOnly: true },
   { id: 'leads',       label: '🎯 Lead taqsimlash', adminOnly: true },
@@ -87,15 +86,7 @@ export default function SettingsPage() {
 
         {tab === 'profile' && <ProfileTab />}
 
-        {tab === 'security' && (
-          <Card>
-            <h3 style={{ marginTop: 0, fontSize: 15 }}>🔐 Xavfsizlik</h3>
-            <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>
-              Parolni o'zgartirish, 2FA va sessiyalarni boshqarish.
-            </p>
-            <Btn onClick={() => alert('Tez orada')}>Parolni o\'zgartirish</Btn>
-          </Card>
-        )}
+        {tab === 'security' && <SecurityTab />}
 
         {tab === 'team' && isAdmin && <TeamTab />}
         {tab === 'leads' && isAdmin && <LeadAssignmentTab />}
@@ -105,7 +96,6 @@ export default function SettingsPage() {
         {tab === 'templates' && isAdmin && <TemplatesTab />}
         {tab === 'api' && isAdmin && <ApiKeysTab />}
         {tab === 'webhooklogs' && isAdmin && <WebhookLogsTab />}
-        {tab === 'auditlog' && isAdmin && <AuditLogTab />}
       </div>
     </CrmLayout>
   );
@@ -511,6 +501,7 @@ function TeamTab() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [showCreate, setShowCreate] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
   const router = useRouter();
 
   const load = () => {
@@ -573,6 +564,8 @@ function TeamTab() {
                   <th style={{ padding: 10, textAlign: 'right' }}>Daromad (oy)</th>
                   <th style={{ padding: 10, textAlign: 'right' }}>Foyda (oy)</th>
                   <th style={{ padding: 10, textAlign: 'right' }}>Maoshi (oy)</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>Holat</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>Amallar</th>
                 </tr>
               </thead>
               <tbody>
@@ -601,6 +594,23 @@ function TeamTab() {
                     <td style={{ padding: 10, textAlign: 'right', color: 'var(--info)' }}>${m.stats?.monthRevenue || 0}</td>
                     <td style={{ padding: 10, textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>${m.stats?.monthProfit || 0}</td>
                     <td style={{ padding: 10, textAlign: 'right', color: 'var(--warning)', fontWeight: 700 }}>${m.stats?.monthSalary || 0}</td>
+                    <td style={{ padding: 10, textAlign: 'center' }}>
+                      <Badge color={m.status === 'ACTIVE' ? 'var(--success)' : 'var(--fg-3)'}>
+                        {m.status === 'ACTIVE' ? 'Faol' : 'Faol emas'}
+                      </Badge>
+                    </td>
+                    <td style={{ padding: 10 }}>
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                        <button onClick={() => setEditingMember(m)} title="Tahrirlash" style={{
+                          background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 7,
+                          width: 28, height: 28, cursor: 'pointer', color: 'var(--fg-2)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <TeamMemberDeleteBtn member={m} onDeleted={() => window.location.reload()} />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -640,6 +650,10 @@ function TeamTab() {
                 <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 10 }}>
                   Foyda: <b style={{ color: 'var(--success)' }}>${m.stats?.monthProfit || 0}</b>
                 </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 12, justifyContent: 'center' }}>
+                  <Btn size="sm" variant="secondary" onClick={() => setEditingMember(m)}>✏ Tahrirlash</Btn>
+                  <TeamMemberDeleteBtn member={m} onDeleted={() => window.location.reload()} />
+                </div>
               </div>
             ))}
           </div>
@@ -647,7 +661,145 @@ function TeamTab() {
       </Card>
 
       {showCreate && <CreateAgentModal onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />}
+      {editingMember && (
+        <EditTeamMemberModal
+          member={editingMember}
+          onClose={() => setEditingMember(null)}
+          onSaved={() => { setEditingMember(null); load(); toast.success('Agent ma\'lumotlari yangilandi'); }}
+        />
+      )}
     </>
+  );
+}
+
+// ─── Agentni o'chirish tugmasi ─────────────────────────────────────
+function TeamMemberDeleteBtn({ member, onDeleted }: any) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function doDelete() {
+    setDeleting(true);
+    try {
+      const { usersApi } = await import('@/services/api');
+      await usersApi.delete(member.id);
+      toast.success("Agent o'chirildi");
+      onDeleted();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "O'chirib bo'lmadi");
+    } finally {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  }
+
+  if (confirming) {
+    return (
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button onClick={doDelete} disabled={deleting} style={{
+          background: 'var(--danger)', border: 'none', borderRadius: 7,
+          padding: '4px 8px', cursor: 'pointer', color: '#fff', fontSize: 10, fontWeight: 700,
+        }}>{deleting ? '...' : "Ha, o'chir"}</button>
+        <button onClick={() => setConfirming(false)} style={{
+          background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 7,
+          padding: '4px 8px', cursor: 'pointer', color: 'var(--fg-2)', fontSize: 10,
+        }}>Yo'q</button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={() => setConfirming(true)} title="O'chirish" style={{
+      background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 7,
+      width: 28, height: 28, cursor: 'pointer', color: 'var(--danger)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    </button>
+  );
+}
+
+// ─── Agentni tahrirlash modali ──────────────────────────────────────
+function EditTeamMemberModal({ member, onClose, onSaved }: any) {
+  const [form, setForm] = useState({
+    name: member.name || '',
+    phone: member.phone || '',
+    callbackPhone: member.callbackPhone || '',
+    extension: member.extension || '',
+    role: member.role || 'AGENT',
+    status: member.status || 'ACTIVE',
+    dailyLeadLimit: member.dailyLeadLimit || 0,
+  });
+  const [saving, setSaving] = useState(false);
+
+  function set(k: string, v: any) { setForm((p) => ({ ...p, [k]: v })); }
+
+  async function save() {
+    if (!form.name.trim()) { toast.error("Ism majburiy"); return; }
+    setSaving(true);
+    try {
+      const { usersApi } = await import('@/services/api');
+      await usersApi.update(member.id, form);
+      onSaved();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Xatolik yuz berdi');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '10px 12px', borderRadius: 9,
+    background: 'var(--bg-3)', border: '1px solid var(--border)',
+    color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' as const,
+  };
+
+  return (
+    <Modal open onClose={onClose} title={`✏ ${member.name} — tahrirlash`} maxWidth={460} footer={
+      <>
+        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+        <Btn variant="gradient" onClick={save} disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</Btn>
+      </>
+    }>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div>
+          <Label>To'liq ism *</Label>
+          <input style={inputStyle} value={form.name} onChange={(e) => set('name', e.target.value)} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <Label>Telefon</Label>
+            <input style={inputStyle} value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+          </div>
+          <div>
+            <Label>Qayta qo'ng'iroq raqami</Label>
+            <input style={inputStyle} value={form.callbackPhone} onChange={(e) => set('callbackPhone', e.target.value)} />
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <Label>Rol</Label>
+            <select style={inputStyle} value={form.role} onChange={(e) => set('role', e.target.value)}>
+              <option value="AGENT">Agent</option>
+              <option value="MANAGER">Manager</option>
+              <option value="TENANT_ADMIN">Admin</option>
+              <option value="ACCOUNTANT">Buxgalter</option>
+            </select>
+          </div>
+          <div>
+            <Label>Holat</Label>
+            <select style={inputStyle} value={form.status} onChange={(e) => set('status', e.target.value)}>
+              <option value="ACTIVE">Faol</option>
+              <option value="INACTIVE">Faol emas</option>
+              <option value="LOCKED">Bloklangan</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <Label>Kunlik lead limiti (0 = cheksiz)</Label>
+          <input type="number" style={inputStyle} value={form.dailyLeadLimit} onChange={(e) => set('dailyLeadLimit', Number(e.target.value))} />
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -2204,178 +2356,6 @@ function WebhookLogsTab() {
   );
 }
 
-// ═══════════════════════════════════════════════════════════
-// BUG FIX: AUDIT LOG (kim, qachon, nimani o'zgartirgani/o'chirgani)
-// ═══════════════════════════════════════════════════════════
-//
-// Avval har bir CREATE/UPDATE/DELETE amali backendda
-// AuditService.log() orqali saqlanardi (GET /audit endpoint allaqachon
-// bor edi, faqat TENANT_ADMIN uchun), lekin buni ko'rsatadigan
-// frontend sahifa umuman yo'q edi — ya'ni yozilib borardi, lekin
-// adminga hech qayerda ko'rinmasdi. Shu tab orqali admin booking,
-// klient va boshqa obyektlar ustida kim nima qilgani (yaratdi/
-// tahrirladi/o'chirdi)ni ko'ra oladi.
-const AUDIT_ACTION_LABELS: Record<string, string> = {
-  CREATE: '➕ Yaratdi',
-  UPDATE: '✏️ Tahrirladi',
-  DELETE: '🗑 O\'chirdi',
-};
-const AUDIT_ACTION_COLORS: Record<string, string> = {
-  CREATE: 'var(--success)',
-  UPDATE: 'var(--info)',
-  DELETE: 'var(--danger)',
-};
-const AUDIT_ENTITY_LABELS: Record<string, string> = {
-  booking: '✈️ Booking',
-  client: '👤 Klient',
-};
-
-function AuditLogTab() {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [entity, setEntity] = useState('');
-  const [action, setAction] = useState('');
-  const [selected, setSelected] = useState<any>(null);
-
-  const load = () => {
-    setLoading(true);
-    const params: any = { limit: 100 };
-    if (entity) params.entity = entity;
-    if (action) params.action = action;
-    auditApi.list(params)
-      .then((r: any) => setLogs(r.data?.data || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, [entity, action]);
-
-  if (loading) return <Skeleton height={300} />;
-
-  return (
-    <>
-      <Card style={{ marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 15 }}>🕵 Audit Log</h3>
-            <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '4px 0 0' }}>
-              Kim, qachon, nimani yaratgan / tahrirlagan / o'chirgani shu yerda yoziladi
-            </p>
-          </div>
-          <Btn variant="secondary" size="sm" onClick={load}>🔄 Yangilash</Btn>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <Select value={entity} onChange={(e) => setEntity(e.target.value)} style={{ maxWidth: 200 }}>
-            <option value="">Barcha obyektlar</option>
-            <option value="booking">✈️ Bookinglar</option>
-            <option value="client">👤 Klientlar</option>
-          </Select>
-          <Select value={action} onChange={(e) => setAction(e.target.value)} style={{ maxWidth: 200 }}>
-            <option value="">Barcha amallar</option>
-            <option value="CREATE">➕ Yaratish</option>
-            <option value="UPDATE">✏️ Tahrirlash</option>
-            <option value="DELETE">🗑 O'chirish</option>
-          </Select>
-        </div>
-
-        {logs.length === 0 ? (
-          <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>
-            Hozircha audit yozuvlari yo'q
-          </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Vaqt</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Kim</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Amal</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Obyekt</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'left' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((l: any) => (
-                  <tr
-                    key={l.id}
-                    onClick={() => setSelected(l)}
-                    style={{ borderTop: '1px solid var(--border-2)', cursor: 'pointer' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-3)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--fg-3)' }}>
-                      {new Date(l.createdAt).toLocaleString('uz-UZ')}
-                    </td>
-                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>
-                      {l.user?.name || '—'}
-                      {l.user?.role && <span style={{ fontSize: 10, color: 'var(--fg-3)', marginLeft: 6 }}>({l.user.role})</span>}
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <Badge color={AUDIT_ACTION_COLORS[l.action] || 'var(--fg-3)'}>
-                        {AUDIT_ACTION_LABELS[l.action] || l.action}
-                      </Badge>
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      {AUDIT_ENTITY_LABELS[l.entity] || l.entity}
-                      {l.metadata?.bookingRef && <span style={{ color: 'var(--fg-3)' }}> • {l.metadata.bookingRef}</span>}
-                      {l.metadata?.tourName && <span style={{ color: 'var(--fg-3)' }}> • {l.metadata.tourName}</span>}
-                    </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--fg-3)', fontSize: 11 }}>Tafsilotlar →</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      {selected && (
-        <Modal open onClose={() => setSelected(null)} title="🕵 Audit yozuvi tafsiloti" maxWidth={560} footer={
-          <Btn variant="secondary" onClick={() => setSelected(null)}>Yopish</Btn>
-        }>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-            <div>
-              <Label>Kim</Label>
-              <div style={{ fontSize: 13 }}>{selected.user?.name || '—'} {selected.user?.role && `(${selected.user.role})`}</div>
-            </div>
-            <div>
-              <Label>Qachon</Label>
-              <div style={{ fontSize: 13 }}>{new Date(selected.createdAt).toLocaleString('uz-UZ')}</div>
-            </div>
-            <div>
-              <Label>Amal</Label>
-              <div style={{ fontSize: 13 }}>{AUDIT_ACTION_LABELS[selected.action] || selected.action}</div>
-            </div>
-            <div>
-              <Label>Obyekt</Label>
-              <div style={{ fontSize: 13 }}>{AUDIT_ENTITY_LABELS[selected.entity] || selected.entity} • {selected.entityId?.slice(0, 8)}</div>
-            </div>
-          </div>
-          <Label>O'zgarishlar</Label>
-          <pre style={{
-            background: 'var(--bg-3)', padding: 10, borderRadius: 8,
-            fontSize: 11, overflowX: 'auto', maxHeight: 200,
-          }}>
-            {JSON.stringify(selected.changes, null, 2)}
-          </pre>
-          {selected.metadata && Object.keys(selected.metadata).length > 0 && (
-            <>
-              <Label style={{ marginTop: 10 }}>Qo'shimcha ma'lumot</Label>
-              <pre style={{
-                background: 'var(--bg-3)', padding: 10, borderRadius: 8,
-                fontSize: 11, overflowX: 'auto', maxHeight: 200,
-              }}>
-                {JSON.stringify(selected.metadata, null, 2)}
-              </pre>
-            </>
-          )}
-        </Modal>
-      )}
-    </>
-  );
-}
-
 function LogDetailModal({ log, onClose }: any) {
   return (
     <Modal open onClose={onClose} title={`📜 Log: ${log.id.substring(0, 12)}...`} maxWidth={680} footer={
@@ -2639,6 +2619,87 @@ function FormsTab() {
             <Input placeholder="Slug (tour-booking)" value={form.slug} onChange={(e) => setForm({...form, slug: e.target.value})} />
             <Textarea placeholder="Tavsif (ixtiyoriy)" value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} style={{ minHeight: 60 }} />
             <Input placeholder="Success xabari" value={form.successMsg} onChange={(e) => setForm({...form, successMsg: e.target.value})} />
+
+            {/* Maydon konstruktori */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Label>Forma maydonlari ({(form.fields as any[]).length})</Label>
+                <Btn size="sm" variant="secondary" onClick={() => setForm({
+                  ...form,
+                  fields: [...(form.fields as any[]), { id: 'f' + Date.now(), name: '', label: '', type: 'text', required: true, placeholder: '' }],
+                } as any)}>+ Maydon qo'shish</Btn>
+              </div>
+
+              {(form.fields as any[]).length === 0 && (
+                <p style={{ fontSize: 12, color: 'var(--fg-3)', fontStyle: 'italic' }}>
+                  Hali maydon yo'q. "Ism", "Telefon" kabi maydonlar qo'shing.
+                </p>
+              )}
+
+              {(form.fields as any[]).map((field: any, idx: number) => (
+                <div key={field.id} style={{
+                  display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: 6,
+                  alignItems: 'center', marginBottom: 8, padding: 8,
+                  background: 'var(--bg-3)', borderRadius: 8,
+                }}>
+                  <input
+                    placeholder="Label (Ismingiz)"
+                    value={field.label}
+                    onChange={(e) => {
+                      const fields = [...(form.fields as any[])];
+                      fields[idx] = { ...field, label: e.target.value, name: e.target.value.toLowerCase().replace(/\s+/g, '_') };
+                      setForm({ ...form, fields } as any);
+                    }}
+                    style={{ padding: '6px 8px', borderRadius: 6, background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: 12 }}
+                  />
+                  <select
+                    value={field.type}
+                    onChange={(e) => {
+                      const fields = [...(form.fields as any[])];
+                      fields[idx] = { ...field, type: e.target.value };
+                      setForm({ ...form, fields } as any);
+                    }}
+                    style={{ padding: '6px 8px', borderRadius: 6, background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: 12 }}
+                  >
+                    <option value="text">Matn</option>
+                    <option value="phone">Telefon</option>
+                    <option value="email">Email</option>
+                    <option value="textarea">Katta matn</option>
+                    <option value="select">Tanlov</option>
+                    <option value="date">Sana</option>
+                    <option value="number">Raqam</option>
+                  </select>
+                  <input
+                    placeholder="Placeholder"
+                    value={field.placeholder}
+                    onChange={(e) => {
+                      const fields = [...(form.fields as any[])];
+                      fields[idx] = { ...field, placeholder: e.target.value };
+                      setForm({ ...form, fields } as any);
+                    }}
+                    style={{ padding: '6px 8px', borderRadius: 6, background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: 12 }}
+                  />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--fg-3)', whiteSpace: 'nowrap' }}>
+                    <input type="checkbox" checked={field.required} onChange={(e) => {
+                      const fields = [...(form.fields as any[])];
+                      fields[idx] = { ...field, required: e.target.checked };
+                      setForm({ ...form, fields } as any);
+                    }} />
+                    Majburiy
+                  </label>
+                  <button onClick={() => {
+                    const fields = (form.fields as any[]).filter((_, i) => i !== idx);
+                    setForm({ ...form, fields } as any);
+                  }} style={{
+                    background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4,
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+
             <div style={{ display: 'flex', gap: 8 }}>
               <Btn onClick={handleSave} loading={saving}>Saqlash</Btn>
               <Btn variant="secondary" onClick={() => setShowForm(false)}>Bekor</Btn>
@@ -3340,6 +3401,318 @@ function InstagramTab() {
           </button>
         </div>
       </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// XAVFSIZLIK TAB — Parol, 2FA, faol sessiyalar, login tarixi
+// ═══════════════════════════════════════════════════════════════════
+function SecurityTab() {
+  const [tab, setTab] = useState<'password' | '2fa' | 'sessions' | 'history'>('password');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <Card>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+          {([
+            ['password', '🔑 Parol'],
+            ['2fa', '📱 2FA'],
+            ['sessions', '💻 Sessiyalar'],
+            ['history', '📋 Kirish tarixi'],
+          ] as const).map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} style={{
+              padding: '8px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: tab === id ? 'var(--primary-soft)' : 'var(--bg-3)',
+              color: tab === id ? 'var(--primary)' : 'var(--fg-2)',
+              fontSize: 12.5, fontWeight: tab === id ? 700 : 500,
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {tab === 'password' && <ChangePasswordPanel />}
+        {tab === '2fa' && <TwoFactorPanel />}
+        {tab === 'sessions' && <SessionsPanel />}
+        {tab === 'history' && <LoginHistoryPanel />}
+      </Card>
+    </div>
+  );
+}
+
+// ─── Parolni o'zgartirish ──────────────────────────────────────────
+function ChangePasswordPanel() {
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    if (!oldPassword || !newPassword) {
+      toast.error("Barcha maydonlarni to'ldiring");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("Yangi parol kamida 8 ta belgidan iborat bo'lishi kerak");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Parollar mos kelmadi");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { authApi } = await import('@/services/api');
+      await authApi.changePassword(oldPassword, newPassword);
+      toast.success('✅ Parol muvaffaqiyatli o\\'zgartirildi');
+      setOldPassword(''); setNewPassword(''); setConfirmPassword('');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Xatolik yuz berdi');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', maxWidth: 360, padding: '10px 12px', borderRadius: 9,
+    background: 'var(--bg-3)', border: '1px solid var(--border)',
+    color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' as const,
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 400 }}>
+      <div>
+        <Label>Joriy parol</Label>
+        <input type="password" style={inputStyle} value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
+      </div>
+      <div>
+        <Label>Yangi parol</Label>
+        <input type="password" style={inputStyle} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+      </div>
+      <div>
+        <Label>Yangi parolni tasdiqlang</Label>
+        <input type="password" style={inputStyle} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+      </div>
+      <Btn variant="gradient" onClick={submit} disabled={saving} style={{ alignSelf: 'flex-start', marginTop: 4 }}>
+        {saving ? 'Saqlanmoqda...' : 'Parolni yangilash'}
+      </Btn>
+    </div>
+  );
+}
+
+// ─── 2FA (Ikki bosqichli autentifikatsiya) ─────────────────────────
+function TwoFactorPanel() {
+  const { user } = useAuth();
+  const [step, setStep] = useState<'idle' | 'setup' | 'verify'>('idle');
+  const [qrCode, setQrCode] = useState('');
+  const [secret, setSecret] = useState('');
+  const [code, setCode] = useState('');
+  const [disablePassword, setDisablePassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [enabled, setEnabled] = useState(!!user?.twoFactorEnabled);
+
+  async function startSetup() {
+    setLoading(true);
+    try {
+      const { authApi } = await import('@/services/api');
+      const r: any = await authApi.setup2FA();
+      setQrCode(r.data?.qrCode || '');
+      setSecret(r.data?.secret || '');
+      setStep('setup');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "2FA sozlanmadi");
+    } finally { setLoading(false); }
+  }
+
+  async function confirmEnable() {
+    if (code.length !== 6) { toast.error("6 xonali kodni kiriting"); return; }
+    setLoading(true);
+    try {
+      const { authApi } = await import('@/services/api');
+      await authApi.enable2FA(code);
+      toast.success('✅ 2FA yoqildi');
+      setEnabled(true);
+      setStep('idle');
+      setCode('');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Kod noto'g'ri");
+    } finally { setLoading(false); }
+  }
+
+  async function disable() {
+    if (!disablePassword) { toast.error('Parolni kiriting'); return; }
+    setLoading(true);
+    try {
+      const { authApi } = await import('@/services/api');
+      await authApi.disable2FA(disablePassword);
+      toast.success('2FA o\\'chirildi');
+      setEnabled(false);
+      setDisablePassword('');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Xatolik');
+    } finally { setLoading(false); }
+  }
+
+  if (enabled) {
+    return (
+      <div style={{ maxWidth: 400 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+          background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
+          borderRadius: 10, marginBottom: 16,
+        }}>
+          <span style={{ fontSize: 18 }}>✅</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--success)' }}>2FA yoqilgan</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>Akkauntingiz qo'shimcha himoyalangan</div>
+          </div>
+        </div>
+        <Label>2FA ni o'chirish uchun parolingizni kiriting</Label>
+        <input type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 9, background: 'var(--bg-3)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
+        <Btn variant="danger" onClick={disable} disabled={loading}>{loading ? '...' : '2FA ni o\\'chirish'}</Btn>
+      </div>
+    );
+  }
+
+  if (step === 'setup') {
+    return (
+      <div style={{ maxWidth: 400 }}>
+        <p style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 14 }}>
+          Google Authenticator yoki shunga o'xshash ilova bilan QR kodni skanerlang:
+        </p>
+        {qrCode && (
+          <div style={{ background: '#fff', padding: 16, borderRadius: 10, display: 'inline-block', marginBottom: 14 }}>
+            <img src={qrCode} alt="2FA QR" style={{ width: 180, height: 180 }} />
+          </div>
+        )}
+        {secret && (
+          <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 14 }}>
+            Qo'lda kiritish kodi: <code style={{ background: 'var(--bg-3)', padding: '2px 6px', borderRadius: 4 }}>{secret}</code>
+          </div>
+        )}
+        <Label>Ilovadagi 6 xonali kodni kiriting</Label>
+        <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="000000" maxLength={6}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 9, background: 'var(--bg-3)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: 18, letterSpacing: 4, textAlign: 'center', marginBottom: 12, boxSizing: 'border-box' }} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn variant="secondary" onClick={() => setStep('idle')}>Bekor</Btn>
+          <Btn variant="gradient" onClick={confirmEnable} disabled={loading}>{loading ? '...' : 'Tasdiqlash va yoqish'}</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 400 }}>
+      <p style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 14 }}>
+        Ikki bosqichli autentifikatsiya akkauntingizni qo'shimcha himoyalaydi — parol o'g'irlansa ham, kirish uchun telefoningizdagi kod kerak bo'ladi.
+      </p>
+      <Btn variant="gradient" onClick={startSetup} disabled={loading}>{loading ? 'Yuklanmoqda...' : '2FA ni yoqish'}</Btn>
+    </div>
+  );
+}
+
+// ─── Faol sessiyalar ────────────────────────────────────────────────
+function SessionsPanel() {
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ authApi }) =>
+      authApi.sessions()
+        .then((r: any) => setSessions(r.data || []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  async function revoke(id: string) {
+    try {
+      const { authApi } = await import('@/services/api');
+      await authApi.revokeSession(id);
+      toast.success("Sessiya o'chirildi");
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Xatolik');
+    }
+  }
+
+  if (loading) return <Skeleton height={120} />;
+  if (!sessions.length) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Faol sessiya topilmadi</p>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {sessions.map((s: any) => (
+        <div key={s.id} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 14px', borderRadius: 10,
+          background: 'var(--bg-3)', border: '1px solid var(--border)',
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {s.deviceName || s.userAgent?.slice(0, 40) || 'Noma\\'lum qurilma'}
+              {s.isCurrent && <Badge color="var(--success)">Joriy</Badge>}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 3 }}>
+              {s.ip || '—'} {s.city && `• ${s.city}`} {s.country && `, ${s.country}`}
+              {' • '}Faol: {s.lastActiveAt ? new Date(s.lastActiveAt).toLocaleString('uz-UZ') : '—'}
+            </div>
+          </div>
+          {!s.isCurrent && (
+            <Btn size="sm" variant="danger" onClick={() => revoke(s.id)}>Tugatish</Btn>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Login tarixi ────────────────────────────────────────────────────
+function LoginHistoryPanel() {
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    import('@/services/api').then(({ authApi }) =>
+      authApi.loginHistory()
+        .then((r: any) => setHistory(r.data || []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  }, []);
+
+  if (loading) return <Skeleton height={120} />;
+  if (!history.length) return <p style={{ color: 'var(--fg-3)', fontSize: 13 }}>Kirish tarixi topilmadi</p>;
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+        <thead>
+          <tr style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', textAlign: 'left' }}>
+            <th style={{ padding: 8 }}>Sana</th>
+            <th style={{ padding: 8 }}>IP</th>
+            <th style={{ padding: 8 }}>Holat</th>
+            <th style={{ padding: 8 }}>Sabab</th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((h: any) => (
+            <tr key={h.id} style={{ borderTop: '1px solid var(--border-2)' }}>
+              <td style={{ padding: 8 }}>{new Date(h.createdAt).toLocaleString('uz-UZ')}</td>
+              <td style={{ padding: 8, fontFamily: 'monospace' }}>{h.ip || '—'}</td>
+              <td style={{ padding: 8 }}>
+                <Badge color={h.success ? 'var(--success)' : 'var(--danger)'}>
+                  {h.success ? 'Muvaffaqiyatli' : 'Muvaffaqiyatsiz'}
+                </Badge>
+              </td>
+              <td style={{ padding: 8, color: 'var(--fg-3)' }}>{h.reason || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
