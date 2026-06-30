@@ -65,7 +65,6 @@ export default function Client360Page() {
   const [showPersonalMsg, setShowPersonalMsg] = useState(false);
   const [editingTravel, setEditingTravel] = useState(false);
   const [travelForm, setTravelForm] = useState<any>({});
-  const [showEditClient, setShowEditClient] = useState(false);
 
   const isAdmin = user?.role !== 'AGENT';
 
@@ -153,9 +152,28 @@ export default function Client360Page() {
           <Btn variant="secondary" icon="📋" onClick={() => setShowBooking(true)}>
             Yangi booking
           </Btn>
-          <Btn variant="ghost" icon="✏" onClick={() => setShowEditClient(true)}>
+          <Btn variant="ghost" icon="✏" onClick={() => router.push(`/clients/${c.id}/edit`)}>
             Tahrirlash
           </Btn>
+          {/* BUG FIX: avval klientni o'chirish imkoni umuman yo'q edi (faqat tahrirlash bor edi) */}
+          {isAdmin && (
+            <Btn
+              variant="danger"
+              icon="🗑"
+              onClick={async () => {
+                if (!window.confirm(`"${c.fullName}" klientini butunlay o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi va unga tegishli bookinglar/to'lovlar ham ta'sirlanishi mumkin.`)) return;
+                try {
+                  await clientsApi.delete(c.id);
+                  toast.success("✅ Klient o'chirildi");
+                  router.push('/clients');
+                } catch (e: any) {
+                  toast.error(errMsg(e));
+                }
+              }}
+            >
+              O'chirish
+            </Btn>
+          )}
         </div>
 
         {/* ═══ FINANCIAL SUMMARY (admin only) ═══ */}
@@ -634,131 +652,7 @@ export default function Client360Page() {
           }}
         />
       )}
-      {showEditClient && (
-        <EditClientModal
-          client={c}
-          onClose={() => setShowEditClient(false)}
-          onSaved={() => { setShowEditClient(false); load(); toast.success('Mijoz ma\'lumotlari yangilandi'); }}
-        />
-      )}
     </CrmLayout>
-  );
-}
-
-// ─── Mijoz ma'lumotlarini tahrirlash modali ───────────────────────────
-function EditClientModal({ client, onClose, onSaved }: any) {
-  const [form, setForm] = useState({
-    fullName: client.fullName || '',
-    phone: client.phone || '',
-    phone2: client.phone2 || '',
-    email: client.email || '',
-    telegramUsername: client.telegramUsername || '',
-    tier: client.tier || 'REGULAR',
-    source: client.source || 'OTHER',
-    country: client.country || '',
-    city: client.city || '',
-    notes: client.notes || '',
-  });
-  const [saving, setSaving] = useState(false);
-
-  function set(k: string, v: any) { setForm((p) => ({ ...p, [k]: v })); }
-
-  async function save() {
-    if (!form.fullName.trim() || !form.phone.trim()) {
-      toast.error("Ism va telefon raqam to'ldirilishi shart");
-      return;
-    }
-    setSaving(true);
-    try {
-      await clientsApi.update(client.id, form);
-      onSaved();
-    } catch (e: any) {
-      toast.error(errMsg(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const inputStyle = {
-    width: '100%', padding: '10px 12px', borderRadius: 9,
-    background: 'var(--bg-3)', border: '1px solid var(--border)',
-    color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' as const,
-  };
-
-  return (
-    <Modal open onClose={onClose} title="✏ Mijoz ma'lumotlarini tahrirlash" maxWidth={520} footer={
-      <>
-        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
-        <Btn variant="gradient" onClick={save} disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Saqlash'}</Btn>
-      </>
-    }>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div>
-          <Label>To'liq ism *</Label>
-          <input style={inputStyle} value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <Label>Telefon *</Label>
-            <input style={inputStyle} value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+998901234567" />
-          </div>
-          <div>
-            <Label>Qo'shimcha telefon</Label>
-            <input style={inputStyle} value={form.phone2} onChange={(e) => set('phone2', e.target.value)} />
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <Label>Email</Label>
-            <input style={inputStyle} value={form.email} onChange={(e) => set('email', e.target.value)} type="email" />
-          </div>
-          <div>
-            <Label>Telegram username</Label>
-            <input style={inputStyle} value={form.telegramUsername} onChange={(e) => set('telegramUsername', e.target.value)} placeholder="@username" />
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <Label>Daraja</Label>
-            <select style={inputStyle} value={form.tier} onChange={(e) => set('tier', e.target.value)}>
-              <option value="REGULAR">Regular</option>
-              <option value="SILVER">Silver</option>
-              <option value="GOLD">Gold</option>
-              <option value="VIP">VIP</option>
-            </select>
-          </div>
-          <div>
-            <Label>Manba</Label>
-            <select style={inputStyle} value={form.source} onChange={(e) => set('source', e.target.value)}>
-              <option value="TELEGRAM">Telegram</option>
-              <option value="INSTAGRAM">Instagram</option>
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="REFERRAL">Referral</option>
-              <option value="WALKIN">Walk-in</option>
-              <option value="WEBSITE">Website</option>
-              <option value="CALL">Call</option>
-              <option value="FACEBOOK">Facebook</option>
-              <option value="GOOGLE_ADS">Google Ads</option>
-              <option value="OTHER">Boshqa</option>
-            </select>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <Label>Davlat</Label>
-            <input style={inputStyle} value={form.country} onChange={(e) => set('country', e.target.value)} />
-          </div>
-          <div>
-            <Label>Shahar</Label>
-            <input style={inputStyle} value={form.city} onChange={(e) => set('city', e.target.value)} />
-          </div>
-        </div>
-        <div>
-          <Label>Izoh</Label>
-          <textarea style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
-        </div>
-      </div>
-    </Modal>
   );
 }
 

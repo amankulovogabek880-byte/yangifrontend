@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { tenantsApi, usersApi, api } from '@/services/api';
+import { tenantsApi, usersApi, auditApi, api } from '@/services/api';
 import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal } from '@/components/ui';
 import { useAuth } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
@@ -19,6 +19,7 @@ const TABS = [
   { id: 'templates',   label: '📝 Shablonlar', adminOnly: true },
   { id: 'api',         label: '🔑 API Keys', adminOnly: true },
   { id: 'webhooklogs', label: '📜 Webhook Logs', adminOnly: true },
+  { id: 'auditlog',    label: '🕵 Audit Log', adminOnly: true },
   { id: 'profile',     label: '👤 Profil' },
   { id: 'team',        label: '👥 Jamoa', adminOnly: true },
   { id: 'leads',       label: '🎯 Lead taqsimlash', adminOnly: true },
@@ -104,6 +105,7 @@ export default function SettingsPage() {
         {tab === 'templates' && isAdmin && <TemplatesTab />}
         {tab === 'api' && isAdmin && <ApiKeysTab />}
         {tab === 'webhooklogs' && isAdmin && <WebhookLogsTab />}
+        {tab === 'auditlog' && isAdmin && <AuditLogTab />}
       </div>
     </CrmLayout>
   );
@@ -2197,6 +2199,178 @@ function WebhookLogsTab() {
       {/* Log detail modal */}
       {selectedLog && (
         <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />
+      )}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// BUG FIX: AUDIT LOG (kim, qachon, nimani o'zgartirgani/o'chirgani)
+// ═══════════════════════════════════════════════════════════
+//
+// Avval har bir CREATE/UPDATE/DELETE amali backendda
+// AuditService.log() orqali saqlanardi (GET /audit endpoint allaqachon
+// bor edi, faqat TENANT_ADMIN uchun), lekin buni ko'rsatadigan
+// frontend sahifa umuman yo'q edi — ya'ni yozilib borardi, lekin
+// adminga hech qayerda ko'rinmasdi. Shu tab orqali admin booking,
+// klient va boshqa obyektlar ustida kim nima qilgani (yaratdi/
+// tahrirladi/o'chirdi)ni ko'ra oladi.
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  CREATE: '➕ Yaratdi',
+  UPDATE: '✏️ Tahrirladi',
+  DELETE: '🗑 O\'chirdi',
+};
+const AUDIT_ACTION_COLORS: Record<string, string> = {
+  CREATE: 'var(--success)',
+  UPDATE: 'var(--info)',
+  DELETE: 'var(--danger)',
+};
+const AUDIT_ENTITY_LABELS: Record<string, string> = {
+  booking: '✈️ Booking',
+  client: '👤 Klient',
+};
+
+function AuditLogTab() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [entity, setEntity] = useState('');
+  const [action, setAction] = useState('');
+  const [selected, setSelected] = useState<any>(null);
+
+  const load = () => {
+    setLoading(true);
+    const params: any = { limit: 100 };
+    if (entity) params.entity = entity;
+    if (action) params.action = action;
+    auditApi.list(params)
+      .then((r: any) => setLogs(r.data?.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [entity, action]);
+
+  if (loading) return <Skeleton height={300} />;
+
+  return (
+    <>
+      <Card style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>🕵 Audit Log</h3>
+            <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '4px 0 0' }}>
+              Kim, qachon, nimani yaratgan / tahrirlagan / o'chirgani shu yerda yoziladi
+            </p>
+          </div>
+          <Btn variant="secondary" size="sm" onClick={load}>🔄 Yangilash</Btn>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          <Select value={entity} onChange={(e) => setEntity(e.target.value)} style={{ maxWidth: 200 }}>
+            <option value="">Barcha obyektlar</option>
+            <option value="booking">✈️ Bookinglar</option>
+            <option value="client">👤 Klientlar</option>
+          </Select>
+          <Select value={action} onChange={(e) => setAction(e.target.value)} style={{ maxWidth: 200 }}>
+            <option value="">Barcha amallar</option>
+            <option value="CREATE">➕ Yaratish</option>
+            <option value="UPDATE">✏️ Tahrirlash</option>
+            <option value="DELETE">🗑 O'chirish</option>
+          </Select>
+        </div>
+
+        {logs.length === 0 ? (
+          <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>
+            Hozircha audit yozuvlari yo'q
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Vaqt</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Kim</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Amal</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}>Obyekt</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((l: any) => (
+                  <tr
+                    key={l.id}
+                    onClick={() => setSelected(l)}
+                    style={{ borderTop: '1px solid var(--border-2)', cursor: 'pointer' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-3)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', color: 'var(--fg-3)' }}>
+                      {new Date(l.createdAt).toLocaleString('uz-UZ')}
+                    </td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600 }}>
+                      {l.user?.name || '—'}
+                      {l.user?.role && <span style={{ fontSize: 10, color: 'var(--fg-3)', marginLeft: 6 }}>({l.user.role})</span>}
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <Badge color={AUDIT_ACTION_COLORS[l.action] || 'var(--fg-3)'}>
+                        {AUDIT_ACTION_LABELS[l.action] || l.action}
+                      </Badge>
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      {AUDIT_ENTITY_LABELS[l.entity] || l.entity}
+                      {l.metadata?.bookingRef && <span style={{ color: 'var(--fg-3)' }}> • {l.metadata.bookingRef}</span>}
+                      {l.metadata?.tourName && <span style={{ color: 'var(--fg-3)' }}> • {l.metadata.tourName}</span>}
+                    </td>
+                    <td style={{ padding: '8px 10px', color: 'var(--fg-3)', fontSize: 11 }}>Tafsilotlar →</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {selected && (
+        <Modal open onClose={() => setSelected(null)} title="🕵 Audit yozuvi tafsiloti" maxWidth={560} footer={
+          <Btn variant="secondary" onClick={() => setSelected(null)}>Yopish</Btn>
+        }>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            <div>
+              <Label>Kim</Label>
+              <div style={{ fontSize: 13 }}>{selected.user?.name || '—'} {selected.user?.role && `(${selected.user.role})`}</div>
+            </div>
+            <div>
+              <Label>Qachon</Label>
+              <div style={{ fontSize: 13 }}>{new Date(selected.createdAt).toLocaleString('uz-UZ')}</div>
+            </div>
+            <div>
+              <Label>Amal</Label>
+              <div style={{ fontSize: 13 }}>{AUDIT_ACTION_LABELS[selected.action] || selected.action}</div>
+            </div>
+            <div>
+              <Label>Obyekt</Label>
+              <div style={{ fontSize: 13 }}>{AUDIT_ENTITY_LABELS[selected.entity] || selected.entity} • {selected.entityId?.slice(0, 8)}</div>
+            </div>
+          </div>
+          <Label>O'zgarishlar</Label>
+          <pre style={{
+            background: 'var(--bg-3)', padding: 10, borderRadius: 8,
+            fontSize: 11, overflowX: 'auto', maxHeight: 200,
+          }}>
+            {JSON.stringify(selected.changes, null, 2)}
+          </pre>
+          {selected.metadata && Object.keys(selected.metadata).length > 0 && (
+            <>
+              <Label style={{ marginTop: 10 }}>Qo'shimcha ma'lumot</Label>
+              <pre style={{
+                background: 'var(--bg-3)', padding: 10, borderRadius: 8,
+                fontSize: 11, overflowX: 'auto', maxHeight: 200,
+              }}>
+                {JSON.stringify(selected.metadata, null, 2)}
+              </pre>
+            </>
+          )}
+        </Modal>
       )}
     </>
   );
