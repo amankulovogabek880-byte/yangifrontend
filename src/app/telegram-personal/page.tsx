@@ -3,6 +3,8 @@ import { useEffect, useState, useRef } from 'react';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { api } from '@/services/api';
 import toast from 'react-hot-toast';
+import { useSocket, getSocket } from '@/hooks/useSocket';
+import { useAuth } from '@/lib/store';
 
 // ─── API ────────────────────────────────────────────────────────
 const tgApi = {
@@ -13,9 +15,49 @@ const tgApi = {
   dialogs:   ()                     => api.get('/telegram/personal/dialogs'),
   messages:  (id: string)          => api.get(`/telegram/personal/messages/${id}`),
   send:      (d: any)              => api.post('/telegram/personal/send', d),
+  sendTemplate: (d: any)           => api.post('/telegram/personal/send-template', d),
+  templates: ()                     => api.get('/telegram/templates'),
   search:    (q: string)           => api.post('/telegram/personal/search', { query: q }),
   startChat: (d: any)              => api.post('/telegram/personal/start-chat', d),
 };
+
+// ─── Agentlar uchun rang palitrasi (har bir agent ID'ga barqaror rang) ──
+const AGENT_COLORS = [
+  'linear-gradient(135deg,#10b981,#059669)', // green
+  'linear-gradient(135deg,#f59e0b,#d97706)', // amber
+  'linear-gradient(135deg,#ec4899,#db2777)', // pink
+  'linear-gradient(135deg,#8b5cf6,#7c3aed)', // violet
+  'linear-gradient(135deg,#06b6d4,#0891b2)', // cyan
+];
+function agentColor(agentId: string) {
+  let hash = 0;
+  for (let i = 0; i < agentId.length; i++) hash = (hash * 31 + agentId.charCodeAt(i)) >>> 0;
+  return AGENT_COLORS[hash % AGENT_COLORS.length];
+}
+
+// ─── AVATAR (telegramdagi asl rasm, bo'lmasa — inisiallar) ─────
+function Avatar({ url, name, size = 38, radius = 12 }: { url?: string; name: string; size?: number; radius?: number }) {
+  const [broken, setBroken] = useState(false);
+  if (url && !broken) {
+    return (
+      <img
+        src={url} alt={name}
+        onError={() => setBroken(true)}
+        style={{ width: size, height: size, borderRadius: radius, objectFit: 'cover', flexShrink: 0, background: '#161b30' }}
+      />
+    );
+  }
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: radius, flexShrink: 0,
+      background: 'linear-gradient(135deg,#3d7eff,#a855f7)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontWeight: 700, fontSize: size * 0.38, color: '#fff',
+    }}>
+      {(name || '?')[0]?.toUpperCase() || '?'}
+    </div>
+  );
+}
 
 // ─── CONNECT FLOW ───────────────────────────────────────────────
 function ConnectFlow({ onConnected }: { onConnected: () => void }) {
@@ -146,6 +188,7 @@ function ConnectFlow({ onConnected }: { onConnected: () => void }) {
 
 // ─── MAIN INBOX ─────────────────────────────────────────────────
 export default function TelegramPersonalPage() {
+  const { user } = useAuth();
   const [status, setStatus]     = useState<any>(null);
   const [convs, setConvs]       = useState<any[]>([]);
   const [active, setActive]     = useState<any>(null);
@@ -158,8 +201,15 @@ export default function TelegramPersonalPage() {
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [sendingTpl, setSendingTpl] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<any>(null);
+  activeRef.current = active;
+
+  useSocket();
 
   useEffect(() => {
     tgApi.status().then((r: any) => setStatus(r.data)).catch(() => {});
@@ -172,6 +222,36 @@ export default function TelegramPersonalPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [msgs]);
+
+  // ── Live yangilanish: refresh qilmasdan yangi xabar/shablon/invoice ko'rinishi ──
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const onNew = (msg: any) => {
+      if (!msg?.conversationId) return;
+
+      setConvs(prev => {
+        const exists = prev.some(c => c.id === msg.conversationId);
+        if (!exists) { loadDialogs(); return prev; }
+        return prev.map(c => c.id === msg.conversationId ? {
+          ...c,
+          lastMessageText: msg.text || c.lastMessageText,
+          lastMessageAt: msg.createdAt || new Date().toISOString(),
+          unreadCount: activeRef.current?.id === msg.conversationId
+            ? c.unreadCount
+            : (msg.direction === 'INBOUND' ? (c.unreadCount || 0) + 1 : c.unreadCount),
+        } : c);
+      });
+
+      if (msg.conversationId === activeRef.current?.id) {
+        setMsgs(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
+      }
+    };
+
+    socket.on('message:new', onNew);
+    return () => { socket.off('message:new', onNew); };
+  }, []);
 
   async function loadDialogs() {
     setLoading(true);
@@ -199,6 +279,32 @@ export default function TelegramPersonalPage() {
       setMsgs(p => [...p, r.data]);
       setText('');
     } catch (e: any) { toast.error(e.response?.data?.message || 'Yuborib bo\'lmadi'); }
+  }
+
+  async function openTemplates() {
+    setShowTemplates(true);
+    if (templates.length) return;
+    try {
+      const r: any = await tgApi.templates();
+      setTemplates(r.data || []);
+    } catch { toast.error('Shablonlar yuklanmadi'); }
+  }
+
+  async function sendTpl(tplId: string) {
+    if (!active) return;
+    setSendingTpl(true);
+    try {
+      const r: any = await tgApi.sendTemplate({ conversationId: active.id, templateId: tplId });
+      const sentMsgs = r.data?.messages || [];
+      setMsgs(p => {
+        const existingIds = new Set(p.map((m: any) => m.id));
+        const fresh = sentMsgs.filter((m: any) => !existingIds.has(m.id));
+        return [...p, ...fresh];
+      });
+      toast.success('Shablon yuborildi!');
+      setShowTemplates(false);
+    } catch (e: any) { toast.error(e.response?.data?.message || 'Shablon yuborilmadi'); }
+    finally { setSendingTpl(false); }
   }
 
   async function doSearch() {
@@ -306,14 +412,7 @@ export default function TelegramPersonalPage() {
                   borderLeft: isActive ? '2.5px solid #3d7eff' : '2.5px solid transparent',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                    <div style={{
-                      width: 38, height: 38, borderRadius: 12, flexShrink: 0,
-                      background: 'linear-gradient(135deg,#3d7eff,#a855f7)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: 700, fontSize: 14, color: '#fff',
-                    }}>
-                      {name[0]?.toUpperCase() || '?'}
-                    </div>
+                    <Avatar url={conv.avatarUrl} name={name} size={38} radius={12} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ fontSize: 13.5, fontWeight: 600, color: '#e8eaf2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
@@ -340,15 +439,22 @@ export default function TelegramPersonalPage() {
 
             {/* Chat header */}
             <div style={{ padding: '13px 20px', borderBottom: '1px solid #1e2440', display: 'flex', alignItems: 'center', gap: 12, background: '#0c0e1a' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 12, background: 'linear-gradient(135deg,#3d7eff,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#fff', fontSize: 14, flexShrink: 0 }}>
-                {([active.firstName, active.lastName].filter(Boolean).join(' ') || active.username || '?')[0]?.toUpperCase()}
-              </div>
-              <div>
+              <Avatar
+                url={active.avatarUrl}
+                name={[active.firstName, active.lastName].filter(Boolean).join(' ') || active.username || '?'}
+                size={38} radius={12}
+              />
+              <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 700, color: '#e8eaf2' }}>
                   {[active.firstName, active.lastName].filter(Boolean).join(' ') || active.username || 'Noma\'lum'}
                 </div>
                 {active.username && <div style={{ fontSize: 11.5, color: '#3d4568' }}>@{active.username}</div>}
               </div>
+              <button onClick={openTemplates} style={{
+                padding: '7px 13px', borderRadius: 9, border: '1px solid #1e2440',
+                background: 'rgba(255,255,255,0.04)', color: '#9aa0c0',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+              }}>📋 Shablon</button>
             </div>
 
             {/* Messages */}
@@ -358,32 +464,56 @@ export default function TelegramPersonalPage() {
               )}
               {!loadingMsgs && msgs.map(m => {
                 const out = m.direction === 'OUTBOUND';
+                const isMine = out && (!m.agentId || m.agentId === user?.id);
+                const isOtherAgent = out && m.agentId && m.agentId !== user?.id;
+                const custName = [active.firstName, active.lastName].filter(Boolean).join(' ') || (active.username ? '@' + active.username : 'Mijoz');
+
+                const bubbleBg = isMine
+                  ? 'linear-gradient(135deg,#3d7eff,#5a5fde)'   // biz — doim havorang
+                  : isOtherAgent
+                    ? agentColor(m.agentId)                      // boshqa agent — alohida rang
+                    : '#111420';                                 // mijoz — neytral
+
                 return (
-                  <div key={m.id} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
-                    <div style={{
-                      maxWidth: '72%', padding: '9px 13px', borderRadius: out ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                      background: out ? 'linear-gradient(135deg,#3d7eff,#5a5fde)' : '#111420',
-                      border: out ? 'none' : '1px solid #1e2440',
-                      color: '#e8eaf2', fontSize: 13.5, lineHeight: 1.5,
-                    }}>
-                      {m.fileUrl && m.messageType === 'DOCUMENT' && m.fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i) ? (
-                        <div>
-                          <img src={m.fileUrl} alt="Rasm" style={{ maxWidth: 220, maxHeight: 200, borderRadius: 8, display: 'block', marginBottom: m.text ? 6 : 0 }} onError={e => { (e.target as any).style.display='none'; }}/>
-                          {m.text && <div>{m.text}</div>}
+                  <div key={m.id} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 7 }}>
+                    {!out && (
+                      <Avatar url={active.avatarUrl} name={custName} size={26} radius={8} />
+                    )}
+                    <div style={{ maxWidth: '72%' }}>
+                      {isOtherAgent && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, justifyContent: 'flex-end' }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9aa0c0' }}>{m.agent?.name || 'Agent'}</span>
+                          <Avatar url={m.agent?.avatarUrl} name={m.agent?.name || '?'} size={16} radius={5} />
                         </div>
-                      ) : m.fileUrl ? (
-                        <div>
-                          <a href={m.fileUrl} target="_blank" rel="noreferrer" style={{ color: out ? 'rgba(255,255,255,0.85)' : '#3d7eff', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 5 }}>
-                            📎 {m.fileName || 'Fayl'}
-                          </a>
-                          {m.text && <div style={{ marginTop: 4 }}>{m.text}</div>}
-                        </div>
-                      ) : (
-                        m.text || ''
                       )}
-                      <div style={{ fontSize: 10, color: out ? 'rgba(255,255,255,0.5)' : '#3d4568', marginTop: 4, textAlign: 'right' }}>
-                        {new Date(m.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
-                        {out && <span style={{ marginLeft: 4 }}>{m.isDelivered ? '✓✓' : '✓'}</span>}
+                      <div style={{
+                        padding: '9px 13px', borderRadius: out ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                        background: bubbleBg,
+                        border: (!out) ? '1px solid #1e2440' : 'none',
+                        color: '#e8eaf2', fontSize: 13.5, lineHeight: 1.5,
+                      }}>
+                        {!out && (
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#3d7eff', marginBottom: 3 }}>{custName}</div>
+                        )}
+                        {m.fileUrl && m.messageType === 'DOCUMENT' && m.fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i) ? (
+                          <div>
+                            <img src={m.fileUrl} alt="Rasm" style={{ maxWidth: 220, maxHeight: 200, borderRadius: 8, display: 'block', marginBottom: m.text ? 6 : 0 }} onError={e => { (e.target as any).style.display='none'; }}/>
+                            {m.text && <div>{m.text}</div>}
+                          </div>
+                        ) : m.fileUrl ? (
+                          <div>
+                            <a href={m.fileUrl} target="_blank" rel="noreferrer" style={{ color: out ? 'rgba(255,255,255,0.85)' : '#3d7eff', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 5 }}>
+                              📎 {m.fileName || 'Fayl'}
+                            </a>
+                            {m.text && <div style={{ marginTop: 4 }}>{m.text}</div>}
+                          </div>
+                        ) : (
+                          m.text || ''
+                        )}
+                        <div style={{ fontSize: 10, color: out ? 'rgba(255,255,255,0.5)' : '#3d4568', marginTop: 4, textAlign: 'right' }}>
+                          {new Date(m.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                          {out && <span style={{ marginLeft: 4 }}>{m.isDelivered ? '✓✓' : '✓'}</span>}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -539,6 +669,54 @@ export default function TelegramPersonalPage() {
                 background: 'transparent', color: '#6b7194', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
               }}>
                 Bekor qilish
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── TEMPLATES MODAL ── */}
+        {showTemplates && (
+          <>
+            <div onClick={() => setShowTemplates(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(7,9,15,0.75)', backdropFilter: 'blur(8px)' }}/>
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+              zIndex: 201, width: '100%', maxWidth: 440, maxHeight: '78vh', overflowY: 'auto',
+              background: '#0c0e1a', border: '1px solid #2a3258',
+              borderRadius: 20, padding: '24px 24px',
+              boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#e8eaf2', marginBottom: 16 }}>📋 Shablonlar</div>
+
+              {templates.length === 0 && (
+                <div style={{ textAlign: 'center', color: '#3d4568', fontSize: 13, padding: '20px 0' }}>
+                  Shablon topilmadi
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {templates.map((tpl: any) => (
+                  <div key={tpl.id} onClick={() => !sendingTpl && sendTpl(tpl.id)} style={{
+                    padding: '12px 14px', borderRadius: 12, border: '1px solid #1e2440',
+                    background: '#111420', cursor: sendingTpl ? 'wait' : 'pointer',
+                    opacity: sendingTpl ? 0.6 : 1, transition: 'border-color 0.12s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#3d7eff')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#1e2440')}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 13.5, color: '#e8eaf2', marginBottom: 4 }}>{tpl.name}</div>
+                    <div style={{ fontSize: 12, color: '#6b7194', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+                      {tpl.text}
+                    </div>
+                    {tpl.mediaUrl && <div style={{ fontSize: 10, color: '#3d7eff', marginTop: 4 }}>📎 Media bor</div>}
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={() => setShowTemplates(false)} style={{
+                width: '100%', padding: '9px', marginTop: 16, borderRadius: 10, border: '1px solid #1e2440',
+                background: 'transparent', color: '#6b7194', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                Yopish
               </button>
             </div>
           </>
