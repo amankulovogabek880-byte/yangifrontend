@@ -557,6 +557,8 @@ function TeamTab() {
               <thead>
                 <tr style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', textAlign: 'left' }}>
                   <th style={{ padding: 10 }}>Agent</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>Amallar</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>Holat</th>
                   <th style={{ padding: 10 }}>Rol</th>
                   <th style={{ padding: 10 }}>Telefon</th>
                   <th style={{ padding: 10, textAlign: 'center' }}>Leadlar</th>
@@ -564,8 +566,6 @@ function TeamTab() {
                   <th style={{ padding: 10, textAlign: 'right' }}>Daromad (oy)</th>
                   <th style={{ padding: 10, textAlign: 'right' }}>Foyda (oy)</th>
                   <th style={{ padding: 10, textAlign: 'right' }}>Maoshi (oy)</th>
-                  <th style={{ padding: 10, textAlign: 'center' }}>Holat</th>
-                  <th style={{ padding: 10, textAlign: 'center' }}>Amallar</th>
                 </tr>
               </thead>
               <tbody>
@@ -581,6 +581,23 @@ function TeamTab() {
                       </div>
                     </td>
                     <td style={{ padding: 10 }}>
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                        <button onClick={() => setEditingMember(m)} title="Tahrirlash" style={{
+                          background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 7,
+                          width: 28, height: 28, cursor: 'pointer', color: 'var(--fg-2)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <TeamMemberDeleteBtn member={m} onDeleted={() => window.location.reload()} />
+                      </div>
+                    </td>
+                    <td style={{ padding: 10, textAlign: 'center' }}>
+                      <Badge color={m.status === 'ACTIVE' ? 'var(--success)' : 'var(--fg-3)'}>
+                        {m.status === 'ACTIVE' ? 'Faol' : 'Faol emas'}
+                      </Badge>
+                    </td>
+                    <td style={{ padding: 10 }}>
                       <Badge color={m.role === 'TENANT_ADMIN' ? 'var(--primary)' : m.role === 'MANAGER' ? 'var(--info)' : 'var(--success)'}>
                         {m.role}
                       </Badge>
@@ -594,23 +611,6 @@ function TeamTab() {
                     <td style={{ padding: 10, textAlign: 'right', color: 'var(--info)' }}>${m.stats?.monthRevenue || 0}</td>
                     <td style={{ padding: 10, textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>${m.stats?.monthProfit || 0}</td>
                     <td style={{ padding: 10, textAlign: 'right', color: 'var(--warning)', fontWeight: 700 }}>${m.stats?.monthSalary || 0}</td>
-                    <td style={{ padding: 10, textAlign: 'center' }}>
-                      <Badge color={m.status === 'ACTIVE' ? 'var(--success)' : 'var(--fg-3)'}>
-                        {m.status === 'ACTIVE' ? 'Faol' : 'Faol emas'}
-                      </Badge>
-                    </td>
-                    <td style={{ padding: 10 }}>
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                        <button onClick={() => setEditingMember(m)} title="Tahrirlash" style={{
-                          background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 7,
-                          width: 28, height: 28, cursor: 'pointer', color: 'var(--fg-2)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                        <TeamMemberDeleteBtn member={m} onDeleted={() => window.location.reload()} />
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
