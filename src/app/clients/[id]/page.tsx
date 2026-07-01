@@ -33,6 +33,16 @@ const TIMELINE_ICONS: Record<string, string> = {
   document: '📄', invoice: '🧾',
 };
 
+// Mehmonxona xizmat darajasi bo'yicha toifalar (yulduzdan tashqari, sayohat
+// agentliklarida keng qo'llaniladigan amaliy tasnif — byudjetdan lyuksgacha)
+const HOTEL_TYPE_LABELS: Record<string, string> = {
+  BUDGET: '💰 Byudjet (ekonom)',
+  STANDARD: '🏨 Standart',
+  COMFORT: '🌟 Komfort',
+  BUSINESS: '💼 Biznes',
+  LUXURY: '👑 Premium / Lyuks',
+};
+
 const TABS = [
   { id: 'overview',  label: '📋 Umumiy' },
   { id: 'chat',      label: '💬 Chat' },
@@ -64,8 +74,6 @@ export default function Client360Page() {
   const [showBooking, setShowBooking] = useState(false);
   const [showPersonalMsg, setShowPersonalMsg] = useState(false);
   const [showClientEdit, setShowClientEdit] = useState(false);
-  const [editingTravel, setEditingTravel] = useState(false);
-  const [travelForm, setTravelForm] = useState<any>({});
 
   const isAdmin = user?.role !== 'AGENT';
 
@@ -283,57 +291,25 @@ export default function Client360Page() {
             <Card style={{ gridColumn: '1 / -1' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>✈️ Sayohat ma'lumotlari</h3>
-                <button onClick={() => { setTravelForm({ travelDestination: c.travelDestination || '', travelPax: c.travelPax || 1, travelDepartDate: c.travelDepartDate ? c.travelDepartDate.slice(0, 10) : '', travelReturnDate: c.travelReturnDate ? c.travelReturnDate.slice(0, 10) : '', hotelName: c.hotelPreference?.name || '', hotelStars: c.hotelPreference?.stars || '', hotelLocation: c.hotelPreference?.location || '', breakfast: c.hotelPreference?.breakfast || false }); setEditingTravel(true); }} style={{ padding: '4px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--fg-2)' }}>✏️ Tahrirlash</button>
+                <button onClick={() => setShowClientEdit(true)} style={{ padding: '4px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--fg-2)' }}>✏️ Tahrirlash</button>
               </div>
-              {!editingTravel ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 12 }}>
-                  {c.travelDestination && <Info label="📍 Yo'nalish" value={c.travelDestination} />}
-                  {c.travelPax > 1 && <Info label="👥 Sayohatchilar" value={`${c.travelPax} kishi`} />}
-                  {c.travelDepartDate && <Info label="🛫 Jo'nab ketish" value={fmtDate(c.travelDepartDate)} />}
-                  {c.travelReturnDate && <Info label="🛬 Qaytish" value={fmtDate(c.travelReturnDate)} />}
-                  {c.hotelPreference?.name && <Info label="🏨 Mehmonxona" value={`${c.hotelPreference.name} ${'⭐'.repeat(c.hotelPreference.stars || 0)}`} />}
-                  {c.hotelPreference?.location && <Info label="📍 Joylashuv" value={c.hotelPreference.location} />}
-                  {c.hotelPreference?.breakfast && <Info label="🍳 Nonushta" value="Kiradi" />}
-                  {!c.travelDestination && !c.travelDepartDate && <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Sayohat ma'lumotlari kiritilmagan</span>}
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {[
-                    ['Yo\'nalish', 'travelDestination', 'text', ''],
-                    ['Kishi soni', 'travelPax', 'number', ''],
-                    ['Jo\'nab ketish', 'travelDepartDate', 'date', ''],
-                    ['Qaytish', 'travelReturnDate', 'date', ''],
-                    ['Mehmonxona nomi', 'hotelName', 'text', ''],
-                    ['Mehmonxona yulduzlar', 'hotelStars', 'number', ''],
-                    ['Joylashuv', 'hotelLocation', 'text', ''],
-                  ].map(([lbl, key, type]) => (
-                    <div key={key}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', marginBottom: 4 }}>{lbl}</div>
-                      <input type={type} value={travelForm[key] || ''} onChange={e => setTravelForm((f: any) => ({...f, [key]: e.target.value}))}
-                        style={{ width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' }} />
-                    </div>
-                  ))}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input type="checkbox" checked={travelForm.breakfast || false} onChange={e => setTravelForm((f: any) => ({...f, breakfast: e.target.checked}))} />
-                    <span style={{ fontSize: 13 }}>Nonushta kiradi</span>
+              {(() => {
+                const ti = c.preferences?.travelInfo || {};
+                const hasAny = ti.destination || ti.fromCity || ti.departDate || ti.approxDays || ti.hotelName;
+                if (!hasAny) return <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Sayohat ma'lumotlari kiritilmagan</span>;
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 12 }}>
+                    {ti.destination && <Info label="📍 Qayerga" value={ti.destination} />}
+                    {ti.fromCity && <Info label="🛫 Qaysi shahardan" value={ti.fromCity} />}
+                    {(ti.adults || ti.children) && <Info label="👥 Sayohatchilar" value={`${ti.adults || 1} kattalar${ti.children ? ` + ${ti.children} bola` : ''}`} />}
+                    {ti.departDate && <Info label="🛫 Jo'nab ketish" value={fmtDate(ti.departDate)} />}
+                    {ti.returnDate && <Info label="🛬 Qaytish" value={fmtDate(ti.returnDate)} />}
+                    {!ti.departDate && ti.approxDays && <Info label="🗓 Taxminiy davomiyligi" value={`${ti.approxDays} kun`} />}
+                    {ti.hotelName && <Info label="🏨 Mehmonxona" value={ti.hotelName} />}
+                    {ti.hotelType && <Info label="🏷 Mehmonxona turi" value={HOTEL_TYPE_LABELS[ti.hotelType] || ti.hotelType} />}
                   </div>
-                  <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <button onClick={() => setEditingTravel(false)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13 }}>Bekor</button>
-                    <button onClick={async () => {
-                      try {
-                        await clientsApi.update(id, {
-                          travelDestination: travelForm.travelDestination || null,
-                          travelPax: parseInt(travelForm.travelPax) || 1,
-                          travelDepartDate: travelForm.travelDepartDate || null,
-                          travelReturnDate: travelForm.travelReturnDate || null,
-                          hotelPreference: { name: travelForm.hotelName, stars: parseInt(travelForm.hotelStars) || null, location: travelForm.hotelLocation, breakfast: travelForm.breakfast },
-                        });
-                        toast.success('Saqlandi'); setEditingTravel(false); load();
-                      } catch (e: any) { toast.error(errMsg(e)); }
-                    }} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Saqlash</button>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </Card>
 
             {c.notes && (
@@ -406,7 +382,14 @@ export default function Client360Page() {
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 16, fontWeight: 800 }}>{b.currency} {b.totalPrice}</div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
+                          <div style={{ fontSize: 16, fontWeight: 800 }}>{b.currency} {b.totalPrice}</div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}?edit=1`); }}
+                            title="Tahrirlash"
+                            style={{ padding: '4px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 12 }}
+                          >✏️</button>
+                        </div>
                         {isAdmin && b.profit > 0 && (
                           <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 2 }}>
                             Foyda: {fmtMoney(b.profit)}
@@ -1332,36 +1315,64 @@ function ClientPersonalMsgModal({ client, onClose, onSent }: any) {
   );
 }
 
-// ─── Client Edit Modal (Tahrirlash) ────────────────────────────────────────────
+// ─── Client Edit Modal (Tahrirlash) — Mijoz + Sayohat ma'lumotlari birgalikda ──
 function ClientEditModal({ client, onClose, onSaved }: any) {
+  const ti = client.preferences?.travelInfo || {};
   const [form, setForm] = useState<any>({
+    // ── Mijoz ma'lumotlari ──
     fullName: client.fullName || '',
     phone: client.phone || '',
-    phone2: client.phone2 || '',
-    email: client.email || '',
     telegramUsername: client.telegramUsername || '',
-    instagramHandle: client.instagramHandle || '',
-    whatsappPhone: client.whatsappPhone || '',
     source: client.source || 'OTHER',
     tier: client.tier || 'REGULAR',
     status: client.status || 'ACTIVE',
-    country: client.country || '',
-    city: client.city || '',
-    address: client.address || '',
-    dateOfBirth: client.dateOfBirth ? client.dateOfBirth.slice(0, 10) : '',
-    nationality: client.nationality || '',
     notes: client.notes || '',
+    // ── Sayohat ma'lumotlari (Client.preferences.travelInfo ichida saqlanadi) ──
+    destination: ti.destination || '',      // 4. Qayerga sayohat qilishi
+    fromCity: ti.fromCity || '',             // 5. Qaysi shahardan
+    adults: ti.adults ?? 1,                  // 6. Kattalar soni
+    children: ti.children ?? 0,              // 6. Bolalar soni
+    departDate: ti.departDate ? ti.departDate.slice(0, 10) : '',   // 7. Sana
+    returnDate: ti.returnDate ? ti.returnDate.slice(0, 10) : '',   // 7. Sana
+    approxDays: ti.approxDays ?? '',         // 7. Aniq sana yo'q bo'lsa — taxminiy kun
+    hotelName: ti.hotelName || '',           // 8. Mehmonxona nomi
+    hotelType: ti.hotelType || '',           // 9. Mehmonxona turi
   });
   const [saving, setSaving] = useState(false);
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
+  const inp: any = { width: '100%', padding: '8px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
+  const lbl: any = { fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 5 };
+
   async function save() {
-    if (!form.fullName.trim()) { toast.error('F.I.SH. kerak'); return; }
+    if (!form.fullName.trim()) { toast.error('Mijoz ismi kerak'); return; }
     setSaving(true);
     try {
       await clientsApi.update(client.id, {
-        ...form,
-        dateOfBirth: form.dateOfBirth || undefined,
+        fullName: form.fullName.trim(),
+        phone: form.phone || undefined,
+        telegramUsername: form.telegramUsername || undefined,
+        source: form.source,
+        tier: form.tier,
+        status: form.status,
+        notes: form.notes || undefined,
+        // preferences: mavjud offerlar (va boshqa saqlangan ma'lumotlar) yo'qolib
+        // ketmasligi uchun MAVJUD preferences bilan birlashtirib yuboramiz —
+        // faqat travelInfo qismini yangilaymiz.
+        preferences: {
+          ...(client.preferences || {}),
+          travelInfo: {
+            destination: form.destination || undefined,
+            fromCity: form.fromCity || undefined,
+            adults: parseInt(String(form.adults)) || 1,
+            children: parseInt(String(form.children)) || 0,
+            departDate: form.departDate || undefined,
+            returnDate: form.returnDate || undefined,
+            approxDays: form.approxDays ? parseInt(String(form.approxDays)) : undefined,
+            hotelName: form.hotelName || undefined,
+            hotelType: form.hotelType || undefined,
+          },
+        },
       });
       onSaved();
     } catch (e: any) {
@@ -1372,81 +1383,91 @@ function ClientEditModal({ client, onClose, onSaved }: any) {
   }
 
   return (
-    <Modal open onClose={onClose} title="✏️ Klientni tahrirlash" maxWidth={560}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div style={{ gridColumn: '1/-1' }}>
-          <Label>F.I.SH. *</Label>
-          <Input value={form.fullName} onChange={(e: any) => set('fullName', e.target.value)} />
-        </div>
+    <Modal open onClose={onClose} title="✏️ Mijoz va sayohat ma'lumotlari" maxWidth={640}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* ── Mijoz ma'lumotlari ── */}
         <div>
-          <Label>Telefon</Label>
-          <Input value={form.phone} onChange={(e: any) => set('phone', e.target.value)} placeholder="+998901234567" />
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.3 }}>👤 Mijoz</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={lbl}>Ismi *</label>
+              <input style={inp} value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Telefon raqami</label>
+              <input style={inp} value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+998901234567" />
+            </div>
+            <div>
+              <label style={lbl}>Telegram username</label>
+              <input style={inp} value={form.telegramUsername} onChange={(e) => set('telegramUsername', e.target.value)} placeholder="username (@ siz)" />
+            </div>
+            <div>
+              <label style={lbl}>Manba</label>
+              <select style={inp} value={form.source} onChange={(e) => set('source', e.target.value)}>
+                {Object.entries(SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Tier</label>
+              <select style={inp} value={form.tier} onChange={(e) => set('tier', e.target.value)}>
+                {Object.entries(TIER_LABELS).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}
+              </select>
+            </div>
+          </div>
         </div>
+
+        {/* ── Sayohat ma'lumotlari ── */}
         <div>
-          <Label>Qo'shimcha telefon</Label>
-          <Input value={form.phone2} onChange={(e: any) => set('phone2', e.target.value)} />
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.3 }}>✈️ Sayohat</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={lbl}>Qayerga sayohat qiladi</label>
+              <input style={inp} value={form.destination} onChange={(e) => set('destination', e.target.value)} placeholder="Masalan: Antalya, Turkiya" />
+            </div>
+            <div>
+              <label style={lbl}>Qaysi shahardan</label>
+              <input style={inp} value={form.fromCity} onChange={(e) => set('fromCity', e.target.value)} placeholder="Masalan: Toshkent" />
+            </div>
+            <div>
+              <label style={lbl}>Kattalar</label>
+              <input type="number" min={1} style={inp} value={form.adults} onChange={(e) => set('adults', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Bolalar</label>
+              <input type="number" min={0} style={inp} value={form.children} onChange={(e) => set('children', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Jo'nab ketish sanasi</label>
+              <input type="date" style={inp} value={form.departDate} onChange={(e) => set('departDate', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Qaytish sanasi</label>
+              <input type="date" style={inp} value={form.returnDate} onChange={(e) => set('returnDate', e.target.value)} />
+            </div>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={lbl}>Taxminiy davomiyligi (kun) — aniq sana hali noma'lum bo'lsa</label>
+              <input type="number" min={1} style={{ ...inp, maxWidth: 160 }} value={form.approxDays} onChange={(e) => set('approxDays', e.target.value)} placeholder="Masalan: 7" />
+            </div>
+            <div>
+              <label style={lbl}>Mehmonxona nomi</label>
+              <input style={inp} value={form.hotelName} onChange={(e) => set('hotelName', e.target.value)} placeholder="Agar mijoz allaqachon tanlagan bo'lsa" />
+            </div>
+            <div>
+              <label style={lbl}>Mehmonxona turi</label>
+              <select style={inp} value={form.hotelType} onChange={(e) => set('hotelType', e.target.value)}>
+                <option value="">—</option>
+                {Object.entries(HOTEL_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
         </div>
+
         <div>
-          <Label>Email</Label>
-          <Input type="email" value={form.email} onChange={(e: any) => set('email', e.target.value)} />
+          <label style={lbl}>Izoh</label>
+          <textarea style={{ ...inp, minHeight: 60, resize: 'vertical' }} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
         </div>
-        <div>
-          <Label>Telegram username</Label>
-          <Input value={form.telegramUsername} onChange={(e: any) => set('telegramUsername', e.target.value)} placeholder="username (@ siz)" />
-        </div>
-        <div>
-          <Label>Instagram</Label>
-          <Input value={form.instagramHandle} onChange={(e: any) => set('instagramHandle', e.target.value)} />
-        </div>
-        <div>
-          <Label>WhatsApp telefon</Label>
-          <Input value={form.whatsappPhone} onChange={(e: any) => set('whatsappPhone', e.target.value)} />
-        </div>
-        <div>
-          <Label>Manba</Label>
-          <Select value={form.source} onChange={(e: any) => set('source', e.target.value)}>
-            {Object.entries(SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}
-          </Select>
-        </div>
-        <div>
-          <Label>Tier</Label>
-          <Select value={form.tier} onChange={(e: any) => set('tier', e.target.value)}>
-            {Object.entries(TIER_LABELS).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}
-          </Select>
-        </div>
-        <div>
-          <Label>Status</Label>
-          <Select value={form.status} onChange={(e: any) => set('status', e.target.value)}>
-            <option value="ACTIVE">Faol</option>
-            <option value="INACTIVE">Nofaol</option>
-            <option value="BLOCKED">Bloklangan</option>
-          </Select>
-        </div>
-        <div>
-          <Label>Davlat</Label>
-          <Input value={form.country} onChange={(e: any) => set('country', e.target.value)} />
-        </div>
-        <div>
-          <Label>Shahar</Label>
-          <Input value={form.city} onChange={(e: any) => set('city', e.target.value)} />
-        </div>
-        <div>
-          <Label>Tug'ilgan sana</Label>
-          <Input type="date" value={form.dateOfBirth} onChange={(e: any) => set('dateOfBirth', e.target.value)} />
-        </div>
-        <div>
-          <Label>Fuqaroligi</Label>
-          <Input value={form.nationality} onChange={(e: any) => set('nationality', e.target.value)} />
-        </div>
-        <div style={{ gridColumn: '1/-1' }}>
-          <Label>Manzil</Label>
-          <Input value={form.address} onChange={(e: any) => set('address', e.target.value)} />
-        </div>
-        <div style={{ gridColumn: '1/-1' }}>
-          <Label>Izoh</Label>
-          <Textarea rows={3} value={form.notes} onChange={(e: any) => set('notes', e.target.value)} />
-        </div>
-        <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10, marginTop: 8 }}>
+
+        <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>Bekor</Btn>
           <Btn onClick={save} loading={saving} style={{ flex: 1 }}>Saqlash</Btn>
         </div>

@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { bookingsApi, paymentsApi, v8Api, passengersApi, servicesApi, telegramApi, approvalsApi, api } from '@/services/api';
 import { useAuth } from '@/lib/store';
@@ -38,6 +38,7 @@ function Info({ label, value, mono }: { label: string; value: any; mono?: boolea
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [b, setB] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
@@ -48,7 +49,10 @@ export default function BookingDetailPage() {
   // v9-FINAL: Approval modal (chegirma/refund so'rash uchun)
   const [showApproval, setShowApproval] = useState<{ type: string } | null>(null);
   // BUG FIX: Booking ma'lumotlarini (narx, tannarx, chegirma...) to'g'ridan-to'g'ri tahrirlash modali
-  const [showEdit, setShowEdit] = useState(false);
+  // v10: ?edit=1 bilan kelinsa (masalan klient sahifasidagi booking kartasidan
+  // ✏️ tugmasi bosilsa), tahrirlash oynasi avtomatik ochiladi — bir marta bosish
+  // bilan bevosita tahrirlashga o'tish uchun.
+  const [showEdit, setShowEdit] = useState(searchParams?.get('edit') === '1');
 
   const load = () => {
     setLoading(true);
