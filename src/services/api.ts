@@ -183,6 +183,7 @@ export const pipelineApi = {
     api.patch(`/pipeline/client/${clientId}/stage`, { stage, note, lostReason }),
   bulkMove: (clientIds: string[], stage: string) =>
     api.post('/pipeline/bulk-move', { clientIds, stage }),
+  lostLeads: (agentId?: string) => api.get('/pipeline/lost-leads', { params: agentId ? { agentId } : {} }),
 };
 
 // ── BOOKINGS ─────────────────────────────────────────────────

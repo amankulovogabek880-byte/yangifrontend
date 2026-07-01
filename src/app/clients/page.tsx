@@ -4,14 +4,14 @@ import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { clientsApi } from '@/services/api';
 import { Btn, Input, Select, Card, Empty, Skeleton, Badge, Modal, Label, Textarea } from '@/components/ui';
-import { TIER_COLORS, TIER_LABELS, SOURCE_LABELS, STAGE_LABELS, STAGE_COLORS, errMsg, timeAgo } from '@/lib/helpers';
+import { TIER_LABELS, SOURCE_LABELS, STAGE_LABELS, STAGE_COLORS, errMsg, timeAgo } from '@/lib/helpers';
 import toast from 'react-hot-toast';
 
 export default function ClientsPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ search: '', tier: '', source: '', stage: '', leadScore: '', sortBy: 'recent' });
+  const [filters, setFilters] = useState({ search: '', source: '', stage: '', sortBy: 'recent' });
   const [showAdd, setShowAdd] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -36,12 +36,8 @@ export default function ClientsPage() {
 
         {/* Filters */}
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
             <Input placeholder="Qidirish (ism, telefon, email...)" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
-            <Select value={filters.tier} onChange={(e) => setFilters({ ...filters, tier: e.target.value })}>
-              <option value="">Barcha tier</option>
-              {Object.entries(TIER_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </Select>
             <Select value={filters.source} onChange={(e) => setFilters({ ...filters, source: e.target.value })}>
               <option value="">Barcha manba</option>
               {Object.entries(SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -50,19 +46,12 @@ export default function ClientsPage() {
               <option value="">Barcha bosqich</option>
               {Object.entries(STAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
-            <Select value={filters.leadScore} onChange={(e) => setFilters({ ...filters, leadScore: e.target.value })}>
-              <option value="">Barcha score</option>
-              <option value="hot">🔥 ISSIQ (80+)</option>
-              <option value="warm">⚡ O'RTA (50-79)</option>
-              <option value="cold">❄️ SOVUQ (0-49)</option>
-            </Select>
           </div>
           <div style={{ marginTop: 10 }}>
             <Select value={filters.sortBy} onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}>
               <option value="recent">Yangi</option>
               <option value="name">Ism</option>
               <option value="revenue">Daromad</option>
-              <option value="score">Score</option>
             </Select>
           </div>
         </Card>
@@ -79,13 +68,11 @@ export default function ClientsPage() {
                   <thead style={{ background: 'var(--bg)' }}>
                     <tr style={{ color: 'var(--fg-3)', fontSize: 11, textTransform: 'uppercase' }}>
                       <th style={{ padding: 12, textAlign: 'left' }}>F.I.SH.</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Aloqa</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Tier</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>Nomer</th>
                       <th style={{ padding: 12, textAlign: 'left' }}>Bosqich</th>
                       <th style={{ padding: 12, textAlign: 'left' }}>Manba</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Bookings</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Score</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Aloqa</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>Takliflar</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>Oxirgi aloqa</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -103,26 +90,13 @@ export default function ClientsPage() {
                           {c.assignedAgent && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>👤 {c.assignedAgent.name}</div>}
                         </td>
                         <td style={{ padding: 12 }}>
-                          <Badge color={TIER_COLORS[c.tier]}>{TIER_LABELS[c.tier]}</Badge>
-                        </td>
-                        <td style={{ padding: 12 }}>
                           <Badge color={STAGE_COLORS[c.pipelineStage]}>{STAGE_LABELS[c.pipelineStage]?.replace(/^\S+\s/, '')}</Badge>
                         </td>
                         <td style={{ padding: 12, fontSize: 11, color: 'var(--fg-2)' }}>
                           {SOURCE_LABELS[c.source]}
                         </td>
                         <td style={{ padding: 12 }}>
-                          <span style={{ fontWeight: 600 }}>{c._count?.bookings || 0}</span>
-                          {c.totalRevenue > 0 && <div style={{ fontSize: 11, color: 'var(--success)' }}>${Math.round(c.totalRevenue)}</div>}
-                        </td>
-                        <td style={{ padding: 12 }}>
-                          <span style={{
-                            fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 700,
-                            background: c.leadScore >= 80 ? '#ef444420' : c.leadScore >= 50 ? '#eab30820' : '#0ea5e920',
-                            color: c.leadScore >= 80 ? '#ef4444' : c.leadScore >= 50 ? '#eab308' : '#0ea5e9',
-                          }}>
-                            {c.leadScore >= 80 ? '🔥' : c.leadScore >= 50 ? '⚡' : '❄️'} {c.leadScore}
-                          </span>
+                          <span style={{ fontWeight: 600 }}>{(c.preferences?.offers?.length) || 0}</span>
                         </td>
                         <td style={{ padding: 12, fontSize: 11, color: 'var(--fg-3)' }}>{timeAgo(c.lastContactAt)}</td>
                       </tr>
