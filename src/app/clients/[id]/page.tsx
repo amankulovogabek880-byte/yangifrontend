@@ -2,12 +2,14 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { v8Api, clientsApi, tasksApi, followUpsApi, telegramApi, bookingsApi, userTelegramApi, api } from '@/services/api';
+import { v8Api, clientsApi, tasksApi, followUpsApi, telegramApi, bookingsApi, userTelegramApi, paymentsApi, api } from '@/services/api';
 import { Card, Btn, Badge, Skeleton, Avatar, Textarea, Label, Modal, Input, Select, Empty } from '@/components/ui';
 import { useDialer } from '@/lib/dialer';
 import { useAuth } from '@/lib/store';
 import { fmtDate, fmtDateTime, fmtMoney, timeAgo, errMsg, SOURCE_LABELS, TIER_LABELS } from '@/lib/helpers';
 import toast from 'react-hot-toast';
+import { FaWhatsapp, FaTelegramPlane, FaPen, FaEllipsisH, FaTrash, FaPhoneAlt, FaPaperPlane, FaLock, FaChevronDown } from 'react-icons/fa';
+import { EditBookingModal } from '@/components/EditBookingModal';
 
 const TIER_COLORS: Record<string, string> = {
   VIP: '#a855f7', GOLD: '#f59e0b', SILVER: '#94a3b8', REGULAR: 'var(--fg-3)',
@@ -62,6 +64,7 @@ export default function Client360Page() {
   const [editingOffer, setEditingOffer] = useState<any>(null);
   const [sellingOfferId, setSellingOfferId] = useState<string | null>(null);
   const [showBooking, setShowBooking] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<any>(null);
   const [showPersonalMsg, setShowPersonalMsg] = useState(false);
   const [showClientEdit, setShowClientEdit] = useState(false);
   const [showMoreInfo, setShowMoreInfo] = useState(false);
@@ -134,14 +137,14 @@ export default function Client360Page() {
               </Btn>
             )}
             {c.phone && (
-              <button aria-label="WhatsApp" title="WhatsApp" onClick={() => window.open(`https://wa.me/${c.phone.replace(/[^\d]/g, '')}`, '_blank')} style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 15 }}>💚</button>
+              <button aria-label="WhatsApp" title="WhatsApp" onClick={() => window.open(`https://wa.me/${c.phone.replace(/[^\d]/g, '')}`, '_blank')} style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: '#25D366', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center' }}><FaWhatsapp /></button>
             )}
             {c.telegramUsername && (
-              <button aria-label="Telegram" title="Telegram" onClick={() => window.open(`https://t.me/${c.telegramUsername}`, '_blank')} style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 15 }}>✈️</button>
+              <button aria-label="Telegram" title="Telegram" onClick={() => window.open(`https://t.me/${c.telegramUsername}`, '_blank')} style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: '#229ED9', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center' }}><FaTelegramPlane /></button>
             )}
-            <button aria-label="Tahrirlash" title="Tahrirlash" onClick={() => setShowClientEdit(true)} style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 15 }}>✏️</button>
+            <button aria-label="Tahrirlash" title="Tahrirlash" onClick={() => setShowClientEdit(true)} style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center' }}><FaPen /></button>
             <div style={{ position: 'relative' }}>
-              <button aria-label="Ko'proq" title="Ko'proq" onClick={() => setHeaderMenuOpen((v) => !v)} style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 15 }}>⋯</button>
+              <button aria-label="Ko'proq" title="Ko'proq" onClick={() => setHeaderMenuOpen((v) => !v)} style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center' }}><FaEllipsisH /></button>
               {headerMenuOpen && (
                 <>
                   <div onClick={() => setHeaderMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
@@ -158,7 +161,7 @@ export default function Client360Page() {
                           } catch (e: any) { toast.error(errMsg(e)); }
                         }}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', fontSize: 13, border: 'none', background: 'none', color: 'var(--danger)', cursor: 'pointer' }}
-                      >🗑 Klientni o'chirish</button>
+                      ><FaTrash size={12} /> Klientni o'chirish</button>
                     )}
                   </div>
                 </>
@@ -345,7 +348,7 @@ export default function Client360Page() {
                             <div style={{ fontSize: 13, fontWeight: 600 }}>{b.currency} {b.paidAmount || 0} / {b.totalPrice}</div>
                             {isAdmin && b.profit > 0 && <div style={{ fontSize: 11, color: 'var(--success)' }}>foyda {fmtMoney(b.profit)}</div>}
                           </div>
-                          <button onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}?edit=1`); }} title="Tahrirlash" style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 12 }}>✏️</button>
+                          <button onClick={(e) => { e.stopPropagation(); setEditingBooking(b); }} title="Tahrirlash" style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center' }}><FaPen size={11} /></button>
                         </div>
                       </div>
                     ))}
@@ -387,6 +390,13 @@ export default function Client360Page() {
           client={c}
           onClose={() => setShowClientEdit(false)}
           onSaved={() => { setShowClientEdit(false); load(); toast.success("✅ Klient ma'lumotlari yangilandi"); }}
+        />
+      )}
+      {editingBooking && (
+        <EditBookingModal
+          booking={editingBooking}
+          onClose={() => setEditingBooking(null)}
+          onSaved={() => { setEditingBooking(null); load(); toast.success('✅ Booking yangilandi'); }}
         />
       )}
     </CrmLayout>
@@ -572,7 +582,18 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
         if (conversation.isPersonal) {
           await userTelegramApi.sendMessage({ userId: conversation.externalChatId, text: val, clientId: client.id });
         } else {
-          await telegramApi.sendMessage(conversation.id, val);
+          try {
+            await telegramApi.sendMessage(conversation.id, val);
+          } catch (botErr: any) {
+            // BOT ulanmagan/aktiv bo'lmasa — shaxsiy Telegram orqali qayta urinamiz,
+            // shu tenant uchun bot sozlanmagan bo'lishi tez-tez uchraydi.
+            const msg = botErr?.response?.data?.message || '';
+            if (String(msg).toLowerCase().includes('bot')) {
+              await userTelegramApi.sendMessage({ userId: conversation.externalChatId, text: val, clientId: client.id });
+            } else {
+              throw botErr;
+            }
+          }
         }
         toast.success('Xabar yuborildi');
       }
@@ -1651,11 +1672,14 @@ function ClientDocumentsTab({ clientId, initialDocs, onUploaded }: { clientId: s
 
 // ─── Client Payments & Invoice Tab ────────────────────────────────────────────
 function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: any; bookings: any[]; onRefresh?: () => void }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role !== 'AGENT';
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showBookingSendModal, setShowBookingSendModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -1671,12 +1695,83 @@ function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: 
     (b.payments || []).map((p: any) => ({ ...p, bookingRef: b.bookingRef, bookingId: b.id }))
   );
 
+  async function markPaid(b: any) {
+    const balance = Math.max(0, (b.totalPrice || 0) - (b.paidAmount || 0));
+    if (balance <= 0) return;
+    if (!window.confirm(`"${b.tourName}" uchun qolgan ${b.currency} ${balance.toLocaleString()} to'landi deb belgilaysizmi?`)) return;
+    setMarkingPaidId(b.id);
+    try {
+      await paymentsApi.addManual({ bookingId: b.id, amount: balance, currency: b.currency, method: 'CASH', note: "Agent tomonidan to'landi deb belgilandi" });
+      toast.success("✅ To'landi deb belgilandi");
+      onRefresh?.();
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setMarkingPaidId(null);
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Booking bo'yicha xulosa: narx, markup/foyda, to'langan, qoldiq */}
+      {bookings.length > 0 && (
+        <Card>
+          <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700 }}>💰 To'lov holati</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {bookings.map((b: any) => {
+              const total = b.totalPrice || 0;
+              const paid = b.paidAmount || 0;
+              const balance = Math.max(0, total - paid);
+              const markup = isAdmin ? Math.max(0, total - (b.supplierCost || 0) - (b.discount || 0)) : null;
+              const isPaid = balance <= 0 && total > 0;
+              return (
+                <div key={b.id} style={{ padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{b.tourName} <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--fg-3)', fontWeight: 400 }}>· {b.bookingRef}</span></div>
+                    <span style={{
+                      fontSize: 10, padding: '2px 9px', borderRadius: 999, fontWeight: 700,
+                      background: isPaid ? 'var(--success-soft)' : 'var(--warning-soft)',
+                      color: isPaid ? 'var(--success)' : 'var(--warning)',
+                    }}>{isPaid ? "✅ TO'LANDI" : "⏳ TO'LANMAGAN"}</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
+                    <div>
+                      <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>Narx</div>
+                      <div style={{ fontWeight: 700 }}>{b.currency} {total.toLocaleString()}</div>
+                    </div>
+                    {isAdmin && (
+                      <div>
+                        <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>Markup / foyda</div>
+                        <div style={{ fontWeight: 700, color: '#f59e0b' }}>{b.currency} {(markup || 0).toLocaleString()}</div>
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>To'langan</div>
+                      <div style={{ fontWeight: 700, color: 'var(--success)' }}>{b.currency} {paid.toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>Qoldiq</div>
+                      <div style={{ fontWeight: 700, color: balance > 0 ? 'var(--warning)' : 'var(--fg-4)' }}>{b.currency} {balance.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  {balance > 0 && (
+                    <button
+                      disabled={markingPaidId === b.id}
+                      onClick={() => markPaid(b)}
+                      style={{ marginTop: 8, fontSize: 11, padding: '5px 12px', borderRadius: 6, border: 'none', background: 'var(--success)', color: 'white', cursor: 'pointer', fontWeight: 700 }}
+                    >{markingPaidId === b.id ? '...' : "✅ To'landi deb belgilash"}</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       {/* To'lovlar */}
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>💳 To'lovlar</h3>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>💳 To'lovlar tarixi</h3>
           {bookings.length > 0 && (
             <button onClick={() => { setSelectedBooking(bookings[0]); setShowBookingSendModal(true); }}
               style={{ padding: '6px 12px', borderRadius: 7, border: 'none', background: 'var(--bg-3)', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
