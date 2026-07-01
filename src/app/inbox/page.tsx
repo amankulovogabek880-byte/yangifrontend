@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { errMsg, fmtMoney } from '@/lib/helpers';
 import { useSocket, getSocket } from '@/hooks/useSocket';
+import { User, Bot, Users2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const CHANNEL_ICONS: Record<string, string> = {
@@ -380,6 +381,28 @@ function InboxPageInner() {
                         {c.lastMessageText || "Xabar yo'q"}
                       </span>
                     </div>
+                    {/* v10 MUAMMO 3+5: bot/shaxsiy, guruh, va biriktirilmagan belgilari */}
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                      {c.isPersonal ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9.5, padding: '1px 6px', borderRadius: 8, background: '#8b5cf620', color: '#8b5cf6', fontWeight: 700 }}>
+                          <User size={9} /> Shaxsiy
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9.5, padding: '1px 6px', borderRadius: 8, background: 'var(--bg-3)', color: 'var(--fg-3)', fontWeight: 700 }}>
+                          <Bot size={9} /> Bot{c.account?.botUsername ? ` @${c.account.botUsername}` : ''}
+                        </span>
+                      )}
+                      {(c.chatType === 'group' || c.chatType === 'supergroup') && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9.5, padding: '1px 6px', borderRadius: 8, background: '#06b6d420', color: '#06b6d4', fontWeight: 700 }}>
+                          <Users2 size={9} /> Guruh
+                        </span>
+                      )}
+                      {!c.assignedAgentId && (
+                        <span style={{ fontSize: 9.5, padding: '1px 6px', borderRadius: 8, background: '#f59e0b20', color: '#f59e0b', fontWeight: 700 }}>
+                          Umumiy / Biriktirilmagan
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -417,6 +440,27 @@ function InboxPageInner() {
                       {active.client?.phone
                         || (active.username ? `@${active.username}` : 'Telefon yo\'q')}
                       {active.assignedAgent && ` • ${active.assignedAgent.name}`}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                      {active.isPersonal ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, padding: '1px 7px', borderRadius: 8, background: '#8b5cf620', color: '#8b5cf6', fontWeight: 700 }}>
+                          <User size={10} /> Shaxsiy
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, padding: '1px 7px', borderRadius: 8, background: 'var(--bg-3)', color: 'var(--fg-3)', fontWeight: 700 }}>
+                          <Bot size={10} /> Bot{active.account?.botUsername ? ` @${active.account.botUsername}` : ''}
+                        </span>
+                      )}
+                      {(active.chatType === 'group' || active.chatType === 'supergroup') && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, padding: '1px 7px', borderRadius: 8, background: '#06b6d420', color: '#06b6d4', fontWeight: 700 }}>
+                          <Users2 size={10} /> Guruh
+                        </span>
+                      )}
+                      {!active.assignedAgentId && (
+                        <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 8, background: '#f59e0b20', color: '#f59e0b', fontWeight: 700 }}>
+                          Umumiy / Biriktirilmagan
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
