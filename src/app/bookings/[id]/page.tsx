@@ -3,7 +3,7 @@ import React from 'react';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { bookingsApi, paymentsApi, v8Api, passengersApi, servicesApi, telegramApi, approvalsApi, api } from '@/services/api';
+import { bookingsApi, paymentsApi, v8Api, passengersApi, servicesApi, telegramApi, api } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { Card, Btn, Skeleton, Badge, Label, Input, Select, Modal, Avatar, Textarea } from '@/components/ui';
 import { fmtDate, fmtDateTime, errMsg, BOOKING_STATUS_LABELS } from '@/lib/helpers';
@@ -47,8 +47,6 @@ export default function BookingDetailPage() {
   const [tab, setTab] = useState('overview');
   // v9: Mijozga invoice yuborish modali
   const [showSendInvoice, setShowSendInvoice] = useState(false);
-  // v9-FINAL: Approval modal (chegirma/refund so'rash uchun)
-  const [showApproval, setShowApproval] = useState<{ type: string } | null>(null);
   // BUG FIX: Booking ma'lumotlarini (narx, tannarx, chegirma...) to'g'ridan-to'g'ri tahrirlash modali
   // v10: ?edit=1 bilan kelinsa (masalan klient sahifasidagi booking kartasidan
   // ✏️ tugmasi bosilsa), tahrirlash oynasi avtomatik ochiladi — bir marta bosish
@@ -147,15 +145,6 @@ export default function BookingDetailPage() {
               <Btn variant="gradient" onClick={() => setShowSendInvoice(true)}>
                 📤 Mijozga yuborish
               </Btn>
-              {/* v9-FINAL: Tasdiq so'rash tugmalari */}
-              <div style={{ display: 'flex', gap: 4 }}>
-                <Btn size="sm" variant="secondary" onClick={() => setShowApproval({ type: 'DISCOUNT' })}>
-                  💰 Chegirma so'rash
-                </Btn>
-                <Btn size="sm" variant="secondary" onClick={() => setShowApproval({ type: 'REFUND' })}>
-                  ↩️ Refund so'rash
-                </Btn>
-              </div>
             </div>
           </div>
         </div>
@@ -414,16 +403,6 @@ export default function BookingDetailPage() {
           booking={b}
           onClose={() => setShowSendInvoice(false)}
           onSent={() => { setShowSendInvoice(false); load(); }}
-        />
-      )}
-
-      {/* v9-FINAL: Tasdiq so'rash modali */}
-      {showApproval && (
-        <RequestApprovalModal
-          booking={b}
-          type={showApproval.type}
-          onClose={() => setShowApproval(null)}
-          onSent={() => { setShowApproval(null); toast.success("✅ Tasdiq so'rovi yuborildi"); }}
         />
       )}
 
@@ -1314,93 +1293,6 @@ function SendInvoiceModal({ booking, onClose, onSent }: any) {
         🔒 <b>Maxfiylik:</b> Klient faqat <b>{booking.currency} {finalAmount.toFixed(2)}</b> ko'radi.
         Provayder tannarxi va sizning foydangiz <b>klientga ko'rinmaydi</b>.
       </div>
-    </Modal>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// v9-FINAL: TASDIQ SO'RASH MODAL
-// Agent chegirma/refund so'raydi → Admin tasdiqlaydi (/approvals'da)
-// ═══════════════════════════════════════════════════════════
-function RequestApprovalModal({ booking, type, onClose, onSent }: any) {
-  const [amount, setAmount] = useState<number>(0);
-  const [reason, setReason] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const typeLabels: Record<string, string> = {
-    DISCOUNT: '💰 Chegirma so\'rash',
-    REFUND: '↩️ Refund so\'rash',
-    PRICE_CHANGE: '💵 Narx o\'zgartirish',
-    BOOKING_CANCEL: '❌ Booking bekor qilish',
-  };
-
-  async function submit() {
-    if (amount <= 0) {
-      toast.error("Summa kerak");
-      return;
-    }
-    if (!reason.trim()) {
-      toast.error("Sabab yozing");
-      return;
-    }
-    setLoading(true);
-    try {
-      await approvalsApi.create({
-        type,
-        entityType: 'BOOKING',
-        entityId: booking.id,
-        title: `${typeLabels[type]} — ${booking.bookingRef}`,
-        reason: reason.trim(),
-        amount,
-        oldValue: { totalPrice: booking.totalPrice },
-        newValue: { discount: amount },
-      });
-      onSent();
-    } catch (e: any) {
-      toast.error(errMsg(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title={typeLabels[type] || 'Tasdiq so\'rash'} maxWidth={460} footer={
-      <>
-        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
-        <Btn variant="gradient" onClick={submit} loading={loading}>So'rovni yuborish</Btn>
-      </>
-    }>
-      <div style={{
-        padding: 10, background: 'var(--bg-3)', borderRadius: 8,
-        marginBottom: 12, fontSize: 11, color: 'var(--fg-3)',
-      }}>
-        💡 So'rov adminga yuboriladi. Tasdiqlangach avtomatik qo'llaniladi.
-      </div>
-
-      <div style={{
-        padding: 10, background: 'var(--bg-3)', borderRadius: 8,
-        marginBottom: 12, fontSize: 12,
-      }}>
-        <div><b>Booking:</b> {booking.bookingRef}</div>
-        <div><b>Tour:</b> {booking.tourName}</div>
-        <div><b>Joriy narx:</b> {booking.currency} {booking.totalPrice}</div>
-      </div>
-
-      <Label>Summa ({booking.currency}) *</Label>
-      <Input
-        type="number"
-        value={amount}
-        onChange={(e) => setAmount(Number(e.target.value) || 0)}
-        placeholder={type === 'DISCOUNT' ? "Chegirma summasi" : "Refund summasi"}
-        style={{ marginBottom: 12 }}
-      />
-
-      <Label>Sabab *</Label>
-      <Input
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        placeholder="Nima uchun shu o'zgarish kerak..."
-      />
     </Modal>
   );
 }

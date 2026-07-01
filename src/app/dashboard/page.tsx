@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { useDialer } from '@/lib/dialer';
 import { useSocket, getSocket } from '@/hooks/useSocket';
+import { Trophy, DollarSign, TrendingUp, Calendar, Wallet } from 'lucide-react';
 import { fmtDate, fmtMoney } from '@/lib/helpers';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -173,6 +174,7 @@ export default function DashboardPage() {
   const tabs = isAgent
     ? [
         { id: 'overview', label: 'Umumiy' },
+        { id: 'agents', label: 'Mening reytingim' },
         { id: 'calls', label: "Qo'ng'iroqlarim" },
       ]
     : [
@@ -230,8 +232,8 @@ export default function DashboardPage() {
               {activeTab === 'revenue' && !isAgent && (
                 <RevenueTab stats={stats} revenueChart={revenueChart} from={dateFrom} to={dateTo} />
               )}
-              {activeTab === 'agents' && !isAgent && (
-                <AgentsTab agents={agentsList} from={dateFrom} to={dateTo} onDateChange={(f,t)=>{setDateFrom(f);setDateTo(t);}} />
+              {activeTab === 'agents' && (
+                <AgentsTab agents={agentsList} from={dateFrom} to={dateTo} onDateChange={(f,t)=>{setDateFrom(f);setDateTo(t);}} isAgent={isAgent} />
               )}
               {activeTab === 'calls' && (
                 <CallsTab data={callData} isAgent={isAgent} />
@@ -332,7 +334,7 @@ function RevenueTab({ stats, revenueChart }: any) {
     { label: 'Operator narxi', value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami' },
 
     { label: 'Sof foyda', value: `$${money(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Foyda - Agent maosh' },
-    { label: 'Agent maoshlari', value: `$${money(stats?.salary?.totalAgentSalariesThisMonth || stats?.agentSalaries || 0)}`, color: '#06b6d4' },
+    { label: 'Konversiya', value: `${stats?.conversion?.rate ?? 0}%`, color: '#06b6d4', sub: 'Lead → Booking' },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -341,6 +343,7 @@ function RevenueTab({ stats, revenueChart }: any) {
           <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{it.label}</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: it.color }}>{it.value}</div>
+            {it.sub && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 4 }}>{it.sub}</div>}
           </div>
         ))}
       </div>
@@ -349,7 +352,27 @@ function RevenueTab({ stats, revenueChart }: any) {
   );
 }
 
-function AgentsTab({ agents }: any) {
+// v10: 1/2/3-o'rin uchun oltin/kumush/bronza doira ichida raqam
+const RANK_COLORS = ['#ffd700', '#c0c0c0', '#cd7f32'];
+function RankBadge({ rank }: { rank: number }) {
+  if (rank > 3) {
+    return <span style={{ fontSize: 12, color: 'var(--fg-3)', width: 24, textAlign: 'center', display: 'inline-block' }}>{rank}</span>;
+  }
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 24, height: 24, borderRadius: '50%',
+      background: RANK_COLORS[rank - 1], color: '#1a1a1a', fontWeight: 800, fontSize: 12,
+      flexShrink: 0,
+    }}>{rank}</span>
+  );
+}
+
+function AgentsTab({ agents, isAgent }: any) {
+  // v10: Agent bo'lsa — faqat o'zining reyting/oylik kartochkasi ko'rsatiladi,
+  // boshqa agentlarning ismi yoki summasi umuman chiqmaydi.
+  if (isAgent) return <MySalaryCard />;
+
   const [salaries, setSalaries] = useState<Record<string, any>>({});
   const [payStatus, setPayStatus] = useState<Record<string, { paid: boolean; note: string; saving: boolean }>>({});
 
@@ -394,25 +417,39 @@ function AgentsTab({ agents }: any) {
     <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Agent malumoti yoq</div>
   );
 
+  // v10: Reyting (leaderboard) — sal.grossSalary bo'yicha kamayish tartibida
+  const sortedAgents = [...agents].sort((a: any, b: any) => {
+    const sa = salaries[a.agent?.id]?.grossSalary || 0;
+    const sb = salaries[b.agent?.id]?.grossSalary || 0;
+    return sb - sa;
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 14px' }}>Agentlar samaradorligi</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Trophy size={16} color="#f59e0b" />
+          Agentlar reytingi
+        </h3>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
-              {['Agent', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Komissiya %', 'Maosh (oy)', "Tolov holati", 'Note'].map(h => (
+              {['#', 'Agent', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Komissiya %', 'Maosh (oy)', "Tolov holati", 'Note'].map(h => (
                 <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 700 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {agents.map((a: any, i: number) => {
+            {sortedAgents.map((a: any, i: number) => {
               const agentId = a.agent?.id;
               const sal = salaries[agentId] || {};
               const ps = payStatus[agentId] || { paid: false, note: '', saving: false };
+              const rank = i + 1;
               return (
                 <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 12px' }}>
+                    <RankBadge rank={rank} />
+                  </td>
                   <td style={{ padding: '10px 12px' }}>
                     <div style={{ fontWeight: 600 }}>{a.agent?.name || a.name || 'N/A'}</div>
                     <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{a.agent?.role}</div>
@@ -487,6 +524,86 @@ function AgentsTab({ agents }: any) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// v10: AGENT roli uchun — faqat o'zining reyting/oylik kartochkasi.
+// Boshqa agentlarning ismi yoki aniq summasi bu yerda umuman ko'rinmaydi.
+function MySalaryCard() {
+  const [sal, setSal] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/reports/my-salary')
+      .then((r: any) => setSal(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
+  if (!sal) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Ma'lumot topilmadi</div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 680 }}>
+      {sal.myRank != null && sal.totalAgents > 0 && (
+        <div style={{
+          padding: '16px 20px', borderRadius: 12,
+          background: 'linear-gradient(135deg, #8b5cf620, #3d7eff20)',
+          border: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <Trophy size={28} color="#f59e0b" />
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>
+              Siz jamoada #{sal.myRank}/{sal.totalAgents} o'rindasiz
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>Shu oy natijalaringiz bo'yicha</div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+        <SalaryStatCard icon={<DollarSign size={18} />} label="Oylik (bruto)" value={`$${money(sal.grossSalary || 0)}`} color="#8b5cf6" />
+        <SalaryStatCard icon={<TrendingUp size={18} />} label="Komissiya" value={`${sal.myCommissionPercent || 0}%`} color="#f59e0b" sub={sal.appliedTier ? 'KPI tier bo\'yicha' : undefined} />
+        <SalaryStatCard icon={<Calendar size={18} />} label="Bookinglar" value={sal.bookingsCount || 0} color="#3d7eff" />
+        <SalaryStatCard icon={<Wallet size={18} />} label="To'langan" value={`$${money(sal.alreadyPaid || 0)}`} color="#10b981" sub={sal.pending > 0 ? `kutilmoqda: $${money(sal.pending)}` : "to'liq to'landi"} />
+      </div>
+
+      <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Bookinglar bo'yicha komissiya</h3>
+        {!sal.breakdown?.length ? (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Shu oy booking yo'q</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {sal.breakdown.map((b: any) => (
+              <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{b.clientName || 'Klient'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', fontFamily: 'monospace' }}>{b.bookingRef}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>+${money(b.myShare)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>foyda ${money(b.profit)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SalaryStatCard({ icon, label, value, color, sub }: any) {
+  return (
+    <div style={{ padding: '14px 16px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color }}>
+        {icon}
+        <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }

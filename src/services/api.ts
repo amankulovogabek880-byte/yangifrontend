@@ -465,26 +465,6 @@ export const servicesApi = {
   delete: (id: string) => api.delete(`/services/${id}`),
 };
 
-// ✅ Approval Workflow
-export const approvalsApi = {
-  list: (params?: { status?: string; type?: string; mine?: string }) =>
-    api.get('/approvals', { params }),
-  one: (id: string) => api.get(`/approvals/${id}`),
-  create: (data: {
-    type: string;
-    entityType: string;
-    entityId: string;
-    title: string;
-    reason?: string;
-    oldValue?: any;
-    newValue?: any;
-    amount?: number;
-  }) => api.post('/approvals', data),
-  approve: (id: string, note?: string) => api.post(`/approvals/${id}/approve`, { note }),
-  reject: (id: string, note?: string) => api.post(`/approvals/${id}/reject`, { note }),
-  cancel: (id: string) => api.post(`/approvals/${id}/cancel`),
-};
-
 // 🎯 Round Robin Lead Assignment
 export const leadAssignmentApi = {
   getStrategy: () => api.get('/lead-assignment/strategy'),
