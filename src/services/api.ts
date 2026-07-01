@@ -242,16 +242,6 @@ export const followUpsApi = {
   delete: (id: string) => api.delete(`/followups/${id}`),
 };
 
-// ── APPROVALS ────────────────────────────────────────────────
-export const approvalsApi = {
-  list: (params?: any) => api.get('/approvals', { params }),
-  get: (id: string) => api.get(`/approvals/${id}`),
-  create: (data: any) => api.post('/approvals', data),
-  approve: (id: string, note?: string) => api.post(`/approvals/${id}/approve`, { note }),
-  reject: (id: string, note?: string) => api.post(`/approvals/${id}/reject`, { note }),
-  cancel: (id: string) => api.post(`/approvals/${id}/cancel`),
-};
-
 // ── DOCUMENTS ────────────────────────────────────────────────
 export const documentsApi = {
   list: (params?: any) => api.get('/documents', { params }),
