@@ -6,7 +6,7 @@ import { v8Api, clientsApi, tasksApi, followUpsApi, telegramApi, bookingsApi, us
 import { Card, Btn, Badge, Skeleton, Avatar, Textarea, Label, Modal, Input, Select, Empty } from '@/components/ui';
 import { useDialer } from '@/lib/dialer';
 import { useAuth } from '@/lib/store';
-import { fmtDate, fmtDateTime, fmtMoney, timeAgo, errMsg } from '@/lib/helpers';
+import { fmtDate, fmtDateTime, fmtMoney, fmtPrice, fmtUsdEquivalent, currencySymbol, timeAgo, errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
 
 const TIER_COLORS: Record<string, string> = {
@@ -502,15 +502,21 @@ export default function Client360Page() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Operator narxi</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#ef4444' }}>${(o.actualPrice || 0).toLocaleString()}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#ef4444' }}>{fmtPrice(o.actualPrice || 0, o.currency)}</div>
+                    {fmtUsdEquivalent(o.actualPriceUSD, o.currency) && (
+                      <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{fmtUsdEquivalent(o.actualPriceUSD, o.currency)}</div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
                     <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Markup</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#f59e0b' }}>+${(o.markup || 0).toLocaleString()}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#f59e0b' }}>+{fmtPrice(o.markup || 0, o.currency)}</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Mijozga narx</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>${(o.clientPrice || o.actualPrice + o.markup || 0).toLocaleString()}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>{fmtPrice(o.clientPrice || o.actualPrice + o.markup || 0, o.currency)}</div>
+                    {fmtUsdEquivalent(o.clientPriceUSD, o.currency) && (
+                      <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{fmtUsdEquivalent(o.clientPriceUSD, o.currency)}</div>
+                    )}
                   </div>
                 </div>
                 {[o.departDate && `✈️ ${fmtDate(o.departDate)}`, o.pax > 1 && `👥 ${o.pax} kishi`, o.hotelName && `🏨 ${o.hotelName}${'⭐'.repeat(o.hotelStars||0)}`].filter(Boolean).length > 0 && (
@@ -1158,8 +1164,15 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
 
   if (isAdmin) {
     // Admin: sees actualPrice (operator cost), markup, clientPrice
+    const sym = currencySymbol(f.currency);
     return (
       <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
+        <div style={{ gridColumn: '1/-1' }}>
+          <label style={lbl}>Valyuta</label>
+          <select style={inp} value={f.currency} onChange={(e: any) => set('currency', e.target.value)}>
+            {['USD', 'EUR', 'UZS', 'RUB'].map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
         <div>
           <label style={lbl}>Operator narxi (maxfiy)</label>
           <input type="number" style={inp} value={f.actualPrice} onChange={(e: any) => set('actualPrice', e.target.value)} placeholder="0" />
@@ -1171,12 +1184,17 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
         <div>
           <label style={lbl}>Mijozga narx</label>
           <div style={{ padding: '7px 10px', background: '#10b98115', borderRadius: 7, fontSize: 16, fontWeight: 700, color: '#10b981' }}>
-            ${clientPrice.toLocaleString()}
+            {fmtPrice(clientPrice, f.currency)}
           </div>
         </div>
+        {f.currency !== 'USD' && f.actualPrice && (
+          <div style={{ gridColumn: '1/-1', fontSize: 11, color: 'var(--fg-3)' }}>
+            💱 Saqlashda joriy CBU kursi bo'yicha USD ekvivalenti avtomatik hisoblanadi
+          </div>
+        )}
         {f.actualPrice && Number(f.actualPrice) > 0 && (
           <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, padding: '8px 10px', background: '#8b5cf610', borderRadius: 7, fontSize: 12 }}>
-            <span>Foyda: <b style={{ color: '#8b5cf6' }}>${(clientPrice - Number(f.actualPrice)).toLocaleString()}</b></span>
+            <span>Foyda: <b style={{ color: '#8b5cf6' }}>{fmtPrice(clientPrice - Number(f.actualPrice), f.currency)}</b></span>
             <span style={{ color: 'var(--fg-3)' }}>({Math.round(((clientPrice - Number(f.actualPrice)) / clientPrice) * 100)}% margin)</span>
           </div>
         )}
@@ -1187,15 +1205,25 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
   // Agent: ONLY sees client price (what customer pays)
   return (
     <div style={{ gridColumn: '1/-1', padding: '12px 14px', background: 'var(--bg-3)', borderRadius: 8 }}>
-      <label style={lbl}>Klient narxi (mijoz to'laydigan summa) *</label>
-      <input
-        type="number"
-        style={{ ...inp, fontSize: 18, fontWeight: 700 }}
-        value={f.actualPrice}
-        onChange={(e: any) => set('actualPrice', e.target.value)}
-        placeholder="0"
-      />
-      <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginBottom: 8 }}>
+        <div>
+          <label style={lbl}>Valyuta</label>
+          <select style={inp} value={f.currency} onChange={(e: any) => set('currency', e.target.value)}>
+            {['USD', 'EUR', 'UZS', 'RUB'].map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Klient narxi (mijoz to'laydigan summa) *</label>
+          <input
+            type="number"
+            style={{ ...inp, fontSize: 18, fontWeight: 700 }}
+            value={f.actualPrice}
+            onChange={(e: any) => set('actualPrice', e.target.value)}
+            placeholder="0"
+          />
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>
         Faqat mijozga ko'rsatiladigan narxni kiriting
       </div>
     </div>
@@ -1228,7 +1256,7 @@ function OfferSendMenu({ offerId, clientId, clientPhone, clientUsername, onSent 
         offer.pax > 1 ? '👥 Kishilar: ' + offer.pax : '',
         offer.hotelName ? '🏨 Mehmonxona: ' + offer.hotelName + ' ' + ('⭐'.repeat(offer.hotelStars || 0)) : '',
         '',
-        '💰 Narx: $' + ((offer.clientPrice || offer.actualPrice || 0)).toLocaleString() + ' ' + (offer.currency || 'USD'),
+        '💰 Narx: ' + fmtPrice(offer.clientPrice || offer.actualPrice || 0, offer.currency || 'USD'),
         offer.notes ? '\n📝 ' + offer.notes : '',
         '',
         'Qo\'shimcha ma\'lumot uchun murojaat qiling.',

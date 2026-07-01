@@ -117,3 +117,24 @@ export function errMsg(e: any): string {
 export function fmtMoney(amount: number, currency = 'USD'): string {
   return `${currency} ${(amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 }
+
+// Valyuta belgisi (USD -> $, EUR -> €, UZS -> so'm, RUB -> ₽)
+export function currencySymbol(currency = 'USD'): string {
+  const map: Record<string, string> = { USD: '$', EUR: '€', UZS: "so'm", RUB: '₽' };
+  return map[currency] || currency;
+}
+
+// Narxni valyuta belgisi bilan chiroyli formatlaydi: 1 250 $ yoki 15 000 000 so'm
+export function fmtPrice(amount: number, currency = 'USD'): string {
+  const val = (amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const sym = currencySymbol(currency);
+  // so'm kabi uzun belgilar summadan keyin, $/€/₽ esa oldin qulayroq ko'rinadi
+  return sym.length <= 1 ? `${sym}${val}` : `${val} ${sym}`;
+}
+
+// USD bo'lmagan summalar uchun kichik "≈ $X" qatorini hosil qiladi (offer.clientPriceUSD kabi
+// backend tomonidan yaratilgan paytdagi CBU kursi bilan muzlatilgan qiymatlardan foydalanadi)
+export function fmtUsdEquivalent(amountUSD: number | null | undefined, currency: string): string | null {
+  if (currency === 'USD' || amountUSD == null) return null;
+  return `≈ $${Number(amountUSD).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+}
