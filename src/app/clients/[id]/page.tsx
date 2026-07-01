@@ -71,6 +71,8 @@ export default function Client360Page() {
   const [chatLoading, setChatLoading] = useState(false);
   const [offers, setOffers] = useState<any[]>([]);
   const [showOfferCreate, setShowOfferCreate] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<any>(null);
+  const [sellingOfferId, setSellingOfferId] = useState<string | null>(null);
   const [showBooking, setShowBooking] = useState(false);
   const [showPersonalMsg, setShowPersonalMsg] = useState(false);
   const [showClientEdit, setShowClientEdit] = useState(false);
@@ -466,21 +468,49 @@ export default function Client360Page() {
               <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>📨 Takliflar</h3>
               <button onClick={() => setShowOfferCreate(true)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--primary)', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>+ Yangi taklif</button>
             </div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14, padding: '8px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
+              💡 Taklif mijozga yuborilib, u qaysinisini tanlasa — o'sha taklifni <b>✅ Sotildi</b> deb belgilang. Booking avtomatik yaratiladi, alohida "Yangi booking" to'ldirish shart emas.
+            </div>
             {offers.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>Hali taklif yuborilmagan</div>}
             {offers.map((o: any) => (
-              <div key={o.id} style={{ padding: '14px 16px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', marginBottom: 10 }}>
+              <div key={o.id} style={{ padding: '14px 16px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid ' + (o.status === 'SOLD' ? 'var(--success)' : 'var(--border)'), marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{o.tourName}</div>
                     {o.destination && <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>📍 {o.destination}</div>}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 10, fontWeight: 700, background: o.status === 'SENT' ? '#3d7eff20' : '#94a3b820', color: o.status === 'SENT' ? '#3d7eff' : '#94a3b8' }}>{o.status}</span>
-                    {o.status === 'DRAFT' && (
-                      <OfferSendMenu offerId={o.id} clientId={id} clientPhone={(data as any)?.phone}
-                        clientUsername={(data as any)?.telegramUsername}
-                        onSent={() => setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? { ...x, status: 'SENT' } : x))}
-                      />
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <span style={{
+                      fontSize: 11, padding: '2px 10px', borderRadius: 10, fontWeight: 700,
+                      background: o.status === 'SOLD' ? '#10b98120' : o.status === 'SENT' ? '#3d7eff20' : '#94a3b820',
+                      color: o.status === 'SOLD' ? '#10b981' : o.status === 'SENT' ? '#3d7eff' : '#94a3b8',
+                    }}>{o.status === 'SOLD' ? '✅ SOTILDI' : o.status}</span>
+                    {o.status !== 'SOLD' && (
+                      <>
+                        <OfferSendMenu offerId={o.id} clientId={id} clientPhone={(data as any)?.phone}
+                          clientUsername={(data as any)?.telegramUsername}
+                          onSent={() => setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? { ...x, status: 'SENT' } : x))}
+                        />
+                        <button onClick={() => setEditingOffer(o)} title="Tahrirlash" style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 12 }}>✏️</button>
+                        <button
+                          disabled={sellingOfferId === o.id}
+                          onClick={async () => {
+                            if (!window.confirm(`"${o.tourName}" taklifini sotildi deb belgilaysizmi?\n\nBu avtomatik ravishda $${(o.clientPrice || 0).toLocaleString()} summali booking yaratadi.`)) return;
+                            setSellingOfferId(o.id);
+                            try {
+                              await api.post(`/offers/${o.id}/mark-sold`, { clientId: id });
+                              toast.success('✅ Taklif sotildi — booking avtomatik yaratildi!');
+                              load();
+                              setTab('bookings');
+                            } catch (e: any) {
+                              toast.error(errMsg(e));
+                            } finally {
+                              setSellingOfferId(null);
+                            }
+                          }}
+                          style={{ padding: '3px 10px', borderRadius: 6, border: 'none', background: '#10b981', color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                        >{sellingOfferId === o.id ? '...' : '✅ Sotildi'}</button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -521,9 +551,30 @@ export default function Client360Page() {
                     </div>
                   ) : null;
                 })()}
+                {o.status === 'SOLD' && o.bookingId && (
+                  <div style={{ marginTop: 8 }}>
+                    <button onClick={() => router.push(`/bookings/${o.bookingId}`)} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--success)', background: 'transparent', color: 'var(--success)', cursor: 'pointer' }}>
+                      → Bookingni ko'rish
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
-            {showOfferCreate && <OfferCreateModal clientId={id} onClose={() => setShowOfferCreate(false)} onSaved={(o: any) => { setOffers((prev: any[]) => [o, ...prev]); setShowOfferCreate(false); }} />}
+            {showOfferCreate && (
+              <OfferCreateModal
+                clientId={id}
+                onClose={() => setShowOfferCreate(false)}
+                onSaved={(o: any) => { setOffers((prev: any[]) => [o, ...prev]); setShowOfferCreate(false); }}
+              />
+            )}
+            {editingOffer && (
+              <OfferCreateModal
+                clientId={id}
+                existingOffer={editingOffer}
+                onClose={() => setEditingOffer(null)}
+                onSaved={(o: any) => { setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? o : x)); setEditingOffer(null); }}
+              />
+            )}
           </div>
         )}
 
@@ -886,16 +937,44 @@ function ClientChatTab({ conversation, msgs, setMsgs, draft, setDraft, loading, 
 }
 
 // ─── Offer Create Modal ───────────────────────────────────────────────────────
-function OfferCreateModal({ clientId, onClose, onSaved }: any) {
-  const [f, setF] = useState({
-    tourName: '', destination: '', pax: 1,
-    departDate: '', returnDate: '', departFlightTime: '', returnFlightTime: '',
-    actualPrice: '', markup: '0', currency: 'USD',
-    hotels: [{ name: '', stars: '', photos: [] as string[] }],
-    mealPlan: 'NONE',
-    includesVisa: false, includesFlight: true, includesHotel: true,
-    includesTransfer: false, includesInsurance: false,
-    notes: '',
+function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
+  const isEdit = !!existingOffer;
+  const [f, setF] = useState(() => {
+    if (existingOffer) {
+      return {
+        tourName: existingOffer.tourName || '',
+        destination: existingOffer.destination || '',
+        pax: existingOffer.pax || 1,
+        departDate: existingOffer.departDate ? existingOffer.departDate.slice(0, 10) : '',
+        returnDate: existingOffer.returnDate ? existingOffer.returnDate.slice(0, 10) : '',
+        departFlightTime: existingOffer.departFlightTime || '',
+        returnFlightTime: existingOffer.returnFlightTime || '',
+        // Asl kiritilgan valyuta/summa qaytarib ko'rsatiladi (agar EUR/UZS bo'lgan bo'lsa)
+        actualPrice: String(existingOffer.originalActualPrice ?? existingOffer.actualPrice ?? ''),
+        markup: String(existingOffer.originalMarkup ?? existingOffer.markup ?? '0'),
+        currency: existingOffer.originalCurrency || existingOffer.currency || 'USD',
+        hotels: Array.isArray(existingOffer.hotels) && existingOffer.hotels.length
+          ? existingOffer.hotels.map((h: any) => ({ name: h.name || '', stars: h.stars || '', photos: h.photos || [] }))
+          : [{ name: existingOffer.hotelName || '', stars: existingOffer.hotelStars || '', photos: [] as string[] }],
+        mealPlan: existingOffer.mealPlan || 'NONE',
+        includesVisa: !!existingOffer.includesVisa,
+        includesFlight: existingOffer.includesFlight !== false,
+        includesHotel: existingOffer.includesHotel !== false,
+        includesTransfer: !!existingOffer.includesTransfer,
+        includesInsurance: !!existingOffer.includesInsurance,
+        notes: existingOffer.notes || '',
+      };
+    }
+    return {
+      tourName: '', destination: '', pax: 1,
+      departDate: '', returnDate: '', departFlightTime: '', returnFlightTime: '',
+      actualPrice: '', markup: '0', currency: 'USD',
+      hotels: [{ name: '', stars: '', photos: [] as string[] }],
+      mealPlan: 'NONE',
+      includesVisa: false, includesFlight: true, includesHotel: true,
+      includesTransfer: false, includesInsurance: false,
+      notes: '',
+    };
   });
   const [saving, setSaving] = useState(false);
   const [sendNow, setSendNow] = useState(false);
@@ -923,9 +1002,11 @@ function OfferCreateModal({ clientId, onClose, onSaved }: any) {
         pax: parseInt(String(f.pax)) || 1,
         hotels,
       };
-      const r = await api.post('/offers', data);
-      if (sendNow) await api.post(`/offers/${r.data.id}/send`);
-      toast.success(sendNow ? 'Taklif yuborildi!' : 'Taklif saqlandi');
+      const r = isEdit
+        ? await api.put(`/offers/${existingOffer.id}`, data)
+        : await api.post('/offers', data);
+      if (sendNow && !isEdit) await api.post(`/offers/${r.data.id}/send`);
+      toast.success(isEdit ? 'Taklif yangilandi!' : (sendNow ? 'Taklif yuborildi!' : 'Taklif saqlandi'));
       onSaved(r.data);
     } catch (e: any) { toast.error(errMsg(e)); setSaving(false); }
   }
@@ -933,7 +1014,7 @@ function OfferCreateModal({ clientId, onClose, onSaved }: any) {
   return (
     <div style={S}>
       <div style={W}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>📨 Yangi taklif</h2>
+        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>{isEdit ? '✏️ Taklifni tahrirlash' : '📨 Yangi taklif'}</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Tur nomi *</label><input style={inp} value={f.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Turkiya — Antalya 7 kun" /></div>
           <div><label style={lbl}>Yo'nalish</label><input style={inp} value={f.destination} onChange={e => set('destination', e.target.value)} /></div>
@@ -988,11 +1069,15 @@ function OfferCreateModal({ clientId, onClose, onSaved }: any) {
           </div>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Izoh</label><textarea style={{ ...inp, minHeight: 60, resize: 'vertical' }} value={f.notes} onChange={e => set('notes', e.target.value)} /></div>
           <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
-            <label style={{ fontSize: 13, cursor: 'pointer', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input type="checkbox" checked={sendNow} onChange={e => setSendNow(e.target.checked)} /> Darhol yuborish
-            </label>
+            {!isEdit && (
+              <label style={{ fontSize: 13, cursor: 'pointer', display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={sendNow} onChange={e => setSendNow(e.target.checked)} /> Darhol yuborish
+              </label>
+            )}
             <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>Bekor</button>
-            <button onClick={save} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>{saving ? '...' : sendNow ? '✉️ Yuborish' : '💾 Saqlash'}</button>
+            <button onClick={save} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>
+              {saving ? '...' : isEdit ? '💾 Saqlash' : sendNow ? '✉️ Yuborish' : '💾 Saqlash'}
+            </button>
           </div>
         </div>
       </div>
