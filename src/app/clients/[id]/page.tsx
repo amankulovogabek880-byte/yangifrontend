@@ -356,7 +356,6 @@ export default function Client360Page() {
                 </div>
 
                 <ClientPaymentsInvoiceTab client={c} bookings={c.bookings || []} onRefresh={load} />
-                <ClientDocumentsTab clientId={c.id} initialDocs={data.documents || []} onUploaded={load} />
               </div>
             )}
           </div>
@@ -709,6 +708,15 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
               ))}
             </div>
           )}
+          {hotels.some((h: any) => h.photos?.length > 0) && (
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+              {hotels.flatMap((h: any) => h.photos || []).slice(0, 8).map((p: string, i: number) => (
+                <a key={i} href={p} target="_blank" rel="noreferrer">
+                  <img src={p} alt="" style={{ width: 36, height: 36, borderRadius: 5, objectFit: 'cover', border: '1px solid var(--border)' }} />
+                </a>
+              ))}
+            </div>
+          )}
           {o.status === 'SOLD' && o.bookingId && (
             <a href={`/bookings/${o.bookingId}`} style={{ fontSize: 11, color: 'var(--success)', marginTop: 6, display: 'inline-block' }}>→ Bookingni ko'rish</a>
           )}
@@ -794,7 +802,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
   const setHotels = (hotels: any[]) => setF(prev => ({ ...prev, hotels }));
   const clientPrice = (parseFloat(f.actualPrice) || 0) + (parseFloat(f.markup) || 0);
 
-  const inp: any = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
+  const inp: any = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', colorScheme: 'dark' };
   const lbl: any = { fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', display: 'block', marginBottom: 4 };
   const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
   const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
@@ -873,7 +881,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
 
           {/* Kiritilgan xizmatlar */}
           <div style={{ gridColumn: '1/-1', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            {[['includesFlight','✈️ Parvoz'],['includesHotel','🏨 Mehmonxona'],['includesTransfer','🚕 Transfer'],['includesInsurance','🛡 Sug\'urta'],['includesVisa','🛂 Viza']].map(([k,l]) => (
+            {[['includesFlight','✈️ Aviabilet'],['includesHotel','🏨 Mehmonxona'],['includesTransfer','🚕 Transfer'],['includesInsurance','🛡 Sug\'urta'],['includesVisa','🛂 Viza']].map(([k,l]) => (
               <label key={k} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
                 <input type="checkbox" checked={(f as any)[k]} onChange={e => set(k, e.target.checked)} /> {l}
               </label>
@@ -911,7 +919,7 @@ function HotelsPicker({ hotels, setHotels, inp, lbl }: any) {
     try {
       const fd = new FormData();
       Array.from(files).slice(0, 6).forEach((file) => fd.append('files', file));
-      const r = await api.post('/uploads/batch', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const r = await api.post('/uploads/batch', fd);
       const urls = (r.data?.files || []).map((x: any) => x.url).filter(Boolean);
       updateHotel(i, { photos: [...(hotels[i].photos || []), ...urls].slice(0, 6) });
     } catch (e: any) {
@@ -1030,7 +1038,7 @@ function InlineBookingModal({ clientId, clientName, onClose, onSaved }: any) {
     }
   }
 
-  const inp: any = { width: '100%', padding: '8px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
+  const inp: any = { width: '100%', padding: '8px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', colorScheme: 'dark' };
   const lbl: any = { fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 5 };
   const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
   const W: any = { background: 'var(--bg)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,.35)' };
@@ -1182,7 +1190,7 @@ function ClientPersonalMsgModal({ client, onClose, onSent }: any) {
     finally { setLoading(false); }
   }
 
-  const inp: any = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
+  const inp: any = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', colorScheme: 'dark' };
   const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
 
   return (
@@ -1238,7 +1246,7 @@ function ClientEditModal({ client, onClose, onSaved }: any) {
   const [saving, setSaving] = useState(false);
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
-  const inp: any = { width: '100%', padding: '8px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
+  const inp: any = { width: '100%', padding: '8px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', colorScheme: 'dark' };
   const lbl: any = { fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', display: 'block', marginBottom: 5 };
 
   async function save() {
@@ -1407,15 +1415,15 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
   return (
     <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
       <div>
-        <label style={lbl}>Operator narxi (tan narx)</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Operator narxi</label>
         <input type="number" style={inp} value={f.actualPrice} onChange={(e: any) => set('actualPrice', e.target.value)} placeholder="0" />
       </div>
       <div>
-        <label style={lbl}>Markup (ustama)</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Markup (ustama)</label>
         <input type="number" style={inp} value={f.markup} onChange={(e: any) => set('markup', e.target.value)} placeholder="0" />
       </div>
       <div>
-        <label style={lbl}>Valyuta</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Valyuta</label>
         <select style={inp} value={f.currency || 'USD'} onChange={(e: any) => set('currency', e.target.value)}>
           {['USD', 'EUR', 'UZS', 'RUB'].map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -1426,7 +1434,7 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
         )}
       </div>
       <div>
-        <label style={lbl}>Mijozga narx (jami)</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Mijozga narx (jami)</label>
         <div style={{ padding: '7px 10px', background: '#10b98115', borderRadius: 7, fontSize: 16, fontWeight: 700, color: '#10b981' }}>
           {money(clientPrice)}
         </div>
@@ -1478,7 +1486,7 @@ function OfferSendMenu({ offerId, clientId, clientPhone, clientUsername, onSent,
       const total = offer.clientPrice || 0; // ── faqat mijoz narxi — tan narx/foyda hech qachon shu yerga chiqmaydi ──
       const perPerson = pax > 1 ? total / pax : null;
       const includedList = [
-        offer.includesFlight && '✈️ Parvoz',
+        offer.includesFlight && '✈️ Aviabilet',
         offer.includesHotel && '🏨 Mehmonxona',
         offer.includesTransfer && '🚕 Transfer',
         offer.includesInsurance && '🛡 Sug\'urta',
@@ -1674,22 +1682,9 @@ function ClientDocumentsTab({ clientId, initialDocs, onUploaded }: { clientId: s
 function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: any; bookings: any[]; onRefresh?: () => void }) {
   const { user } = useAuth();
   const isAdmin = user?.role !== 'AGENT';
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showBookingSendModal, setShowBookingSendModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [loadingInvoices, setLoadingInvoices] = useState(true);
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    import('@/services/api').then(({ invoicesApi }) =>
-      invoicesApi.list({ clientId: c.id })
-        .then((r: any) => setInvoices(Array.isArray(r.data) ? r.data : (r.data?.data || [])))
-        .catch(() => {})
-        .finally(() => setLoadingInvoices(false))
-    );
-  }, [c.id]);
 
   const allPayments = bookings.flatMap((b: any) =>
     (b.payments || []).map((p: any) => ({ ...p, bookingRef: b.bookingRef, bookingId: b.id }))
@@ -1800,57 +1795,6 @@ function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: 
         )}
       </Card>
 
-      {/* Invoice */}
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>🧾 Invoice</h3>
-          <button onClick={() => setShowInvoiceModal(true)}
-            style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
-            + Invoice yaratish
-          </button>
-        </div>
-        {loadingInvoices ? <div style={{ textAlign: 'center', padding: 20 }}><span className="spinner" /></div> :
-         !invoices.length ? <Empty title="Invoice yo'q" icon="🧾" /> : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
-                {['#','Sana','Summa','Holat','Amallar'].map(h => <th key={h} style={{ padding: '8px 10px', textAlign: h === 'Summa' || h === 'Amallar' ? 'right' : 'left' }}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((inv: any) => (
-                <tr key={inv.id} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => router.push(`/invoices/${inv.id}`)}>
-                  <td style={{ padding: '9px 10px', fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: 'var(--primary)' }}>{inv.invoiceNo || inv.invoiceNumber || '#'}</td>
-                  <td style={{ padding: '9px 10px', color: 'var(--fg-3)' }}>{inv.issuedAt && new Date(inv.issuedAt).toLocaleDateString('uz-UZ')}</td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 700 }}>{inv.currency || 'USD'} {Number(inv.totalAmount || inv.amount || 0).toLocaleString()}</td>
-                  <td style={{ padding: '9px 10px' }}>
-                    <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700,
-                      background: inv.status === 'PAID' ? 'var(--success-soft)' : inv.status === 'SENT' ? 'var(--warning-soft)' : 'var(--bg-3)',
-                      color: inv.status === 'PAID' ? 'var(--success)' : inv.status === 'SENT' ? 'var(--warning)' : 'var(--fg-3)',
-                    }}>{inv.status}</span>
-                  </td>
-                  <td style={{ padding: '9px 10px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                    <button onClick={() => window.open(`/invoices/print?id=${inv.id}`, '_blank')}
-                      style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: 'var(--bg-3)', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 11, marginRight: 6 }}>
-                      🖨 Print
-                    </button>
-                    <SendInvoiceBtn invoice={inv} client={c} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-
-      {showInvoiceModal && (
-        <CreateInvoiceModal
-          client={c}
-          bookings={bookings}
-          onClose={() => setShowInvoiceModal(false)}
-          onSaved={(inv: any) => { setInvoices(p => [inv, ...p]); setShowInvoiceModal(false); }}
-        />
-      )}
       {showBookingSendModal && selectedBooking && (
         <BookingSendModal
           booking={selectedBooking}
