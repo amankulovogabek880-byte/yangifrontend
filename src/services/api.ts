@@ -183,7 +183,6 @@ export const pipelineApi = {
     api.patch(`/pipeline/client/${clientId}/stage`, { stage, note, lostReason }),
   bulkMove: (clientIds: string[], stage: string) =>
     api.post('/pipeline/bulk-move', { clientIds, stage }),
-  lostLeads: (agentId?: string) => api.get('/pipeline/lost-leads', { params: agentId ? { agentId } : {} }),
 };
 
 // ── BOOKINGS ─────────────────────────────────────────────────
@@ -241,6 +240,16 @@ export const followUpsApi = {
   create: (data: any) => api.post('/followups', data),
   complete: (id: string) => api.patch(`/followups/${id}/complete`),
   delete: (id: string) => api.delete(`/followups/${id}`),
+};
+
+// ── APPROVALS ────────────────────────────────────────────────
+export const approvalsApi = {
+  list: (params?: any) => api.get('/approvals', { params }),
+  get: (id: string) => api.get(`/approvals/${id}`),
+  create: (data: any) => api.post('/approvals', data),
+  approve: (id: string, note?: string) => api.post(`/approvals/${id}/approve`, { note }),
+  reject: (id: string, note?: string) => api.post(`/approvals/${id}/reject`, { note }),
+  cancel: (id: string) => api.post(`/approvals/${id}/cancel`),
 };
 
 // ── DOCUMENTS ────────────────────────────────────────────────
@@ -465,6 +474,26 @@ export const servicesApi = {
   delete: (id: string) => api.delete(`/services/${id}`),
 };
 
+// ✅ Approval Workflow
+export const approvalsApi = {
+  list: (params?: { status?: string; type?: string; mine?: string }) =>
+    api.get('/approvals', { params }),
+  one: (id: string) => api.get(`/approvals/${id}`),
+  create: (data: {
+    type: string;
+    entityType: string;
+    entityId: string;
+    title: string;
+    reason?: string;
+    oldValue?: any;
+    newValue?: any;
+    amount?: number;
+  }) => api.post('/approvals', data),
+  approve: (id: string, note?: string) => api.post(`/approvals/${id}/approve`, { note }),
+  reject: (id: string, note?: string) => api.post(`/approvals/${id}/reject`, { note }),
+  cancel: (id: string) => api.post(`/approvals/${id}/cancel`),
+};
+
 // 🎯 Round Robin Lead Assignment
 export const leadAssignmentApi = {
   getStrategy: () => api.get('/lead-assignment/strategy'),
@@ -514,7 +543,7 @@ export const userTelegramApi = {
   verify2FA: (phone: string, password: string, apiId?: number, apiHash?: string) =>
     api.post('/user-telegram/auth/2fa', { phone, password, apiId, apiHash }),
   // Send message (birinchi xabar - /start shart emas!)
-  sendMessage: (data: { phone?: string; username?: string; userId?: string; text: string; clientId?: string; conversationId?: string }) =>
+  sendMessage: (data: { phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
     api.post('/user-telegram/send', data),
   // Status
   getMyAccount: () => api.get('/user-telegram/me'),
