@@ -532,8 +532,9 @@ export const userTelegramApi = {
     api.post('/user-telegram/auth/verify-code', { phone, code, apiId, apiHash }),
   verify2FA: (phone: string, password: string, apiId?: number, apiHash?: string) =>
     api.post('/user-telegram/auth/2fa', { phone, password, apiId, apiHash }),
-  // Send message (birinchi xabar - /start shart emas!)
-  sendMessage: (data: { phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
+  // Send message (birinchi xabar - /start shart emas! conversationId berilsa, mavjud
+  // suhbatga to'g'ri yoziladi va dublikat suhbat yaratilmaydi — backend shuni afzal ko'radi)
+  sendMessage: (data: { conversationId?: string; phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
     api.post('/user-telegram/send', data),
   // Status
   getMyAccount: () => api.get('/user-telegram/me'),
