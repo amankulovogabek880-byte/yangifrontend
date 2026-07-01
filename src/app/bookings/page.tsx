@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { bookingsApi, clientsApi } from '@/services/api';
+import { bookingsApi, clientsApi, api } from '@/services/api';
 import { Btn, Card, Input, Select, Empty, Skeleton, Badge, Modal, Label, Textarea } from '@/components/ui';
 import { BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS, fmt, fmtDate, errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
@@ -125,6 +125,24 @@ function AddBookingModal({ onClose, onSaved }: any) {
   const discount = Number(form.discount) || 0;
   const profit = Math.max(0, totalPrice - supplierCost - discount);
 
+  // Valyuta USD bo'lmasa — CBU.uz kursini live tortib kelamiz (faqat
+  // ko'rsatish/preview uchun; haqiqiy konvertatsiya backendda amalga oshiriladi)
+  const [fxRate, setFxRate] = useState<number | null>(null);
+  const isForeign = form.currency && form.currency !== 'USD';
+  useEffect(() => {
+    if (!isForeign) { setFxRate(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.get('/exchange-rate/usd', { params: { currency: form.currency } });
+        if (!cancelled) setFxRate(r.data?.rate || null);
+      } catch { if (!cancelled) setFxRate(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [form.currency, isForeign]);
+  const usdTotalPreview = isForeign && fxRate ? totalPrice / fxRate : null;
+  const usdProfitPreview = isForeign && fxRate ? profit / fxRate : null;
+
   useEffect(() => {
     clientsApi.list({ limit: 200 }).then((r) => setClients(r.data?.data || []));
   }, []);
@@ -210,6 +228,13 @@ function AddBookingModal({ onClose, onSaved }: any) {
                 <option value="UZS">UZS</option>
                 <option value="EUR">EUR</option>
               </Select>
+              {isForeign && (
+                <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 3 }}>
+                  {fxRate
+                    ? `1 USD ≈ ${fxRate.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${form.currency}${usdTotalPreview != null ? ` · ≈ $${usdTotalPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}`
+                    : 'Kurs yuklanmoqda...'}
+                </div>
+              )}
             </div>
             {isAdmin && (
               <div>
@@ -261,10 +286,20 @@ function AddBookingModal({ onClose, onSaved }: any) {
               fontSize: 24,
               fontWeight: 800,
               color: profit > 0 ? 'var(--success)' : 'var(--fg-3)',
+              textAlign: 'right',
             }}>
               {form.currency} {profit.toFixed(2)}
+              {isForeign && usdProfitPreview != null && (
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-3)' }}>≈ ${usdProfitPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+              )}
             </div>
           </div>}
+
+          {isForeign && (
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--fg-3)' }}>
+              💱 Saqlanganda CBU.uz rasmiy kursi bo'yicha avtomatik USD ga o'giriladi va shu tarzda hisoblanadi.
+            </div>
+          )}
 
           {isAdmin && totalPrice > 0 && supplierCost > totalPrice && (
             <div style={{

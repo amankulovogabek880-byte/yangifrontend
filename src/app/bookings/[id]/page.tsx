@@ -1180,6 +1180,24 @@ function EditBookingModal({ booking, onClose, onSaved }: any) {
   const discount = Number(form.discount) || 0;
   const previewProfit = Math.max(0, totalPrice - supplierCost - discount);
 
+  // Valyuta USD bo'lmasa — CBU.uz kursini live tortib kelamiz (faqat
+  // ko'rsatish/preview uchun; haqiqiy konvertatsiya backendda amalga oshiriladi)
+  const [fxRate, setFxRate] = useState<number | null>(null);
+  const isForeignCur = form.currency && form.currency !== 'USD';
+  useEffect(() => {
+    if (!isForeignCur) { setFxRate(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.get('/exchange-rate/usd', { params: { currency: form.currency } });
+        if (!cancelled) setFxRate(r.data?.rate || null);
+      } catch { if (!cancelled) setFxRate(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [form.currency, isForeignCur]);
+  const usdTotalPreview = isForeignCur && fxRate ? totalPrice / fxRate : null;
+  const usdProfitPreview = isForeignCur && fxRate ? previewProfit / fxRate : null;
+
   async function save() {
     if (!form.tourName.trim() || !form.destination.trim()) {
       toast.error("Tur nomi va manzil to'ldirilishi shart");
@@ -1400,8 +1418,21 @@ function EditBookingModal({ booking, onClose, onSaved }: any) {
                 <option value="EUR">EUR</option>
                 <option value="RUB">RUB</option>
               </Select>
+              {isForeignCur && (
+                <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 3 }}>
+                  {fxRate
+                    ? `1 USD ≈ ${fxRate.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${form.currency}${usdTotalPreview != null ? ` · ≈ $${usdTotalPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}`
+                    : 'Kurs yuklanmoqda...'}
+                </div>
+              )}
             </div>
           </div>
+
+          {isForeignCur && (
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 12 }}>
+              💱 Saqlanganda CBU.uz rasmiy kursi bo'yicha avtomatik USD ga o'giriladi va shu tarzda hisoblanadi.
+            </div>
+          )}
 
           {isAdmin && (
             <>
@@ -1421,7 +1452,12 @@ function EditBookingModal({ booking, onClose, onSaved }: any) {
                 fontSize: 12, display: 'flex', justifyContent: 'space-between', marginBottom: 14,
               }}>
                 <span style={{ color: 'var(--fg-3)' }}>Yangi foyda (avtomatik hisoblanadi)</span>
-                <b style={{ color: 'var(--success)' }}>{form.currency} {previewProfit.toLocaleString()}</b>
+                <span style={{ textAlign: 'right' }}>
+                  <b style={{ color: 'var(--success)' }}>{form.currency} {previewProfit.toLocaleString()}</b>
+                  {isForeignCur && usdProfitPreview != null && (
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>≈ ${usdProfitPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                  )}
+                </span>
               </div>
 
               <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>

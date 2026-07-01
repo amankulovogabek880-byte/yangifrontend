@@ -6,7 +6,7 @@ import { v8Api, clientsApi, tasksApi, followUpsApi, telegramApi, bookingsApi, us
 import { Card, Btn, Badge, Skeleton, Avatar, Textarea, Label, Modal, Input, Select, Empty } from '@/components/ui';
 import { useDialer } from '@/lib/dialer';
 import { useAuth } from '@/lib/store';
-import { fmtDate, fmtDateTime, fmtMoney, timeAgo, errMsg } from '@/lib/helpers';
+import { fmtDate, fmtDateTime, fmtMoney, timeAgo, errMsg, SOURCE_LABELS, TIER_LABELS } from '@/lib/helpers';
 import toast from 'react-hot-toast';
 
 const TIER_COLORS: Record<string, string> = {
@@ -63,6 +63,7 @@ export default function Client360Page() {
   const [showOfferCreate, setShowOfferCreate] = useState(false);
   const [showBooking, setShowBooking] = useState(false);
   const [showPersonalMsg, setShowPersonalMsg] = useState(false);
+  const [showClientEdit, setShowClientEdit] = useState(false);
   const [editingTravel, setEditingTravel] = useState(false);
   const [travelForm, setTravelForm] = useState<any>({});
 
@@ -152,7 +153,7 @@ export default function Client360Page() {
           <Btn variant="secondary" icon="📋" onClick={() => setShowBooking(true)}>
             Yangi booking
           </Btn>
-          <Btn variant="ghost" icon="✏" onClick={() => router.push(`/clients/${c.id}/edit`)}>
+          <Btn variant="ghost" icon="✏" onClick={() => setShowClientEdit(true)}>
             Tahrirlash
           </Btn>
           {/* BUG FIX: avval klientni o'chirish imkoni umuman yo'q edi (faqat tahrirlash bor edi) */}
@@ -471,6 +472,7 @@ export default function Client360Page() {
             setDraft={setChatDraft}
             loading={chatLoading}
             setLoading={setChatLoading}
+            onStartChat={() => setShowPersonalMsg(true)}
           />
         )}
 
@@ -653,7 +655,7 @@ export default function Client360Page() {
         <ClientPersonalMsgModal
           client={c}
           onClose={() => setShowPersonalMsg(false)}
-          onSent={() => { setShowPersonalMsg(false); toast.success('Xabar yuborildi!'); }}
+          onSent={() => { setShowPersonalMsg(false); toast.success('Xabar yuborildi!'); load(); }}
         />
       )}
       {showBooking && (
@@ -666,6 +668,13 @@ export default function Client360Page() {
             load();
             toast.success('Booking yaratildi!');
           }}
+        />
+      )}
+      {showClientEdit && (
+        <ClientEditModal
+          client={c}
+          onClose={() => setShowClientEdit(false)}
+          onSaved={() => { setShowClientEdit(false); load(); toast.success("✅ Klient ma'lumotlari yangilandi"); }}
         />
       )}
     </CrmLayout>
@@ -1112,6 +1121,12 @@ function InlineBookingModal({ clientId, clientName, onClose, onSaved }: any) {
   }, [form.currency, isForeign]);
   const usdTotalPreview = isForeign && fxRate ? totalPrice / fxRate : null;
 
+  const usdSupplierCostPreview = isForeign && fxRate ? supplierCost / fxRate : null;
+  const usdProfitPreview = isForeign && fxRate ? profit / fxRate : null;
+  const currencySymbol = form.currency === 'USD' ? '$' : '';
+  const currencySuffix = form.currency !== 'USD' ? ' ' + form.currency : '';
+  const fmtAmt = (n: number) => currencySymbol + n.toLocaleString() + currencySuffix;
+
   async function save() {
     if (!form.tourName.trim() || !form.destination.trim() || !form.totalPrice) {
       toast.error('Tur nomi, yo\'nalish va narx kerak');
@@ -1205,18 +1220,29 @@ function InlineBookingModal({ clientId, clientName, onClose, onSaved }: any) {
               <div style={{ gridColumn: '1/-1', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 <div style={{ padding: '8px 14px', background: '#6366f115', borderRadius: 8, fontSize: 12 }}>
                   <div style={{ color: 'var(--fg-3)', fontSize: 10, fontWeight: 700, marginBottom: 2 }}>KLIENT NARXI</div>
-                  <div style={{ fontWeight: 800, color: 'var(--primary)' }}>${totalPrice.toLocaleString()}</div>
+                  <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{fmtAmt(totalPrice)}</div>
+                  {isForeign && usdTotalPreview != null && (
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>≈ ${usdTotalPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                  )}
                 </div>
                 {supplierCost > 0 && (
                   <div style={{ padding: '8px 14px', background: '#f59e0b15', borderRadius: 8, fontSize: 12 }}>
                     <div style={{ color: 'var(--fg-3)', fontSize: 10, fontWeight: 700, marginBottom: 2 }}>MARKUP (USTAMA)</div>
-                    <div style={{ fontWeight: 800, color: '#f59e0b' }}>+${(totalPrice - supplierCost - discount).toLocaleString()}</div>
+                    <div style={{ fontWeight: 800, color: '#f59e0b' }}>+{fmtAmt(totalPrice - supplierCost - discount)}</div>
                   </div>
                 )}
                 <div style={{ padding: '8px 14px', background: profit > 0 ? '#10b98115' : '#ef444415', borderRadius: 8, fontSize: 12 }}>
                   <div style={{ color: 'var(--fg-3)', fontSize: 10, fontWeight: 700, marginBottom: 2 }}>FOYDA (OYLIK ASOSI)</div>
-                  <div style={{ fontWeight: 800, color: profit > 0 ? '#10b981' : '#ef4444' }}>${profit.toLocaleString()}</div>
+                  <div style={{ fontWeight: 800, color: profit > 0 ? '#10b981' : '#ef4444' }}>{fmtAmt(profit)}</div>
+                  {isForeign && usdProfitPreview != null && (
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>≈ ${usdProfitPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                  )}
                 </div>
+              </div>
+            )}
+            {isForeign && (
+              <div style={{ gridColumn: '1/-1', fontSize: 11, color: 'var(--fg-3)' }}>
+                💱 Saqlanganda CBU.uz rasmiy kursi bo'yicha avtomatik USD ga o'giriladi va shu tarzda hisoblanadi.
               </div>
             )}
           </div>
@@ -1303,6 +1329,129 @@ function ClientPersonalMsgModal({ client, onClose, onSent }: any) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Client Edit Modal (Tahrirlash) ────────────────────────────────────────────
+function ClientEditModal({ client, onClose, onSaved }: any) {
+  const [form, setForm] = useState<any>({
+    fullName: client.fullName || '',
+    phone: client.phone || '',
+    phone2: client.phone2 || '',
+    email: client.email || '',
+    telegramUsername: client.telegramUsername || '',
+    instagramHandle: client.instagramHandle || '',
+    whatsappPhone: client.whatsappPhone || '',
+    source: client.source || 'OTHER',
+    tier: client.tier || 'REGULAR',
+    status: client.status || 'ACTIVE',
+    country: client.country || '',
+    city: client.city || '',
+    address: client.address || '',
+    dateOfBirth: client.dateOfBirth ? client.dateOfBirth.slice(0, 10) : '',
+    nationality: client.nationality || '',
+    notes: client.notes || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  async function save() {
+    if (!form.fullName.trim()) { toast.error('F.I.SH. kerak'); return; }
+    setSaving(true);
+    try {
+      await clientsApi.update(client.id, {
+        ...form,
+        dateOfBirth: form.dateOfBirth || undefined,
+      });
+      onSaved();
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="✏️ Klientni tahrirlash" maxWidth={560}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ gridColumn: '1/-1' }}>
+          <Label>F.I.SH. *</Label>
+          <Input value={form.fullName} onChange={(e: any) => set('fullName', e.target.value)} />
+        </div>
+        <div>
+          <Label>Telefon</Label>
+          <Input value={form.phone} onChange={(e: any) => set('phone', e.target.value)} placeholder="+998901234567" />
+        </div>
+        <div>
+          <Label>Qo'shimcha telefon</Label>
+          <Input value={form.phone2} onChange={(e: any) => set('phone2', e.target.value)} />
+        </div>
+        <div>
+          <Label>Email</Label>
+          <Input type="email" value={form.email} onChange={(e: any) => set('email', e.target.value)} />
+        </div>
+        <div>
+          <Label>Telegram username</Label>
+          <Input value={form.telegramUsername} onChange={(e: any) => set('telegramUsername', e.target.value)} placeholder="username (@ siz)" />
+        </div>
+        <div>
+          <Label>Instagram</Label>
+          <Input value={form.instagramHandle} onChange={(e: any) => set('instagramHandle', e.target.value)} />
+        </div>
+        <div>
+          <Label>WhatsApp telefon</Label>
+          <Input value={form.whatsappPhone} onChange={(e: any) => set('whatsappPhone', e.target.value)} />
+        </div>
+        <div>
+          <Label>Manba</Label>
+          <Select value={form.source} onChange={(e: any) => set('source', e.target.value)}>
+            {Object.entries(SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}
+          </Select>
+        </div>
+        <div>
+          <Label>Tier</Label>
+          <Select value={form.tier} onChange={(e: any) => set('tier', e.target.value)}>
+            {Object.entries(TIER_LABELS).map(([k, v]) => <option key={k} value={k}>{v as string}</option>)}
+          </Select>
+        </div>
+        <div>
+          <Label>Status</Label>
+          <Select value={form.status} onChange={(e: any) => set('status', e.target.value)}>
+            <option value="ACTIVE">Faol</option>
+            <option value="INACTIVE">Nofaol</option>
+            <option value="BLOCKED">Bloklangan</option>
+          </Select>
+        </div>
+        <div>
+          <Label>Davlat</Label>
+          <Input value={form.country} onChange={(e: any) => set('country', e.target.value)} />
+        </div>
+        <div>
+          <Label>Shahar</Label>
+          <Input value={form.city} onChange={(e: any) => set('city', e.target.value)} />
+        </div>
+        <div>
+          <Label>Tug'ilgan sana</Label>
+          <Input type="date" value={form.dateOfBirth} onChange={(e: any) => set('dateOfBirth', e.target.value)} />
+        </div>
+        <div>
+          <Label>Fuqaroligi</Label>
+          <Input value={form.nationality} onChange={(e: any) => set('nationality', e.target.value)} />
+        </div>
+        <div style={{ gridColumn: '1/-1' }}>
+          <Label>Manzil</Label>
+          <Input value={form.address} onChange={(e: any) => set('address', e.target.value)} />
+        </div>
+        <div style={{ gridColumn: '1/-1' }}>
+          <Label>Izoh</Label>
+          <Textarea rows={3} value={form.notes} onChange={(e: any) => set('notes', e.target.value)} />
+        </div>
+        <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10, marginTop: 8 }}>
+          <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>Bekor</Btn>
+          <Btn onClick={save} loading={saving} style={{ flex: 1 }}>Saqlash</Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
