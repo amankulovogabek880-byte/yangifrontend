@@ -511,15 +511,31 @@ export default function Client360Page() {
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Mijozga narx</div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>${(o.clientPrice || o.actualPrice + o.markup || 0).toLocaleString()}</div>
+                    {o.pax > 1 && o.clientPrice > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>${(o.clientPrice / o.pax).toLocaleString(undefined, { maximumFractionDigits: 2 })}/kishi</div>
+                    )}
                   </div>
                 </div>
-                {[o.departDate && `✈️ ${fmtDate(o.departDate)}`, o.pax > 1 && `👥 ${o.pax} kishi`, o.hotelName && `🏨 ${o.hotelName}${'⭐'.repeat(o.hotelStars||0)}`].filter(Boolean).length > 0 && (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                    {[o.departDate && `✈️ ${fmtDate(o.departDate)}`, o.pax > 1 && `👥 ${o.pax} kishi`, o.hotelName && `🏨 ${o.hotelName}`].filter(Boolean).map((t: any, i: number) => (
-                      <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)' }}>{t}</span>
-                    ))}
-                  </div>
-                )}
+                {(() => {
+                  const hotels = Array.isArray(o.hotels) && o.hotels.length ? o.hotels : (o.hotelName ? [{ name: o.hotelName, stars: o.hotelStars }] : []);
+                  const mealLabel: Record<string, string> = { BREAKFAST: '🍳 Nonushta', FULL_BOARD: '🍽 3 mahal' };
+                  const tags = [
+                    o.departDate && `✈️ ${fmtDate(o.departDate)}${o.departFlightTime ? ' ' + o.departFlightTime : ''}`,
+                    o.pax > 1 && `👥 ${o.pax} kishi`,
+                    ...hotels.map((h: any) => `🏨 ${h.name}${h.stars ? '⭐'.repeat(h.stars) : ''}`),
+                    o.mealPlan && mealLabel[o.mealPlan],
+                    o.includesTransfer && '🚕 Transfer',
+                    o.includesInsurance && '🛡 Sug\'urta',
+                    o.includesVisa && '🛂 Viza',
+                  ].filter(Boolean);
+                  return tags.length > 0 ? (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                      {tags.map((t: any, i: number) => (
+                        <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--bg-3)' }}>{t}</span>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
               </div>
             ))}
             {showOfferCreate && <OfferCreateModal clientId={id} onClose={() => setShowOfferCreate(false)} onSaved={(o: any) => { setOffers((prev: any[]) => [o, ...prev]); setShowOfferCreate(false); }} />}
@@ -879,11 +895,20 @@ function ClientChatTab({ conversation, msgs, setMsgs, draft, setDraft, loading, 
 
 // ─── Offer Create Modal ───────────────────────────────────────────────────────
 function OfferCreateModal({ clientId, onClose, onSaved }: any) {
-  const { user } = useAuth();
-  const [f, setF] = useState({ tourName: '', destination: '', pax: 1, departDate: '', returnDate: '', actualPrice: '', markup: '0', currency: 'USD', hotelName: '', hotelStars: '', includesVisa: false, includesFlight: true, includesHotel: true, notes: '' });
+  const [f, setF] = useState({
+    tourName: '', destination: '', pax: 1,
+    departDate: '', returnDate: '', departFlightTime: '', returnFlightTime: '',
+    actualPrice: '', markup: '0', currency: 'USD',
+    hotels: [{ name: '', stars: '', photos: [] as string[] }],
+    mealPlan: 'NONE',
+    includesVisa: false, includesFlight: true, includesHotel: true,
+    includesTransfer: false, includesInsurance: false,
+    notes: '',
+  });
   const [saving, setSaving] = useState(false);
   const [sendNow, setSendNow] = useState(false);
   const set = (k: string, v: any) => setF(prev => ({ ...prev, [k]: v }));
+  const setHotels = (hotels: any[]) => setF(prev => ({ ...prev, hotels }));
   const clientPrice = (parseFloat(f.actualPrice) || 0) + (parseFloat(f.markup) || 0);
 
   const inp: any = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
@@ -895,8 +920,17 @@ function OfferCreateModal({ clientId, onClose, onSaved }: any) {
     if (!f.tourName.trim() || !f.actualPrice) { toast.error('Tur nomi va narx kerak'); return; }
     setSaving(true);
     try {
-      const { api } = await import('@/services/api') as any;
-      const data = { clientId, ...f, actualPrice: parseFloat(f.actualPrice), markup: parseFloat(f.markup) || 0, clientPrice, pax: parseInt(String(f.pax)) || 1, hotelStars: f.hotelStars ? parseInt(f.hotelStars) : null };
+      const hotels = f.hotels
+        .map(h => ({ name: h.name.trim(), stars: h.stars ? parseInt(String(h.stars)) : null, photos: h.photos || [] }))
+        .filter(h => h.name);
+      const data = {
+        clientId, ...f,
+        actualPrice: parseFloat(f.actualPrice),
+        markup: parseFloat(f.markup) || 0,
+        clientPrice,
+        pax: parseInt(String(f.pax)) || 1,
+        hotels,
+      };
       const r = await api.post('/offers', data);
       if (sendNow) await api.post(`/offers/${r.data.id}/send`);
       toast.success(sendNow ? 'Taklif yuborildi!' : 'Taklif saqlandi');
@@ -912,19 +946,49 @@ function OfferCreateModal({ clientId, onClose, onSaved }: any) {
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Tur nomi *</label><input style={inp} value={f.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Turkiya — Antalya 7 kun" /></div>
           <div><label style={lbl}>Yo'nalish</label><input style={inp} value={f.destination} onChange={e => set('destination', e.target.value)} /></div>
           <div><label style={lbl}>Kishi soni</label><input type="number" min={1} style={inp} value={f.pax} onChange={e => set('pax', e.target.value)} /></div>
-          <div><label style={lbl}>Jo'nab ketish</label><input type="date" style={inp} value={f.departDate} onChange={e => set('departDate', e.target.value)} /></div>
-          <div><label style={lbl}>Qaytish</label><input type="date" style={inp} value={f.returnDate} onChange={e => set('returnDate', e.target.value)} /></div>
+          <div>
+            <label style={lbl}>Jo'nab ketish</label>
+            <input type="date" style={inp} value={f.departDate} onChange={e => set('departDate', e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Qaytish</label>
+            <input type="date" style={inp} value={f.returnDate} onChange={e => set('returnDate', e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Parvoz vaqti (ixtiyoriy)</label>
+            <input type="time" style={inp} value={f.departFlightTime} onChange={e => set('departFlightTime', e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Qaytish parvoz vaqti (ixtiyoriy)</label>
+            <input type="time" style={inp} value={f.returnFlightTime} onChange={e => set('returnFlightTime', e.target.value)} />
+          </div>
           {/* Pricing */}
           <OfferPricingBox f={f} set={set} inp={inp} lbl={lbl} clientPrice={clientPrice} />
-          <div><label style={lbl}>Mehmonxona</label><input style={inp} value={f.hotelName} onChange={e => set('hotelName', e.target.value)} /></div>
-          <div><label style={lbl}>Yulduzlar</label>
-            <select style={inp} value={f.hotelStars} onChange={e => set('hotelStars', e.target.value)}>
-              <option value="">—</option>
-              {[3,4,5].map(n => <option key={n} value={n}>{'⭐'.repeat(n)}</option>)}
-            </select>
+
+          {/* Hotels (2-5 ta variant + rasmlar) */}
+          <HotelsPicker hotels={f.hotels} setHotels={setHotels} inp={inp} lbl={lbl} />
+
+          {/* Ovqatlanish — bitta tanlov */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Ovqatlanish</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[['NONE', 'Yo\'q'], ['BREAKFAST', '🍳 Nonushta'], ['FULL_BOARD', '🍽 3 mahal (to\'liq)']].map(([val, label]) => {
+                const active = f.mealPlan === val;
+                return (
+                  <button key={val} type="button" onClick={() => set('mealPlan', val)} style={{
+                    padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                    border: '1px solid ' + (active ? 'var(--primary)' : 'var(--border)'),
+                    background: active ? 'var(--primary)' : 'var(--bg-2)',
+                    color: active ? '#fff' : 'var(--fg)',
+                  }}>{label}</button>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Kiritilgan xizmatlar */}
           <div style={{ gridColumn: '1/-1', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            {[['includesFlight','✈️ Parvoz'],['includesHotel','🏨 Mehmonxona'],['includesVisa','🛂 Viza']].map(([k,l]) => (
+            {[['includesFlight','✈️ Parvoz'],['includesHotel','🏨 Mehmonxona'],['includesTransfer','🚕 Transfer'],['includesInsurance','🛡 Sug\'urta'],['includesVisa','🛂 Viza']].map(([k,l]) => (
               <label key={k} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
                 <input type="checkbox" checked={(f as any)[k]} onChange={e => set(k, e.target.checked)} /> {l}
               </label>
@@ -940,6 +1004,73 @@ function OfferCreateModal({ clientId, onClose, onSaved }: any) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Hotels Picker (2-5 ta mehmonxona variant, har biriga rasm) ───────────────
+function HotelsPicker({ hotels, setHotels, inp, lbl }: any) {
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  const addHotel = () => { if (hotels.length < 5) setHotels([...hotels, { name: '', stars: '', photos: [] }]); };
+  const removeHotel = (i: number) => setHotels(hotels.filter((_: any, idx: number) => idx !== i));
+  const updateHotel = (i: number, patch: any) => setHotels(hotels.map((h: any, idx: number) => idx === i ? { ...h, ...patch } : h));
+
+  const uploadPhotos = async (i: number, files: FileList | null) => {
+    if (!files || !files.length) return;
+    setUploadingIdx(i);
+    try {
+      const fd = new FormData();
+      Array.from(files).slice(0, 6).forEach((file) => fd.append('files', file));
+      const r = await api.post('/uploads/batch', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const urls = (r.data?.files || []).map((x: any) => x.url).filter(Boolean);
+      updateHotel(i, { photos: [...(hotels[i].photos || []), ...urls].slice(0, 6) });
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+  const removePhoto = (i: number, url: string) => updateHotel(i, { photos: (hotels[i].photos || []).filter((p: string) => p !== url) });
+
+  return (
+    <div style={{ gridColumn: '1/-1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <label style={lbl}>Mehmonxonalar (klientga 2-5 ta variant taklif qilish mumkin)</label>
+      {hotels.map((h: any, i: number) => (
+        <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: hotels.length > 1 ? '2fr 1fr auto' : '2fr 1fr', gap: 8, alignItems: 'end' }}>
+            <div>
+              <label style={{ ...lbl, marginBottom: 2 }}>Nomi</label>
+              <input style={inp} value={h.name} onChange={(e: any) => updateHotel(i, { name: e.target.value })} placeholder={`Mehmonxona ${i + 1}`} />
+            </div>
+            <div>
+              <label style={{ ...lbl, marginBottom: 2 }}>Yulduz</label>
+              <select style={inp} value={h.stars || ''} onChange={(e: any) => updateHotel(i, { stars: e.target.value })}>
+                <option value="">—</option>
+                {[3, 4, 5].map((n) => <option key={n} value={n}>{'⭐'.repeat(n)}</option>)}
+              </select>
+            </div>
+            {hotels.length > 1 && (
+              <button type="button" onClick={() => removeHotel(i)} style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-3)', color: '#ef4444', cursor: 'pointer', fontSize: 12 }}>✕</button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {(h.photos || []).map((p: string) => (
+              <div key={p} style={{ position: 'relative', width: 46, height: 46, borderRadius: 6, overflow: 'hidden' }}>
+                <img src={p} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                <button type="button" onClick={() => removePhoto(i, p)} style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(0,0,0,.6)', color: '#fff', border: 'none', width: 16, height: 16, fontSize: 10, cursor: 'pointer', lineHeight: '16px', padding: 0 }}>✕</button>
+              </div>
+            ))}
+            <label style={{ width: 46, height: 46, borderRadius: 6, border: '1px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16, color: 'var(--fg-3)' }}>
+              {uploadingIdx === i ? '…' : '📷'}
+              <input type="file" accept="image/*" multiple hidden onChange={(e: any) => uploadPhotos(i, e.target.files)} />
+            </label>
+          </div>
+        </div>
+      ))}
+      {hotels.length < 5 && (
+        <button type="button" onClick={addHotel} style={{ alignSelf: 'flex-start', padding: '6px 12px', borderRadius: 7, border: '1px dashed var(--border)', background: 'transparent', color: 'var(--primary)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>+ Yana mehmonxona qo'shish</button>
+      )}
     </div>
   );
 }
@@ -1177,8 +1308,6 @@ function ClientPersonalMsgModal({ client, onClose, onSent }: any) {
 
 // ─── Offer Pricing Box (admin sees all, agent sees only client price) ─────────
 function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
-  const { user } = useAuth();
-  const isAdmin = user?.role !== 'AGENT';
   const [fxRate, setFxRate] = useState<number | null>(null);
   const [fxLoading, setFxLoading] = useState(false);
 
@@ -1200,78 +1329,59 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
 
   const isForeign = f.currency && f.currency !== 'USD';
   const usdClientPrice = isForeign && fxRate ? clientPrice / fxRate : null;
+  const paxNum = Math.max(1, parseInt(String(f.pax)) || 1);
+  const perPerson = paxNum > 0 ? clientPrice / paxNum : clientPrice;
+  const money = (n: number) => isForeign ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + f.currency : '$' + n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-  const currencySelector = (
-    <div>
-      <label style={lbl}>Valyuta</label>
-      <select style={inp} value={f.currency || 'USD'} onChange={(e: any) => set('currency', e.target.value)}>
-        {['USD', 'EUR', 'UZS', 'RUB'].map((c) => <option key={c} value={c}>{c}</option>)}
-      </select>
-      {isForeign && (
-        <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 3 }}>
-          {fxLoading ? 'Kurs yuklanmoqda...' : fxRate ? `1 USD ≈ ${fxRate.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${f.currency}` : ''}
-        </div>
-      )}
-    </div>
-  );
-
-  if (isAdmin) {
-    // Admin: sees actualPrice (operator cost), markup, clientPrice
-    return (
-      <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
-        <div>
-          <label style={lbl}>Operator narxi (maxfiy)</label>
-          <input type="number" style={inp} value={f.actualPrice} onChange={(e: any) => set('actualPrice', e.target.value)} placeholder="0" />
-        </div>
-        <div>
-          <label style={lbl}>Markup (agent ulushi)</label>
-          <input type="number" style={inp} value={f.markup} onChange={(e: any) => set('markup', e.target.value)} placeholder="0" />
-        </div>
-        {currencySelector}
-        <div>
-          <label style={lbl}>Mijozga narx</label>
-          <div style={{ padding: '7px 10px', background: '#10b98115', borderRadius: 7, fontSize: 16, fontWeight: 700, color: '#10b981' }}>
-            {isForeign ? clientPrice.toLocaleString() + ' ' + f.currency : '$' + clientPrice.toLocaleString()}
-          </div>
-          {isForeign && usdClientPrice != null && (
-            <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>≈ ${usdClientPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-          )}
-        </div>
-        {f.actualPrice && Number(f.actualPrice) > 0 && (
-          <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, padding: '8px 10px', background: '#8b5cf610', borderRadius: 7, fontSize: 12 }}>
-            <span>Foyda: <b style={{ color: '#8b5cf6' }}>{isForeign ? (clientPrice - Number(f.actualPrice)).toLocaleString() + ' ' + f.currency : '$' + (clientPrice - Number(f.actualPrice)).toLocaleString()}</b></span>
-            <span style={{ color: 'var(--fg-3)' }}>({Math.round(((clientPrice - Number(f.actualPrice)) / clientPrice) * 100)}% margin)</span>
-          </div>
-        )}
+  // Diqqat: bu blokda ko'rinadigan Operator narxi/Foyda FAQAT CRM ichida
+  // (taklifni yaratayotgan xodimga) ko'rinadi. Klientga yuboriladigan
+  // xabar (OfferSendMenu) faqat "Mijozga narx"ni o'z ichiga oladi —
+  // tan narx va foyda hech qachon mijozga chiqarilmaydi.
+  return (
+    <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
+      <div>
+        <label style={lbl}>Operator narxi (tan narx)</label>
+        <input type="number" style={inp} value={f.actualPrice} onChange={(e: any) => set('actualPrice', e.target.value)} placeholder="0" />
+      </div>
+      <div>
+        <label style={lbl}>Markup (ustama)</label>
+        <input type="number" style={inp} value={f.markup} onChange={(e: any) => set('markup', e.target.value)} placeholder="0" />
+      </div>
+      <div>
+        <label style={lbl}>Valyuta</label>
+        <select style={inp} value={f.currency || 'USD'} onChange={(e: any) => set('currency', e.target.value)}>
+          {['USD', 'EUR', 'UZS', 'RUB'].map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
         {isForeign && (
-          <div style={{ gridColumn: '1/-1', fontSize: 11, color: 'var(--fg-3)' }}>
-            💱 Saqlanganda CBU.uz rasmiy kursi bo'yicha avtomatik USD ga o'giriladi va shu tarzda hisoblanadi.
+          <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 3 }}>
+            {fxLoading ? 'Kurs yuklanmoqda...' : fxRate ? `1 USD ≈ ${fxRate.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${f.currency}` : ''}
           </div>
         )}
       </div>
-    );
-  }
-
-  // Agent: ONLY sees client price (what customer pays)
-  return (
-    <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, padding: '12px 14px', background: 'var(--bg-3)', borderRadius: 8 }}>
       <div>
-        <label style={lbl}>Klient narxi (mijoz to'laydigan summa) *</label>
-        <input
-          type="number"
-          style={{ ...inp, fontSize: 18, fontWeight: 700 }}
-          value={f.actualPrice}
-          onChange={(e: any) => set('actualPrice', e.target.value)}
-          placeholder="0"
-        />
-        <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
-          Faqat mijozga ko'rsatiladigan narxni kiriting
+        <label style={lbl}>Mijozga narx (jami)</label>
+        <div style={{ padding: '7px 10px', background: '#10b98115', borderRadius: 7, fontSize: 16, fontWeight: 700, color: '#10b981' }}>
+          {money(clientPrice)}
         </div>
         {isForeign && usdClientPrice != null && (
-          <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>≈ ${usdClientPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+          <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>≈ ${usdClientPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
         )}
+        {paxNum > 1 && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>{money(perPerson)} / kishi</div>}
       </div>
-      {currencySelector}
+      {f.actualPrice && Number(f.actualPrice) > 0 && (
+        <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, padding: '8px 10px', background: '#8b5cf610', borderRadius: 7, fontSize: 12 }}>
+          <span>Foyda: <b style={{ color: '#8b5cf6' }}>{money(clientPrice - Number(f.actualPrice))}</b></span>
+          <span style={{ color: 'var(--fg-3)' }}>({Math.round(((clientPrice - Number(f.actualPrice)) / clientPrice) * 100)}% margin)</span>
+        </div>
+      )}
+      {isForeign && (
+        <div style={{ gridColumn: '1/-1', fontSize: 11, color: 'var(--fg-3)' }}>
+          💱 Saqlanganda CBU.uz rasmiy kursi bo'yicha avtomatik USD ga o'giriladi va shu tarzda hisoblanadi.
+        </div>
+      )}
+      <div style={{ gridColumn: '1/-1', fontSize: 10, color: 'var(--fg-3)' }}>
+        🔒 Operator narxi va foyda faqat CRM ichida ko'rinadi — mijozga yuboriladigan xabarda chiqmaydi.
+      </div>
     </div>
   );
 }
@@ -1293,20 +1403,42 @@ function OfferSendMenu({ offerId, clientId, clientPhone, clientUsername, onSent 
       const offer = (Array.isArray(offerRes.data) ? offerRes.data : []).find((o: any) => o.id === offerId);
       if (!offer) { toast.success('Taklif yuborildi!'); setOpen(false); return; }
 
+      const mealLabel: Record<string, string> = { BREAKFAST: '🍳 Nonushta', FULL_BOARD: '🍽 3 mahal (to\'liq)' };
+      const hotels: any[] = Array.isArray(offer.hotels) && offer.hotels.length
+        ? offer.hotels
+        : (offer.hotelName ? [{ name: offer.hotelName, stars: offer.hotelStars, photos: [] }] : []);
+      const pax = offer.pax > 0 ? offer.pax : 1;
+      const total = offer.clientPrice || 0; // ── faqat mijoz narxi — tan narx/foyda hech qachon shu yerga chiqmaydi ──
+      const perPerson = pax > 1 ? total / pax : null;
+      const includedList = [
+        offer.includesFlight && '✈️ Parvoz',
+        offer.includesHotel && '🏨 Mehmonxona',
+        offer.includesTransfer && '🚕 Transfer',
+        offer.includesInsurance && '🛡 Sug\'urta',
+        offer.includesVisa && '🛂 Viza',
+      ].filter(Boolean).join(' · ');
+      const firstPhoto = hotels.find((h: any) => h.photos?.length)?.photos?.[0];
+
       const text = [
         '🌍 SAYOHAT TAKLIFI',
         '',
         '✈️ Tur: ' + offer.tourName,
         offer.destination ? '📍 Yo\'nalish: ' + offer.destination : '',
-        offer.departDate ? '📅 Sana: ' + new Date(offer.departDate).toLocaleDateString('uz-UZ') : '',
+        offer.departDate
+          ? '📅 ' + new Date(offer.departDate).toLocaleDateString('uz-UZ') + (offer.departFlightTime ? ' (' + offer.departFlightTime + ')' : '')
+            + (offer.returnDate ? ' → ' + new Date(offer.returnDate).toLocaleDateString('uz-UZ') + (offer.returnFlightTime ? ' (' + offer.returnFlightTime + ')' : '') : '')
+          : '',
         offer.pax > 1 ? '👥 Kishilar: ' + offer.pax : '',
-        offer.hotelName ? '🏨 Mehmonxona: ' + offer.hotelName + ' ' + ('⭐'.repeat(offer.hotelStars || 0)) : '',
+        hotels.length ? '🏨 ' + hotels.map((h: any) => h.name + (h.stars ? ' ' + '⭐'.repeat(h.stars) : '')).join(' | ') : '',
+        firstPhoto ? '🖼 Rasm: ' + firstPhoto : '',
+        offer.mealPlan && mealLabel[offer.mealPlan] ? mealLabel[offer.mealPlan] : '',
+        includedList ? '✅ ' + includedList : '',
         '',
-        '💰 Narx: $' + ((offer.clientPrice || offer.actualPrice || 0)).toLocaleString() + ' ' + (offer.currency || 'USD'),
+        perPerson ? '💰 Narx: $' + perPerson.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' / kishi · Jami: $' + total.toLocaleString() : '💰 Narx: $' + total.toLocaleString(),
         offer.notes ? '\n📝 ' + offer.notes : '',
         '',
         'Qo\'shimcha ma\'lumot uchun murojaat qiling.',
-      ].filter(v => v !== undefined).join('\n');
+      ].filter(v => v !== undefined && v !== '').join('\n');
 
       if (channel === 'personal') {
         await userTelegramApi.sendMessage({
