@@ -33,6 +33,7 @@ function InboxPageInner() {
   const { callClient } = useDialer();
 
   const [convs, setConvs] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [active, setActive] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [draft, setDraft] = useState('');
@@ -298,12 +299,24 @@ function InboxPageInner() {
           display: 'flex', flexDirection: 'column',
         }}>
           <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
-            <Input placeholder="🔍 Suhbat qidirish" />
+            <Input placeholder="🔍 Suhbat qidirish" value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 14 }}><Skeleton height={60} count={5} /></div>}
             {!loading && convs.length === 0 && <Empty title="Suhbat yo'q" icon="💬" />}
-            {!loading && convs.map((c) => {
+            {(() => {
+              const q = searchQuery.trim().toLowerCase().replace(/^@/, '');
+              const filtered = !q ? convs : convs.filter((c: any) => {
+                const name = (c.client?.fullName || [c.firstName, c.lastName].filter(Boolean).join(' ') || '').toLowerCase();
+                const username = (c.username || c.externalUsername || '').toLowerCase();
+                const phone = (c.client?.phone || '').toLowerCase();
+                const lastMsg = (c.lastMessageText || '').toLowerCase();
+                return name.includes(q) || username.includes(q) || phone.includes(q) || lastMsg.includes(q);
+              });
+              if (!loading && convs.length > 0 && filtered.length === 0) {
+                return <Empty title="Hech narsa topilmadi" icon="🔍" />;
+              }
+              return filtered.map((c) => {
               const isActive = active?.id === c.id;
               return (
                 <div key={c.id} onClick={() => setActive(c)} style={{
@@ -370,7 +383,8 @@ function InboxPageInner() {
                   </div>
                 </div>
               );
-            })}
+              });
+            })()}
           </div>
         </div>
 
@@ -433,11 +447,21 @@ function InboxPageInner() {
                 )}
                 {!loadingMessages && messages.map((m) => {
                   const isOut = m.direction === 'OUTBOUND' || m.direction === 'outbound' || m.isOutbound === true;
+                  // Kim yozganini aniq ko'rsatamiz: xodim (agent) ismi + qaysi kanaldan
+                  // (Bot yoki xodimning shaxsiy Telegram accounti) — bir nechta xodim
+                  // shu mijoz bilan turli kanallardan yozishi mumkin, shuning uchun bu
+                  // farqni ko'rsatish muhim.
+                  const senderLabel = isOut
+                    ? (m.agent?.name || 'Bot') + (active?.isPersonal ? ' · shaxsiy Telegram' : ' · Bot')
+                    : null;
                   return (
                     <div key={m.id} style={{
-                      display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start',
+                      display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start',
                       marginBottom: 10,
                     }}>
+                      {senderLabel && (
+                        <div style={{ fontSize: 10, color: 'var(--fg-4)', marginBottom: 2, marginRight: 2 }}>{senderLabel}</div>
+                      )}
                       <div style={{
                         maxWidth: '70%',
                         background: isOut ? '#3d7eff' : 'var(--bg-2)',
