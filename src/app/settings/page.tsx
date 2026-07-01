@@ -3463,7 +3463,7 @@ function ChangePasswordPanel() {
     try {
       const { authApi } = await import('@/services/api');
       await authApi.changePassword(oldPassword, newPassword);
-      toast.success('✅ Parol muvaffaqiyatli o\\'zgartirildi');
+      toast.success('✅ Parol muvaffaqiyatli o\'zgartirildi');
       setOldPassword(''); setNewPassword(''); setConfirmPassword('');
     } catch (e: any) {
       toast.error(e?.response?.data?.message || 'Xatolik yuz berdi');
@@ -3544,7 +3544,7 @@ function TwoFactorPanel() {
     try {
       const { authApi } = await import('@/services/api');
       await authApi.disable2FA(disablePassword);
-      toast.success('2FA o\\'chirildi');
+      toast.success('2FA o\'chirildi');
       setEnabled(false);
       setDisablePassword('');
     } catch (e: any) {
@@ -3569,7 +3569,7 @@ function TwoFactorPanel() {
         <Label>2FA ni o'chirish uchun parolingizni kiriting</Label>
         <input type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)}
           style={{ width: '100%', padding: '10px 12px', borderRadius: 9, background: 'var(--bg-3)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
-        <Btn variant="danger" onClick={disable} disabled={loading}>{loading ? '...' : '2FA ni o\\'chirish'}</Btn>
+        <Btn variant="danger" onClick={disable} disabled={loading}>{loading ? '...' : '2FA ni o\'chirish'}</Btn>
       </div>
     );
   }
@@ -3653,7 +3653,7 @@ function SessionsPanel() {
         }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-              {s.deviceName || s.userAgent?.slice(0, 40) || 'Noma\\'lum qurilma'}
+              {s.deviceName || s.userAgent?.slice(0, 40) || 'Noma\'lum qurilma'}
               {s.isCurrent && <Badge color="var(--success)">Joriy</Badge>}
             </div>
             <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 3 }}>

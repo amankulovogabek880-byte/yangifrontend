@@ -533,7 +533,7 @@ export const userTelegramApi = {
   verify2FA: (phone: string, password: string, apiId?: number, apiHash?: string) =>
     api.post('/user-telegram/auth/2fa', { phone, password, apiId, apiHash }),
   // Send message (birinchi xabar - /start shart emas!)
-  sendMessage: (data: { phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
+  sendMessage: (data: { phone?: string; username?: string; userId?: string; text: string; clientId?: string; conversationId?: string }) =>
     api.post('/user-telegram/send', data),
   // Status
   getMyAccount: () => api.get('/user-telegram/me'),
