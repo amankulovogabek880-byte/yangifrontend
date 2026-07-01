@@ -16,6 +16,13 @@ import { useSocket, getSocket } from '@/hooks/useSocket';
 import { fmtDate, fmtMoney } from '@/lib/helpers';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
+// Pul summalarini har doim ko'pi bilan 2 xona (tiyin) gacha ko'rsatadi —
+// standart toLocaleString() default holatda 3 xonagacha chiqarib yuborishi
+// mumkin (masalan $57,374.852), bu funksiya buni oldini oladi.
+function money(n: any) {
+  return (Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
 function ExportButton() {
   const [exporting, setExporting] = React.useState(false);
 
@@ -110,7 +117,7 @@ export default function DashboardPage() {
       followUpsApi.list({ done: 'false', limit: '6' }).catch(() => ({ data: [] })),
     ];
     if (!isAgent) {
-      ps.push(reportsApi.agents ? reportsApi.agents().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }));
+      ps.push(reportsApi.agents ? reportsApi.agents({ from: dateFrom, to: dateTo }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }));
     }
     Promise.all(ps).then(([s, rc, fu, ag]) => {
       setStats(s?.data || null);
@@ -265,20 +272,20 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
   const totalLeads = stats?.leads?.total ?? stats?.conversion?.total ?? 0;
 
   const kpis = isAgent ? [
-    { label: 'Daromadim (oy)', value: `$${totalRevenue.toLocaleString()}`, color: '#10b981', sub: 'Booking narxlari jami' },
-    { label: 'Komissiyam', value: `$${myCommissionAmount.toLocaleString()}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${myProfit.toLocaleString()} x ${kpiPct}%)` : '') },
+    { label: 'Daromadim (oy)', value: `$${money(totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami' },
+    { label: 'Komissiyam', value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} x ${kpiPct}%)` : '') },
     { label: 'Bookinglarim', value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}` },
     { label: 'Conversion rate', value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead` },
     { label: 'Leadlarim', value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}` },
-    { label: 'Kompaniyaga', value: `$${companyProfit > 0 ? companyProfit.toLocaleString() : 0}`, color: '#94a3b8', sub: 'Mening ulushim chiqarilgandan' },
+    { label: 'Kompaniyaga', value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: 'Mening ulushim chiqarilgandan' },
   ] : [
-    { label: 'Jami daromad', value: `$${(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0).toLocaleString()}`, color: '#10b981', sub: 'Booking narxlari jami' },
-    { label: 'Operator narxi', value: `$${(stats?.cost?.thisMonth || 0).toLocaleString()}`, color: '#ef4444', sub: 'Tannarx jami' },
+    { label: 'Jami daromad', value: `$${money(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0)}`, color: '#10b981', sub: 'Booking narxlari jami' },
+    { label: 'Operator narxi', value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami' },
 
-    { label: 'Sof foyda', value: `$${(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0).toLocaleString()}`, color: '#8b5cf6', sub: 'Daromad - Xarajat - Maosh' },
+    { label: 'Sof foyda', value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Daromad - Xarajat - Maosh' },
     { label: 'Klientlar', value: stats?.clients?.total ?? 0, color: '#3d7eff' },
     { label: 'Yangi leadlar', value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `Bugun: +${stats?.clients?.newToday ?? 0}` },
-    { label: 'Agent maoshlari', value: `$${(stats?.salary?.totalAgentSalariesThisMonth || 0).toLocaleString()}`, color: '#ec4899', sub: `${stats?.salary?.kpiPercent || 0}% foydadan` },
+    { label: 'Agent maoshlari', value: `$${money(stats?.salary?.totalAgentSalariesThisMonth || 0)}`, color: '#ec4899', sub: `${stats?.salary?.kpiPercent || 0}% foydadan` },
     { label: 'Bookinglar (oy)', value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `Jami: ${stats?.bookings?.total ?? 0}` },
   ];
 
@@ -321,11 +328,11 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
 
 function RevenueTab({ stats, revenueChart }: any) {
   const items = [
-    { label: 'Jami daromad', value: `$${(stats?.revenue?.thisMonth || stats?.cost?.totalSales || 0).toLocaleString()}`, color: '#10b981' },
-    { label: 'Operator narxi', value: `$${(stats?.cost?.thisMonth || 0).toLocaleString()}`, color: '#ef4444', sub: 'Tannarx jami' },
+    { label: 'Jami daromad', value: `$${money(stats?.revenue?.thisMonth || stats?.cost?.totalSales || 0)}`, color: '#10b981' },
+    { label: 'Operator narxi', value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami' },
 
-    { label: 'Sof foyda', value: `$${(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0).toLocaleString()}`, color: '#8b5cf6', sub: 'Foyda - Agent maosh' },
-    { label: 'Agent maoshlari', value: `$${(stats?.salary?.totalAgentSalariesThisMonth || stats?.agentSalaries || 0).toLocaleString()}`, color: '#06b6d4' },
+    { label: 'Sof foyda', value: `$${money(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Foyda - Agent maosh' },
+    { label: 'Agent maoshlari', value: `$${money(stats?.salary?.totalAgentSalariesThisMonth || stats?.agentSalaries || 0)}`, color: '#06b6d4' },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -410,8 +417,14 @@ function AgentsTab({ agents }: any) {
                     <div style={{ fontWeight: 600 }}>{a.agent?.name || a.name || 'N/A'}</div>
                     <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{a.agent?.role}</div>
                   </td>
-                  <td style={{ padding: '10px 12px' }}>{a.leadsInPeriod ?? 0}</td>
-                  <td style={{ padding: '10px 12px' }}>{a.bookingsInPeriod ?? 0}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {a.leadsInPeriod ?? 0}
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Jami: {a.clients ?? 0}</div>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {a.bookingsInPeriod ?? 0}
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Jami: {a.bookings ?? 0}</div>
+                  </td>
                   <td style={{ padding: '10px 12px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
                       background: (a.conversion ?? 0) >= 30 ? '#10b98120' : '#f59e0b20',
@@ -420,14 +433,14 @@ function AgentsTab({ agents }: any) {
                     </span>
                   </td>
                   <td style={{ padding: '10px 12px', fontWeight: 700, color: '#10b981' }}>
-                    ${(a.revenue ?? 0).toLocaleString()}
+                    ${money(a.revenue ?? 0)}
                   </td>
                   <td style={{ padding: '10px 12px', color: '#f59e0b', fontWeight: 600 }}>
                     {sal.myCommissionPercent != null ? sal.myCommissionPercent + '%' : '-'}
                     {sal.appliedTier && <div style={{ fontSize: 9, color: 'var(--fg-3)' }}>KPI tier</div>}
                   </td>
                   <td style={{ padding: '10px 12px', fontWeight: 700, color: '#8b5cf6' }}>
-                    {sal.grossSalary != null ? ('$' + sal.grossSalary.toLocaleString()) : '-'}
+                    {sal.grossSalary != null ? ('$' + money(sal.grossSalary)) : '-'}
                   </td>
                   {/* Payment status */}
                   <td style={{ padding: '10px 12px' }}>
@@ -550,7 +563,7 @@ function LeadsTab({ data, from, to }: any) {
           { label: 'Jami leadlar', value: summary.totalLeads || 0, color: '#3d7eff', sub: "barcha manba" },
           { label: 'Bookinglar', value: summary.totalBookings || 0, color: '#10b981', sub: "muvaffaqiyatli" },
           { label: 'Avg conversion', value: `${(summary.avgConversionRate || 0).toFixed(1)}%`, color: '#f59e0b', sub: "o'rtacha" },
-          { label: 'Jami daromad', value: `$${totalRevenue.toLocaleString()}`, color: '#8b5cf6', sub: "barcha manbadan" },
+          { label: 'Jami daromad', value: `$${money(totalRevenue)}`, color: '#8b5cf6', sub: "barcha manbadan" },
         ].map((s, i) => (
           <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{s.label}</div>
@@ -567,7 +580,7 @@ function LeadsTab({ data, from, to }: any) {
           <div>
             <div style={{ fontWeight: 700, fontSize: 13, color: '#10b981' }}>🏆 Eng yaxshi manba: {best.source}</div>
             <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>
-              {best.leads} lead · {best.bookings} booking · ${(best.revenue||0).toLocaleString()} daromad · {best.conversionRate?.toFixed(1)}% conversion
+              {best.leads} lead · {best.bookings} booking · ${money(best.revenue||0)} daromad · {best.conversionRate?.toFixed(1)}% conversion
             </div>
           </div>
         </div>
@@ -626,7 +639,7 @@ function LeadsTab({ data, from, to }: any) {
                         color: (s.conversionRate || 0) >= 50 ? '#10b981' : (s.conversionRate || 0) >= 20 ? '#f59e0b' : '#ef4444',
                       }}>{(s.conversionRate || 0).toFixed(1)}%</span>
                     </td>
-                    <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 700 }}>${(s.revenue || 0).toLocaleString()}</td>
+                    <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 700 }}>${money(s.revenue || 0)}</td>
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', minWidth: 60 }}>
@@ -883,7 +896,7 @@ function RevenueChart({ data }: { data: any[] }) {
               }}
               labelStyle={{ color: 'var(--fg)', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
               formatter={(v: any, name: string) => [
-                `$${Number(v).toLocaleString()}`,
+                `$${money(v)}`,
                 name === 'revenue' ? 'Revenue' : 'Profit'
               ]}
             />
