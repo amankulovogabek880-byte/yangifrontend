@@ -3506,9 +3506,20 @@ function TwoFactorPanel() {
   const [qrCode, setQrCode] = useState('');
   const [secret, setSecret] = useState('');
   const [code, setCode] = useState('');
-  const [disablePassword, setDisablePassword] = useState('');
+  const [disableCred, setDisableCred] = useState('');
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(!!user?.twoFactorEnabled);
+
+  // Store'dagi user.twoFactorEnabled ni yangilaymiz (sahifadan chiqib qaytganda
+  // holat to'g'ri ko'rinishi uchun).
+  function syncEnabled(val: boolean) {
+    setEnabled(val);
+    try {
+      (useAuth as any).setState((s: any) => ({
+        user: s.user ? { ...s.user, twoFactorEnabled: val } : s.user,
+      }));
+    } catch {}
+  }
 
   async function startSetup() {
     setLoading(true);
@@ -3530,7 +3541,7 @@ function TwoFactorPanel() {
       const { authApi } = await import('@/services/api');
       await authApi.enable2FA(code);
       toast.success('✅ 2FA yoqildi');
-      setEnabled(true);
+      syncEnabled(true);
       setStep('idle');
       setCode('');
     } catch (e: any) {
@@ -3539,16 +3550,19 @@ function TwoFactorPanel() {
   }
 
   async function disable() {
-    if (!disablePassword) { toast.error('Parolni kiriting'); return; }
+    const cred = disableCred.trim();
+    if (!cred) { toast.error('Parol yoki authenticator kodini kiriting'); return; }
     setLoading(true);
     try {
       const { authApi } = await import('@/services/api');
-      await authApi.disable2FA(disablePassword);
-      toast.success('2FA o\'chirildi');
-      setEnabled(false);
-      setDisablePassword('');
+      // Parol yoki kod — bittasi yetarli. Backend ikkalasini ham tekshiradi.
+      await authApi.disable2FA(cred);
+      toast.success("✅ 2FA o'chirildi");
+      syncEnabled(false);
+      setDisableCred('');
+      setStep('idle');
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Xatolik');
+      toast.error(e?.response?.data?.message || "Parol yoki kod noto'g'ri");
     } finally { setLoading(false); }
   }
 
@@ -3566,9 +3580,20 @@ function TwoFactorPanel() {
             <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>Akkauntingiz qo'shimcha himoyalangan</div>
           </div>
         </div>
-        <Label>2FA ni o'chirish uchun parolingizni kiriting</Label>
-        <input type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)}
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 9, background: 'var(--bg-3)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
+        <Label>2FA ni o'chirish</Label>
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '2px 0 8px' }}>
+          Tasdiqlash uchun <b>akkaunt parolingizni</b> yoki authenticator ilovasidagi
+          <b> 6 xonali kodni</b> (yoki zaxira kodni) kiriting — bittasi yetarli.
+        </p>
+        <input
+          type="text"
+          autoComplete="off"
+          value={disableCred}
+          onChange={(e) => setDisableCred(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') disable(); }}
+          placeholder="Parol yoki 6 xonali kod"
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 9, background: 'var(--bg-3)', border: '1px solid var(--border)', color: 'var(--fg)', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
+        />
         <Btn variant="danger" onClick={disable} disabled={loading}>{loading ? '...' : '2FA ni o\'chirish'}</Btn>
       </div>
     );

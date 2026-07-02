@@ -64,17 +64,27 @@ export async function refreshAccessToken(): Promise<string | null> {
 api.interceptors.response.use(
   (r) => r,
   async (err) => {
-    const original = err.config;
+    const original = err.config || {};
+    // Xavfsizlik amallari (2FA yoqish/o'chirish, parol almashtirish) — bularда
+    // 401/400 xatosi "sessiya tugadi" degani EMAS, balki "kred noto'g'ri" degani.
+    // Shuning uchun bu so'rovlarni login sahifasiga uloqtirmaymiz — xatoni
+    // to'g'ridan-to'g'ri komponentga qaytaramiz, u foydalanuvchiga ko'rsatadi.
+    const url: string = original.url || '';
+    const isAuthAction =
+      url.includes('/auth/2fa/') || url.includes('/auth/change-password');
+
     if (err.response?.status === 401 && !original._retry && typeof window !== 'undefined') {
       original._retry = true;
       const newToken = await refreshAccessToken();
       if (newToken) {
+        original.headers = original.headers || {};
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       }
       // Refresh ham ishlamadi — sessiya tugagan
       setAccessToken(null);
-      if (!window.location.pathname.startsWith('/login') &&
+      if (!isAuthAction &&
+          !window.location.pathname.startsWith('/login') &&
           !window.location.pathname.startsWith('/public') &&
           !window.location.pathname.startsWith('/reset-password') &&
           !window.location.pathname.startsWith('/forgot-password')) {
@@ -104,7 +114,8 @@ export const authApi = {
   // ── 2FA (v4) ──
   setup2FA: () => api.post('/auth/2fa/setup'),
   enable2FA: (code: string) => api.post('/auth/2fa/enable', { code }),
-  disable2FA: (password: string) => api.post('/auth/2fa/disable', { password }),
+  // credential = akkaunt paroli YOKI authenticator/backup kodi
+  disable2FA: (credential: string) => api.post('/auth/2fa/disable', { credential }),
 
   // ── Sessions (v4) ──
   sessions: () => api.get('/auth/sessions'),
