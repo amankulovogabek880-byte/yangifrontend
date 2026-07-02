@@ -39,19 +39,27 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) return;
+    if (requires2FA && !twoFactorCode.trim()) return;
     setLoading(true);
     try {
-      const result = await login(email.trim(), password);
+      const result = await login(email.trim(), password, requires2FA ? twoFactorCode.trim() : undefined);
+      if (result.requires2FA) {
+        setRequires2FA(true);
+        return;
+      }
       if (result.user) {
         toast.success('Xush kelibsiz, ' + result.user.name + '!');
         router.replace('/dashboard');
       }
     } catch (e: any) {
       toast.error(e.response?.data?.message || "Email yoki parol noto'g'ri");
+      if (requires2FA) setTwoFactorCode('');
     } finally { setLoading(false); }
   }
 
@@ -171,7 +179,7 @@ export default function LoginPage() {
                   <MailIcon />
                 </span>
                 <input
-                  type="email" required autoFocus
+                  type="email" required autoFocus disabled={requires2FA}
                   value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="email@example.com"
                   style={{
@@ -203,7 +211,7 @@ export default function LoginPage() {
                   <LockIcon />
                 </span>
                 <input
-                  type={showPass ? 'text' : 'password'} required
+                  type={showPass ? 'text' : 'password'} required disabled={requires2FA}
                   value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
                   style={{
@@ -226,6 +234,40 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            {/* 2FA code — parol to'g'ri kiritilgach, agar 2FA yoqilgan bo'lsa chiqadi */}
+            {requires2FA && (
+              <div style={{ marginBottom: 22 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)', marginBottom: 7, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  2FA kod
+                </label>
+                <input
+                  type="text" required autoFocus
+                  inputMode="numeric"
+                  value={twoFactorCode}
+                  onChange={e => setTwoFactorCode(e.target.value)}
+                  placeholder="Authenticator kod yoki backup kod"
+                  style={{
+                    width: '100%', padding: '11px 13px',
+                    background: 'var(--bg-3)',
+                    border: '1.5px solid var(--border)',
+                    borderRadius: 10, color: 'var(--fg)',
+                    fontSize: 14, outline: 'none',
+                    letterSpacing: 2,
+                    transition: 'border-color 0.14s, box-shadow 0.14s',
+                  }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--primary)'; e.target.style.boxShadow = '0 0 0 3px var(--primary-soft)'; }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--border)'; e.target.style.boxShadow = 'none'; }}
+                />
+                <button
+                  type="button"
+                  onClick={() => { setRequires2FA(false); setTwoFactorCode(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--fg-3)', fontSize: 11, marginTop: 8, cursor: 'pointer', padding: 0 }}
+                >
+                  ← Boshqa email bilan kirish
+                </button>
+              </div>
+            )}
 
             {/* Submit */}
             <button type="submit" disabled={loading} style={{
