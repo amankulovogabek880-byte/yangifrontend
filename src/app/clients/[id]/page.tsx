@@ -63,6 +63,8 @@ export default function Client360Page() {
   const [showOfferCreate, setShowOfferCreate] = useState(false);
   const [editingOffer, setEditingOffer] = useState<any>(null);
   const [sellingOfferId, setSellingOfferId] = useState<string | null>(null);
+  // v10.3: Taklifdan booking yaratish modali (6-rasm ko'rinishida, prefilled)
+  const [offerBooking, setOfferBooking] = useState<any>(null);
   const [showBooking, setShowBooking] = useState(false);
   const [editingBooking, setEditingBooking] = useState<any>(null);
   const [showPersonalMsg, setShowPersonalMsg] = useState(false);
@@ -278,19 +280,7 @@ export default function Client360Page() {
                       clientUsername={c.telegramUsername}
                       onSent={() => setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? { ...x, status: 'SENT' } : x))}
                       onEdit={() => setEditingOffer(o)}
-                      onSold={async () => {
-                        if (!window.confirm(`"${o.tourName}" taklifini sotildi deb belgilaysizmi?\n\nBu avtomatik ravishda $${(o.clientPrice || 0).toLocaleString()} summali booking yaratadi.`)) return;
-                        setSellingOfferId(o.id);
-                        try {
-                          await api.post(`/offers/${o.id}/mark-sold`, { clientId: id });
-                          toast.success('✅ Taklif sotildi — booking avtomatik yaratildi!');
-                          load();
-                        } catch (e: any) {
-                          toast.error(errMsg(e));
-                        } finally {
-                          setSellingOfferId(null);
-                        }
-                      }}
+                      onSold={() => setOfferBooking(o)}
                       selling={sellingOfferId === o.id}
                     />
                   ))}
@@ -301,6 +291,14 @@ export default function Client360Page() {
                 yoki to'g'ridan-to'g'ri booking yarating →
               </button>
 
+              {offerBooking && (
+                <OfferBookingModal
+                  offer={offerBooking}
+                  clientId={id}
+                  onClose={() => setOfferBooking(null)}
+                  onSaved={() => { setOfferBooking(null); load(); }}
+                />
+              )}
               {showOfferCreate && (
                 <OfferCreateModal
                   clientId={id}
@@ -355,7 +353,6 @@ export default function Client360Page() {
                   </div>
                 </div>
 
-                <ClientPaymentsInvoiceTab client={c} bookings={c.bookings || []} onRefresh={load} />
               </div>
             )}
           </div>
@@ -743,8 +740,6 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
                         onSent={() => { onSent(); setMenuOpen(false); }} fullWidth
                       />
                     </div>
-                    <button onClick={() => { onEdit(); setMenuOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer' }}>✏️ Tahrirlash</button>
-                    <button disabled={selling} onClick={() => { onSold(); setMenuOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', fontSize: 13, border: 'none', background: 'none', color: 'var(--success)', cursor: 'pointer' }}>{selling ? '...' : '✅ Sotildi deb belgilash'}</button>
                   </div>
                 </>
               )}
@@ -752,6 +747,37 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
           )}
         </div>
       </div>
+
+      {/* v10.3: Ko'rinadigan amallar — mijoz taklifni yoqtirsa,
+          BITTA bosishda avtomatik booking yaratiladi. Tahrirlash ham ochiq. */}
+      {o.status !== 'SOLD' && (
+        <div style={{ display: 'flex', gap: 7, marginTop: 9 }}>
+          <button
+            disabled={selling}
+            onClick={onSold}
+            style={{
+              flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: 'var(--success)', color: '#fff', fontSize: 12, fontWeight: 800,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              opacity: selling ? 0.7 : 1,
+            }}
+          >
+            {selling ? 'Yaratilmoqda...' : '✓ Booking yaratish'}
+          </button>
+          <button
+            onClick={onEdit}
+            title="Taklifni tahrirlash"
+            style={{
+              padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
+              border: '1px solid var(--border)', background: 'var(--bg-3)',
+              color: 'var(--fg-2)', fontSize: 12, fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            ✏️ Tahrirlash
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -973,6 +999,137 @@ function HotelsPicker({ hotels, setHotels, inp, lbl }: any) {
 }
 
 // ─── Inline Booking Modal (client detail ichida) ──────────────────────────────
+// ─── v10.3: Taklifdan booking yaratish (6-rasm ko'rinishida, prefilled + editable) ───
+function OfferBookingModal({ offer: o, clientId, onClose, onSaved }: any) {
+  const { user } = useAuth();
+  const isAdmin = user?.role !== 'AGENT';
+  const [form, setForm] = useState<any>({
+    tourName: o.tourName || '',
+    destination: o.destination || '',
+    tourType: 'PACKAGE',
+    departureDate: o.departDate ? String(o.departDate).slice(0, 10) : '',
+    returnDate: o.returnDate ? String(o.returnDate).slice(0, 10) : '',
+    adults: o.pax || 1,
+    children: 0,
+    totalPrice: o.clientPrice ?? '',
+    supplierCost: o.actualPrice ?? '',
+    discount: 0,
+    currency: 'USD',
+    notes: o.notes || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const profit = Math.max(0, (Number(form.totalPrice) || 0) - (Number(form.supplierCost) || 0) - (Number(form.discount) || 0));
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.tourName.trim() || !form.destination.trim() || !form.totalPrice) {
+      toast.error("Tur nomi, yo'nalish va narx kerak");
+      return;
+    }
+    setSaving(true);
+    try {
+      // mark-sold: booking yaratadi + tasdiqlaydi + taklifni "sotildi" qiladi
+      await api.post(`/offers/${o.id}/mark-sold`, { clientId, overrides: form });
+      toast.success('✅ Booking yaratildi — taklif sotildi deb belgilandi!');
+      onSaved();
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+  const lbl: any = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', marginBottom: 6 };
+  const inp: any = { width: '100%', padding: '10px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', outline: 'none' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: 'var(--bg)', borderRadius: 14, padding: 24, width: 560, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>✈️ Yangi booking</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', fontSize: 22, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginBottom: 14, padding: '7px 11px', background: 'var(--bg-2)', borderRadius: 8 }}>
+          "{o.tourName}" taklifidan to'ldirildi — kerakli joyini tahrirlab, tasdiqlang.
+        </div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={lbl}>Tur nomi *</label>
+            <input style={inp} value={form.tourName} onChange={(e) => set('tourName', e.target.value)} placeholder="Masalan: Dubay 7 kunlik" />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={lbl}>Yo'nalish *</label>
+              <input style={inp} value={form.destination} onChange={(e) => set('destination', e.target.value)} placeholder="Dubay, UAE" />
+            </div>
+            <div>
+              <label style={lbl}>Tur turi</label>
+              <select style={{ ...inp, cursor: 'pointer' }} value={form.tourType} onChange={(e) => set('tourType', e.target.value)}>
+                <option value="PACKAGE">Paket</option>
+                <option value="CUSTOM">Individual</option>
+                <option value="GROUP">Guruh</option>
+                <option value="UMRAH">Umra</option>
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Jo'nab ketish sanasi</label>
+              <input type="date" style={inp} value={form.departureDate} onChange={(e) => set('departureDate', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Qaytish sanasi</label>
+              <input type="date" style={inp} value={form.returnDate} onChange={(e) => set('returnDate', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Kattalar soni</label>
+              <input type="number" min={1} style={inp} value={form.adults} onChange={(e) => set('adults', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Bolalar soni</label>
+              <input type="number" min={0} style={inp} value={form.children} onChange={(e) => set('children', e.target.value)} />
+            </div>
+          </div>
+          <div style={{ padding: '12px 14px', background: 'var(--bg-2)', borderRadius: 10, display: 'grid', gridTemplateColumns: isAdmin ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={lbl}>Klient narxi (Sale Price) *</label>
+              <input type="number" min={0} step="0.01" style={{ ...inp, background: 'var(--bg)' }} value={form.totalPrice} onChange={(e) => set('totalPrice', e.target.value)} placeholder="0" />
+            </div>
+            {isAdmin && (
+              <div>
+                <label style={lbl}>Operator narxi (Cost)</label>
+                <input type="number" min={0} step="0.01" style={{ ...inp, background: 'var(--bg)' }} value={form.supplierCost} onChange={(e) => set('supplierCost', e.target.value)} placeholder="0" />
+              </div>
+            )}
+            <div>
+              <label style={lbl}>Chegirma</label>
+              <input type="number" min={0} step="0.01" style={{ ...inp, background: 'var(--bg)' }} value={form.discount} onChange={(e) => set('discount', e.target.value)} placeholder="0" />
+            </div>
+            {isAdmin && (
+              <div style={{ gridColumn: '1/-1', fontSize: 12, color: 'var(--fg-3)' }}>
+                Foyda: <b style={{ color: 'var(--success)' }}>{form.currency} {profit.toLocaleString()}</b>
+              </div>
+            )}
+          </div>
+          <div>
+            <label style={lbl}>Valyuta</label>
+            <select style={{ ...inp, cursor: 'pointer' }} value={form.currency} onChange={(e) => set('currency', e.target.value)}>
+              {['USD', 'UZS', 'EUR'].map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Izoh</label>
+            <textarea style={{ ...inp, minHeight: 76, resize: 'vertical' }} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px 0', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer', fontWeight: 600 }}>Bekor</button>
+            <button type="submit" disabled={saving} style={{ flex: 2, padding: '11px 0', borderRadius: 9, border: 'none', background: 'var(--primary)', color: '#fff', cursor: 'pointer', fontWeight: 800, opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Yaratilmoqda...' : '✈️ Booking yaratish'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function InlineBookingModal({ clientId, clientName, onClose, onSaved }: any) {
   const { user } = useAuth();
   const isAdmin = user?.role !== 'AGENT';

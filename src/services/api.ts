@@ -308,6 +308,8 @@ export const reportsV6 = {
   calendar: (params: { date?: string; from?: string; to?: string }) => api.get('/reports/calendar', { params }),
   // v10.2: Oylik kalendar eventlari (parvoz, viza, to'lov muddati, vazifa)
   calendarMonth: (year: number, month: number) => api.get('/reports/calendar-month', { params: { year, month } }),
+  // v10.3: Agentlar oyma-oy tarixi
+  agentsMonthly: (months = 6, agentId?: string) => api.get('/reports/agents-monthly', { params: { months, agentId } }),
 };
 
 // ── OWNER ────────────────────────────────────────────────────

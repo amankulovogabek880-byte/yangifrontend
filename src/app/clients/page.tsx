@@ -6,7 +6,7 @@ import { clientsApi, usersApi } from '@/services/api';
 import { Btn, Input, Select, Card, Skeleton, Badge, Modal, Label, Textarea, Avatar, Checkbox, EmptyState } from '@/components/ui';
 import { TIER_LABELS, SOURCE_LABELS, STAGE_LABELS, STAGE_COLORS, errMsg, timeAgo } from '@/lib/helpers';
 import {
-  Users, UserPlus, Search, Download, GitBranch, UserCheck, X, Loader2,
+  Users, UserPlus, Search, Download, GitBranch, UserCheck, X, Loader2, CheckSquare,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -18,7 +18,8 @@ export default function ClientsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [page, setPage] = useState(1);
 
-  // ── v10.2: BULK ACTIONS ──────────────────────────────────
+  // ── v10.3: BULK ACTIONS — checkboxlar faqat "Tanlash" rejimida ko'rinadi
+  const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [agents, setAgents] = useState<any[]>([]);
@@ -33,6 +34,7 @@ export default function ClientsPage() {
   };
 
   useEffect(() => { load(); setSelected(new Set()); }, [filters, page]);
+  useEffect(() => { if (!selectMode) setSelected(new Set()); }, [selectMode]);
   useEffect(() => {
     usersApi.list().then((r: any) => {
       const list = Array.isArray(r.data) ? r.data : r.data?.data || [];
@@ -111,6 +113,11 @@ export default function ClientsPage() {
             {data?.meta?.total != null && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-3)' }}>({data.meta.total})</span>}
           </h1>
           <div style={{ display: 'flex', gap: 8 }}>
+            {/* Tanlash rejimi: bosilganda checkboxlar chiqadi */}
+            <Btn variant={selectMode ? 'primary' : 'secondary'} icon={<CheckSquare size={14} />}
+              onClick={() => { setSelectMode(!selectMode); if (selectMode) setSelected(new Set()); }}>
+              {selectMode ? 'Tanlashni yopish' : 'Tanlash'}
+            </Btn>
             <Btn variant="secondary" icon={<Download size={14} />} onClick={exportCsv}>CSV</Btn>
             <Btn icon={<UserPlus size={14} />} onClick={() => setShowAdd(true)}>Yangi Klient</Btn>
           </div>
@@ -140,7 +147,7 @@ export default function ClientsPage() {
         </Card>
 
         {/* ── BULK ACTION BAR ── */}
-        {selected.size > 0 && (
+        {selectMode && selected.size > 0 && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
             padding: '10px 14px', marginBottom: 12,
@@ -194,9 +201,11 @@ export default function ClientsPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead style={{ background: 'var(--bg)' }}>
                     <tr style={{ color: 'var(--fg-3)', fontSize: 11, textTransform: 'uppercase' }}>
-                      <th style={{ padding: '12px 8px 12px 14px', width: 34 }}>
-                        <Checkbox checked={allSelected} indeterminate={!allSelected && someSelected} onChange={toggleAll} />
-                      </th>
+                      {selectMode && (
+                        <th style={{ padding: '12px 8px 12px 14px', width: 34 }}>
+                          <Checkbox checked={allSelected} indeterminate={!allSelected && someSelected} onChange={toggleAll} />
+                        </th>
+                      )}
                       <th style={{ padding: 12, textAlign: 'left' }}>F.I.SH.</th>
                       <th style={{ padding: 12, textAlign: 'left' }}>Nomer</th>
                       <th style={{ padding: 12, textAlign: 'left' }}>Bosqich</th>
@@ -207,13 +216,15 @@ export default function ClientsPage() {
                   </thead>
                   <tbody>
                     {rows.map((c: any) => (
-                      <tr key={c.id} onClick={() => router.push(`/clients/${c.id}`)}
+                      <tr key={c.id} onClick={() => selectMode ? toggleOne(c.id, !selected.has(c.id)) : router.push(`/clients/${c.id}`)}
                           style={{ borderTop: '1px solid var(--border-2)', cursor: 'pointer', background: selected.has(c.id) ? 'var(--primary-soft, rgba(61,126,255,.06))' : 'transparent' }}
                           onMouseEnter={(e) => !selected.has(c.id) && (e.currentTarget.style.background = 'var(--bg-3)')}
                           onMouseLeave={(e) => !selected.has(c.id) && (e.currentTarget.style.background = 'transparent')}>
-                        <td style={{ padding: '12px 8px 12px 14px' }} onClick={(e) => e.stopPropagation()}>
-                          <Checkbox checked={selected.has(c.id)} onChange={(v) => toggleOne(c.id, v)} />
-                        </td>
+                        {selectMode && (
+                          <td style={{ padding: '12px 8px 12px 14px' }} onClick={(e) => e.stopPropagation()}>
+                            <Checkbox checked={selected.has(c.id)} onChange={(v) => toggleOne(c.id, v)} />
+                          </td>
+                        )}
                         <td style={{ padding: 12 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <Avatar name={c.fullName} size={30} />

@@ -115,6 +115,7 @@ function AddBookingModal({ onClose, onSaved }: any) {
     discount: 0,            // Chegirma (admin/agent)
     currency: 'USD',
     departureDate: '', returnDate: '',
+    notes: '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -314,6 +315,10 @@ function AddBookingModal({ onClose, onSaved }: any) {
 
         <div><Label>Ketish</Label><Input type="date" value={form.departureDate} onChange={(e) => setForm({ ...form, departureDate: e.target.value })} /></div>
         <div><Label>Qaytish</Label><Input type="date" value={form.returnDate} onChange={(e) => setForm({ ...form, returnDate: e.target.value })} /></div>
+        <div style={{ gridColumn: '1/-1' }}>
+          <Label>Izoh</Label>
+          <Textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        </div>
         <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10, marginTop: 8 }}>
           <Btn variant="secondary" type="button" onClick={onClose} style={{ flex: 1 }}>Bekor</Btn>
           <Btn type="submit" loading={loading} style={{ flex: 1 }}>Yaratish</Btn>

@@ -292,7 +292,6 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
     { label: 'Operator narxi', value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
     { label: 'Klientlar', value: stats?.clients?.total ?? 0, color: '#3d7eff', icon: <UsersIc size={15} /> },
     { label: 'Yangi leadlar', value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `Bugun: +${stats?.clients?.newToday ?? 0}`, icon: <UserPlusIc size={15} /> },
-    { label: 'Agent maoshlari', value: `$${money(stats?.salary?.totalAgentSalariesThisMonth || 0)}`, color: '#ec4899', sub: `${stats?.salary?.kpiPercent || 0}% foydadan`, icon: <Wallet size={15} /> },
     { label: 'Bookinglar (oy)', value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
   ];
 
@@ -461,7 +460,7 @@ function AgentsTab({ agents, isAgent }: any) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
-              {['#', 'Agent', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Komissiya %', 'Maosh (oy)', "Tolov holati", 'Note'].map(h => (
+              {['#', 'Agent', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Komissiya %', 'Maosh (oy)', 'Note'].map(h => (
                 <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 700 }}>{h}</th>
               ))}
             </tr>
@@ -506,25 +505,6 @@ function AgentsTab({ agents, isAgent }: any) {
                   <td style={{ padding: '10px 12px', fontWeight: 700, color: '#8b5cf6' }}>
                     {sal.grossSalary != null ? ('$' + money(sal.grossSalary)) : '-'}
                   </td>
-                  {/* Payment status */}
-                  <td style={{ padding: '10px 12px' }}>
-                    <button
-                      onClick={() => {
-                        const next = !ps.paid;
-                        setPayStatus((prev: any) => ({ ...prev, [agentId]: { ...prev[agentId], paid: next } }));
-                        savePay(agentId, next);
-                      }}
-                      style={{
-                        padding: '5px 12px', borderRadius: 7, border: 'none',
-                        background: ps.paid ? '#10b98120' : '#f43f5e20',
-                        color: ps.paid ? '#10b981' : '#f43f5e',
-                        cursor: 'pointer', fontWeight: 700, fontSize: 11,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {ps.saving ? '...' : ps.paid ? 'Tolandi' : "Tolanmagan"}
-                    </button>
-                  </td>
                   {/* Note */}
                   <td style={{ padding: '10px 12px', minWidth: 160 }}>
                     <div style={{ display: 'flex', gap: 5 }}>
@@ -551,6 +531,9 @@ function AgentsTab({ agents, isAgent }: any) {
           </tbody>
         </table>
       </div>
+
+      {/* v10.3: Oyma-oy tarix — admin hamma agentni, agent o'zini ko'radi */}
+      <AgentMonthlyHistory isAgent={isAgent} agents={agents} />
     </div>
   );
 }
@@ -618,6 +601,9 @@ function MySalaryCard() {
           </div>
         )}
       </div>
+
+      {/* v10.3: Mening oyma-oy tarixim */}
+      <AgentMonthlyHistory isAgent={true} agents={[]} />
     </div>
   );
 }
@@ -1067,6 +1053,143 @@ function RevenueChart({ data }: { data: any[] }) {
             />
           </AreaChart>
         </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// v10.3: AGENTLAR OYMA-OY TARIXI
+// Admin: agent tanlab (yoki hammasi) oxirgi 3/6/12 oy bo'yicha
+// leadlar, bookinglar, conversion, daromad va maoshni ko'radi.
+// Agent: faqat o'zining tarixini ko'radi (backend cheklaydi).
+// ═════════════════════════════════════════════════════════════
+function AgentMonthlyHistory({ isAgent, agents }: { isAgent: boolean; agents: any[] }) {
+  const [months, setMonths] = useState(6);
+  const [agentId, setAgentId] = useState<string>('');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    reportsV6.agentsMonthly(months, agentId || undefined)
+      .then((r: any) => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [months, agentId]);
+
+  const MONTH_UZ = ['Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
+  const mLabel = (mk: string) => {
+    const [y, m] = mk.split('-');
+    return `${MONTH_UZ[parseInt(m) - 1]} ${y}`;
+  };
+
+  const list: any[] = data?.agents || [];
+  // Admin "Barcha agentlar" rejimida — jami bo'yicha jadval;
+  // bitta agent tanlanganda (yoki agent roli) — oyma-oy qatorlar
+  const single = isAgent || !!agentId ? list[0] : (list.length === 1 ? list[0] : null);
+
+  return (
+    <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <Calendar size={15} color="#8b5cf6" />
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+          {isAgent ? 'Mening oyma-oy natijalarim' : 'Agentlar — oyma-oy tarix'}
+        </h3>
+        <div style={{ flex: 1 }} />
+        {!isAgent && (
+          <select value={agentId} onChange={(e) => setAgentId(e.target.value)} style={{
+            padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, outline: 'none', cursor: 'pointer',
+          }}>
+            <option value="">Barcha agentlar</option>
+            {agents.map((a: any) => (
+              <option key={a.agent?.id || a.id} value={a.agent?.id || a.id}>{a.agent?.name || a.name}</option>
+            ))}
+          </select>
+        )}
+        <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 8, padding: 2, gap: 2 }}>
+          {[3, 6, 12].map((m) => (
+            <button key={m} onClick={() => setMonths(m)} style={{
+              padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              fontSize: 11.5, fontWeight: 700,
+              background: months === m ? 'var(--primary)' : 'transparent',
+              color: months === m ? '#fff' : 'var(--fg-3)',
+            }}>{m} oy</button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <Skeleton height={160} />
+      ) : !data || list.length === 0 ? (
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Ma'lumot yo'q</div>
+      ) : single ? (
+        /* ── BITTA AGENT: oyma-oy qatorlar ── */
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+              {['Oy', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Foyda', 'Komissiya %', 'Maosh'].map((h) => (
+                <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[...single.rows].reverse().map((r: any) => (
+              <tr key={r.month} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '9px 12px', fontWeight: 700 }}>{mLabel(r.month)}</td>
+                <td style={{ padding: '9px 12px' }}>{r.leads}</td>
+                <td style={{ padding: '9px 12px' }}>{r.bookings}</td>
+                <td style={{ padding: '9px 12px' }}>
+                  <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    background: r.conversion >= 30 ? '#10b98120' : '#f59e0b20',
+                    color: r.conversion >= 30 ? '#10b981' : '#f59e0b' }}>{r.conversion}%</span>
+                </td>
+                <td style={{ padding: '9px 12px', fontWeight: 700, color: '#10b981' }}>${money(r.revenue)}</td>
+                <td style={{ padding: '9px 12px', color: '#f59e0b', fontWeight: 600 }}>${money(r.profit)}</td>
+                <td style={{ padding: '9px 12px', color: 'var(--fg-2)' }}>{r.commissionPercent}%</td>
+                <td style={{ padding: '9px 12px', fontWeight: 800, color: '#8b5cf6' }}>${money(r.salary)}</td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-3)' }}>
+              <td style={{ padding: '9px 12px', fontWeight: 800 }}>JAMI</td>
+              <td style={{ padding: '9px 12px', fontWeight: 700 }}>{single.totals.leads}</td>
+              <td style={{ padding: '9px 12px', fontWeight: 700 }}>{single.totals.bookings}</td>
+              <td style={{ padding: '9px 12px' }} />
+              <td style={{ padding: '9px 12px', fontWeight: 800, color: '#10b981' }}>${money(single.totals.revenue)}</td>
+              <td style={{ padding: '9px 12px', fontWeight: 700, color: '#f59e0b' }}>${money(single.totals.profit)}</td>
+              <td style={{ padding: '9px 12px' }} />
+              <td style={{ padding: '9px 12px', fontWeight: 800, color: '#8b5cf6' }}>${money(single.totals.salary)}</td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        /* ── BARCHA AGENTLAR: davr bo'yicha jami ── */
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+              {['Agent', `Leadlar (${months} oy)`, 'Bookinglar', 'Daromad', 'Foyda', 'Maosh (jami)'].map((h) => (
+                <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[...list].sort((a, b) => (b.totals?.salary || 0) - (a.totals?.salary || 0)).map((row: any) => (
+              <tr key={row.agent.id} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+                onClick={() => setAgentId(row.agent.id)} title="Oyma-oy ko'rish uchun bosing">
+                <td style={{ padding: '9px 12px', fontWeight: 700 }}>
+                  {row.agent.name}
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)', fontWeight: 400 }}>{row.agent.role} · oyma-oy uchun bosing</div>
+                </td>
+                <td style={{ padding: '9px 12px' }}>{row.totals.leads}</td>
+                <td style={{ padding: '9px 12px' }}>{row.totals.bookings}</td>
+                <td style={{ padding: '9px 12px', fontWeight: 700, color: '#10b981' }}>${money(row.totals.revenue)}</td>
+                <td style={{ padding: '9px 12px', color: '#f59e0b', fontWeight: 600 }}>${money(row.totals.profit)}</td>
+                <td style={{ padding: '9px 12px', fontWeight: 800, color: '#8b5cf6' }}>${money(row.totals.salary)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
