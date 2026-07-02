@@ -240,6 +240,8 @@ export const telegramApi = {
     api.patch(`/telegram/conversations/${id}/assign`, { agentId }),
   claim: (id: string) => api.patch(`/telegram/conversations/${id}/claim`),
   resolve: (id: string) => api.patch(`/telegram/conversations/${id}/resolve`),
+  // v12 FIX: suhbatni o'chirish
+  deleteConversation: (id: string) => api.delete(`/telegram/conversations/${id}`),
   linkClient: (id: string, clientId: string) =>
     api.patch(`/telegram/conversations/${id}/link-client`, { clientId }),
   templates: (params?: any) => api.get('/telegram/templates', { params }),

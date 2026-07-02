@@ -44,6 +44,7 @@ function InboxPageInner() {
   const [msgRefresh, setMsgRefresh] = useState(0);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showNewPersonal, setShowNewPersonal] = useState(false);
+  const [prefillUsername, setPrefillUsername] = useState('');
   const [hasPersonalAccount, setHasPersonalAccount] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -296,6 +297,21 @@ function InboxPageInner() {
     } catch (e: any) { toast.error(errMsg(e), { id: 'upload' }); }
   }
 
+  // v12 FIX: suhbatni o'chirish imkoniyati umuman yo'q edi
+  async function deleteConversation(conv: any) {
+    if (!conv?.id) return;
+    const name = conv.client?.fullName
+      || [conv.firstName, conv.lastName].filter(Boolean).join(' ')
+      || (conv.username ? '@' + conv.username : 'bu suhbat');
+    if (!window.confirm(`"${name}" bilan suhbatni butunlay o'chirmoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.`)) return;
+    try {
+      await telegramApi.deleteConversation(conv.id);
+      setConvs((prev: any[]) => prev.filter((c: any) => c.id !== conv.id));
+      if (active?.id === conv.id) { setActive(null); setMessages([]); }
+      toast.success("Suhbat o'chirildi");
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
   return (
     <CrmLayout>
       <div style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
@@ -306,8 +322,18 @@ function InboxPageInner() {
           borderRight: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
-            <Input placeholder="🔍 Suhbat qidirish" value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
+          <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <Input placeholder="🔍 Suhbat qidirish" value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
+            </div>
+            {/* v12 FIX: hozirgacha bu tugma umuman yo'q edi — shaxsiy
+                akkaunt orqali birinchi xabar yuborish modali (PersonalMessageModal)
+                kodda bor edi, lekin uni ochadigan hech qanday joy yo'q edi. */}
+            {hasPersonalAccount && (
+              <Btn size="sm" variant="secondary" title="Yangi xabar (shaxsiy akkaunt)" onClick={() => { setPrefillUsername(''); setShowNewPersonal(true); }}>
+                ✍️
+              </Btn>
+            )}
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 14 }}><Skeleton height={60} count={5} /></div>}
@@ -322,7 +348,26 @@ function InboxPageInner() {
                 return name.includes(q) || username.includes(q) || phone.includes(q) || lastMsg.includes(q);
               });
               if (!loading && convs.length > 0 && filtered.length === 0) {
-                return <Empty title="Hech narsa topilmadi" icon="🔍" />;
+                // v12 FIX: qidiruv mavjud suhbatlar ICHIDAgina qidiradi edi —
+                // yozishmagan (yangi) username topilmasa, foydalanuvchi
+                // "Hech narsa topilmadi" deb qolib ketardi va boshqa iloj
+                // yo'q edi. Shaxsiy akkaunt bo'lsa endi shu yerdan to'g'ridan
+                // to'g'ri o'sha userga BIRINCHI xabarni yuborish taklif qilinadi
+                // — xuddi Telegramning o'zidagidek.
+                return (
+                  <div style={{ padding: 20, textAlign: 'center' }}>
+                    <Empty title="Hech narsa topilmadi" icon="🔍" />
+                    {hasPersonalAccount && q && (
+                      <Btn
+                        variant="gradient"
+                        style={{ marginTop: 12 }}
+                        onClick={() => { setPrefillUsername(q); setShowNewPersonal(true); }}
+                      >
+                        ✍️ @{q} ga birinchi xabar yuborish
+                      </Btn>
+                    )}
+                  </div>
+                );
               }
               return filtered.map((c) => {
               const isActive = active?.id === c.id;
@@ -411,6 +456,18 @@ function InboxPageInner() {
                       )}
                     </div>
                   </div>
+                  {/* v12 FIX: ro'yxatdagi har bir suhbatni to'g'ridan-to'g'ri o'chirish */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteConversation(c); }}
+                    title="O'chirish"
+                    style={{
+                      alignSelf: 'flex-start', border: 'none', background: 'transparent',
+                      color: 'var(--fg-4)', cursor: 'pointer', fontSize: 13, padding: 4,
+                      opacity: 0.6,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
+                  >🗑</button>
                 </div>
               );
               });
@@ -487,6 +544,10 @@ function InboxPageInner() {
                       👤 Yaratish
                     </Btn>
                   )}
+                  {/* v12 FIX: suhbatni o'chirish imkoniyati umuman yo'q edi */}
+                  <Btn size="sm" variant="secondary" title="Suhbatni o'chirish" onClick={() => deleteConversation(active)}>
+                    🗑
+                  </Btn>
                 </div>
               </div>
 
@@ -644,6 +705,7 @@ function InboxPageInner() {
       )}
       {showNewPersonal && (
         <PersonalMessageModal
+          initialUsername={prefillUsername}
           onClose={() => setShowNewPersonal(false)}
           onSent={(convId: string) => {
             setShowNewPersonal(false);
@@ -985,11 +1047,11 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
 }
 
 // ─── Personal Message Modal (birinchi xabar - MTProto orqali) ────────────────
-function PersonalMessageModal({ onClose, onSent }: any) {
+function PersonalMessageModal({ onClose, onSent, initialUsername }: any) {
   const [phone, setPhone] = useState('');
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(initialUsername || '');
   const [text, setText] = useState('');
-  const [method, setMethod] = useState<'phone' | 'username'>('phone');
+  const [method, setMethod] = useState<'phone' | 'username'>(initialUsername ? 'username' : 'phone');
   const [loading, setLoading] = useState(false);
 
   async function send() {
