@@ -3,7 +3,7 @@ import React from 'react';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { bookingsApi, paymentsApi, v8Api, passengersApi, servicesApi, telegramApi, api } from '@/services/api';
+import { bookingsApi, paymentsApi, v8Api, passengersApi, servicesApi, telegramApi, api, getAccessToken } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { Card, Btn, Skeleton, Badge, Label, Input, Select, Modal, Avatar, Textarea } from '@/components/ui';
 import { fmtDate, fmtDateTime, errMsg, BOOKING_STATUS_LABELS } from '@/lib/helpers';
@@ -1404,7 +1404,7 @@ function DocumentsTab({ bookingId, booking }: any) {
                 </div>
               </div>
               <a
-                href={`${doc.url}${doc.url?.includes('?') ? '&' : '?'}token=${typeof window !== 'undefined' ? localStorage.getItem('accessToken') || '' : ''}`}
+                href={`${doc.url}${doc.url?.includes('?') ? '&' : '?'}token=${getAccessToken() || ''}`}
                 target="_blank" rel="noreferrer"
                 style={{ padding: '5px 10px', borderRadius: 7, background: 'var(--primary-soft)', color: 'var(--primary)', textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>
                 Ko'rish

@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { Card, Stat, Btn, Empty, Skeleton, Avatar, Badge } from '@/components/ui';
-import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, api } from '@/services/api';
+import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, api, getAccessToken } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { useDialer } from '@/lib/dialer';
@@ -30,7 +30,7 @@ function ExportButton() {
   async function doExport(type: string) {
     setExporting(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
+      const token = getAccessToken() || ''; // XAVFSIZLIK TUZATISH: memory'dan
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
       const res = await fetch(`${API_URL}/api/v1/reports/export?type=${type}`, {
         headers: { Authorization: `Bearer ${token}` },

@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from '@/lib/theme';
 import { I18nProvider } from '@/lib/i18n';
 import { DialerProvider } from '@/lib/dialer';
+import Providers from '@/lib/providers';
 import DialerWidget from '@/components/dialer/DialerWidget';
 
 export const metadata = {
@@ -46,9 +47,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <ThemeProvider>
-          <I18nProvider>
-            <DialerProvider>
+        <Providers>
+          <ThemeProvider>
+            <I18nProvider>
+              <DialerProvider>
               {children}
               <DialerWidget />
               <Toaster
@@ -68,9 +70,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   error: { iconTheme: { primary: 'var(--danger)', secondary: 'white' } },
                 }}
               />
-            </DialerProvider>
-          </I18nProvider>
-        </ThemeProvider>
+              </DialerProvider>
+            </I18nProvider>
+          </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );

@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { v8Api, clientsApi, tasksApi, followUpsApi, telegramApi, bookingsApi, userTelegramApi, paymentsApi, api } from '@/services/api';
+import { v8Api, clientsApi, tasksApi, followUpsApi, telegramApi, bookingsApi, userTelegramApi, paymentsApi, api, getAccessToken } from '@/services/api';
 import { Card, Btn, Badge, Skeleton, Avatar, Textarea, Label, Modal, Input, Select, Empty } from '@/components/ui';
 import { useDialer } from '@/lib/dialer';
 import { useAuth } from '@/lib/store';
@@ -1604,7 +1604,8 @@ function ClientDocumentsTab({ clientId, initialDocs, onUploaded }: { clientId: s
   }
 
   function getToken() {
-    return typeof window !== 'undefined' ? localStorage.getItem('accessToken') || '' : '';
+    // XAVFSIZLIK TUZATISH: token memory'dan (localStorage emas)
+    return getAccessToken() || '';
   }
 
   function fileIcon(name: string) {

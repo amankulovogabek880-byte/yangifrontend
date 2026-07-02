@@ -2,62 +2,85 @@ import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
+// ─────────────────────────────────────────────────────────────
+// XAVFSIZLIK TUZATISH (v10.1):
+//  - Refresh token ENDI localStorage'da SAQLANMAYDI — u backend tomonidan
+//    httpOnly cookie'ga yoziladi (JS o'qiy olmaydi → XSS'dan himoya).
+//  - Access token faqat xotirada (memory) ushlanadi. Sahifa yangilansa,
+//    cookie orqali /auth/refresh chaqirilib yangi access token olinadi.
+//  - withCredentials: true — cookie har so'rovda avtomatik yuboriladi.
+// ─────────────────────────────────────────────────────────────
+
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+}
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 export const api = axios.create({
   baseURL: `${API_URL}/api/v1`,
   timeout: 30000,
+  withCredentials: true, // httpOnly refresh cookie uchun
 });
 
-// Request interceptor — attach token
+// Request interceptor — access tokenni header'ga qo'shish
 api.interceptors.request.use((cfg) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('accessToken');
-    if (token) cfg.headers.Authorization = `Bearer ${token}`;
-  }
+  if (accessToken) cfg.headers.Authorization = `Bearer ${accessToken}`;
   return cfg;
 });
 
-// Response interceptor — auto refresh on 401
-let isRefreshing = false;
-let refreshQueue: Array<(token: string) => void> = [];
+// ── Auto refresh on 401 ─────────────────────────────────────
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Cookie'dagi refresh token orqali yangi access token olish.
+ * Bir vaqtda faqat bitta refresh so'rovi ketadi (parallel 401'lar
+ * bitta promise'ni kutadi).
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(`${API_URL}/api/v1/auth/refresh`, {}, { withCredentials: true })
+      .then((res) => {
+        const t = res.data?.accessToken || null;
+        setAccessToken(t);
+        return t;
+      })
+      .catch(() => {
+        setAccessToken(null);
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
 
 api.interceptors.response.use(
   (r) => r,
   async (err) => {
     const original = err.config;
     if (err.response?.status === 401 && !original._retry && typeof window !== 'undefined') {
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
-        return Promise.reject(err);
-      }
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          refreshQueue.push((t) => {
-            original.headers.Authorization = `Bearer ${t}`;
-            resolve(api(original));
-          });
-        });
-      }
       original._retry = true;
-      isRefreshing = true;
-      try {
-        const res = await axios.post(`${API_URL}/api/v1/auth/refresh`, { refreshToken });
-        const newToken = res.data.accessToken;
-        localStorage.setItem('accessToken', newToken);
-        refreshQueue.forEach((cb) => cb(newToken));
-        refreshQueue = [];
+      const newToken = await refreshAccessToken();
+      if (newToken) {
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
-      } catch {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
-        return Promise.reject(err);
-      } finally {
-        isRefreshing = false;
       }
+      // Refresh ham ishlamadi — sessiya tugagan
+      setAccessToken(null);
+      if (!window.location.pathname.startsWith('/login') &&
+          !window.location.pathname.startsWith('/public') &&
+          !window.location.pathname.startsWith('/reset-password') &&
+          !window.location.pathname.startsWith('/forgot-password')) {
+        window.location.href = '/login';
+      }
+      return Promise.reject(err);
     }
     return Promise.reject(err);
   },
@@ -67,7 +90,7 @@ api.interceptors.response.use(
 export const authApi = {
   login: (email: string, password: string, twoFactorCode?: string) =>
     api.post('/auth/login', { email, password, twoFactorCode }),
-  logout: (refreshToken: string) => api.post('/auth/logout', { refreshToken }),
+  logout: (refreshToken?: string) => api.post('/auth/logout', refreshToken ? { refreshToken } : {}),
   logoutAll: () => api.post('/auth/logout-all'),
   me: () => api.get('/auth/me'),
   createUser: (data: any) => api.post('/auth/users', data),

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { getAccessToken } from '@/services/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -21,39 +22,71 @@ export function useSocket() {
   const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (!token) return;
+    // XAVFSIZLIK TUZATISH: token endi localStorage emas, memory'dan olinadi.
+    // hydrate() asinxron bo'lgani uchun token kechroq paydo bo'lishi mumkin —
+    // shu sabab qisqa polling bilan kutamiz.
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-    if (!socketInstance) {
-      socketInstance = io(API_URL, {
-        auth: { token },
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-      });
-    }
+    const connect = () => {
+      const token = getAccessToken();
+      if (!token || cancelled) return false;
 
-    const s = socketInstance;
-    setSocket(s);
-
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
-    const onError = (err: any) => {
-      console.warn('Socket error:', err.message);
-      setConnected(false);
+      if (!socketInstance) {
+        socketInstance = io(API_URL, {
+          auth: { token },
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5,
+        });
+      }
+      return true;
     };
 
-    s.on('connect', onConnect);
-    s.on('disconnect', onDisconnect);
-    s.on('error', onError);
+    if (!connect()) {
+      pollTimer = setInterval(() => {
+        if (connect()) {
+          if (pollTimer) clearInterval(pollTimer);
+          attach();
+        }
+      }, 500);
+      return () => {
+        cancelled = true;
+        if (pollTimer) clearInterval(pollTimer);
+      };
+    }
 
-    if (s.connected) setConnected(true);
+    function attach() {
+      const s = socketInstance;
+      if (!s || cancelled) return;
+      setSocket(s);
+
+      const onConnect = () => setConnected(true);
+      const onDisconnect = () => setConnected(false);
+      const onError = (err: any) => {
+        console.warn('Socket error:', err.message);
+        setConnected(false);
+      };
+
+      s.on('connect', onConnect);
+      s.on('disconnect', onDisconnect);
+      s.on('error', onError);
+
+      if (s.connected) setConnected(true);
+    }
+
+    attach();
 
     return () => {
-      s.off('connect', onConnect);
-      s.off('disconnect', onDisconnect);
-      s.off('error', onError);
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      const s = socketInstance;
+      if (s) {
+        s.off('connect');
+        s.off('disconnect');
+        s.off('error');
+      }
     };
   }, []);
 
@@ -127,7 +160,7 @@ export function disconnectSocket() {
 export function getSocket(): Socket | null {
   if (typeof window === 'undefined') return null;
   if (!socketInstance) {
-    const token = localStorage.getItem('accessToken');
+    const token = getAccessToken(); // memory'dan (localStorage emas)
     if (!token) return null;
     socketInstance = io(API_URL, {
       auth: { token },
