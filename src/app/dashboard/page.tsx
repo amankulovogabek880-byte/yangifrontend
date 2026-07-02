@@ -218,6 +218,7 @@ export default function DashboardPage() {
             ))}
             <div style={{ flex: 1 }}/>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+              <DateRangePicker from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
               <ExportButton />
             </div>
           </div>
@@ -375,13 +376,22 @@ function AgentsTab({ agents, isAgent }: any) {
 
   const [salaries, setSalaries] = useState<Record<string, any>>({});
   const [payStatus, setPayStatus] = useState<Record<string, { paid: boolean; note: string; saving: boolean }>>({});
+  // v11: Admin istalgan oy uchun maoshlarni ko'ra oladi (payroll oyma-oy hisoblanadi)
+  const [monthOffset, setMonthOffset] = useState(0);
+  const monthOptions = [
+    { value: 0, label: 'Bu oy' },
+    { value: -1, label: "O'tgan oy" },
+    { value: -2, label: '2 oy oldin' },
+    { value: -3, label: '3 oy oldin' },
+  ];
 
   useEffect(() => {
     if (!agents?.length) return;
+    setSalaries({});
     agents.forEach((a: any) => {
       const agentId = a.agent?.id;
       if (!agentId) return;
-      api.get('/reports/my-salary', { params: { agentId } })
+      api.get('/reports/my-salary', { params: { agentId, month: monthOffset } })
         .then((r: any) => {
           setSalaries((prev: any) => ({ ...prev, [agentId]: r.data }));
           setPayStatus((prev: any) => ({
@@ -395,7 +405,7 @@ function AgentsTab({ agents, isAgent }: any) {
         })
         .catch(() => {});
     });
-  }, [agents]);
+  }, [agents, monthOffset]);
 
   async function savePay(agentId: string, newPaid?: boolean) {
     const ps = payStatus[agentId];
@@ -427,10 +437,26 @@ function AgentsTab({ agents, isAgent }: any) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Trophy size={16} color="#f59e0b" />
-          Agentlar reytingi
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Trophy size={16} color="#f59e0b" />
+            Agentlar reytingi va oyliklar
+          </h3>
+          <select
+            value={monthOffset}
+            onChange={e => setMonthOffset(Number(e.target.value))}
+            style={{
+              padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)',
+              background: 'var(--bg-input)', color: 'var(--fg)', fontSize: 12.5,
+              fontWeight: 600, cursor: 'pointer', outline: 'none',
+            }}
+          >
+            {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: -8, marginBottom: 12 }}>
+          Leadlar/bookinglar — yuqoridagi sana oralig'i bo'yicha. Komissiya/maosh — tanlangan oy bo'yicha.
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
@@ -533,19 +559,48 @@ function AgentsTab({ agents, isAgent }: any) {
 function MySalaryCard() {
   const [sal, setSal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // v11: Agent o'tgan oylarni ham ko'ra oladi, faqat o'zinikini
+  const [monthOffset, setMonthOffset] = useState(0);
+  const monthOptions = [
+    { value: 0, label: 'Bu oy' },
+    { value: -1, label: "O'tgan oy" },
+    { value: -2, label: '2 oy oldin' },
+    { value: -3, label: '3 oy oldin' },
+  ];
 
   useEffect(() => {
-    api.get('/reports/my-salary')
+    setLoading(true);
+    api.get('/reports/my-salary', { params: { month: monthOffset } })
       .then((r: any) => setSal(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [monthOffset]);
+
+  const monthPicker = (
+    <select
+      value={monthOffset}
+      onChange={e => setMonthOffset(Number(e.target.value))}
+      style={{
+        padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)',
+        background: 'var(--bg-input)', color: 'var(--fg)', fontSize: 12.5,
+        fontWeight: 600, cursor: 'pointer', outline: 'none', marginBottom: 14,
+      }}
+    >
+      {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+    </select>
+  );
 
   if (loading) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
-  if (!sal) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Ma'lumot topilmadi</div>;
+  if (!sal) return (
+    <div style={{ maxWidth: 680 }}>
+      {monthPicker}
+      <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Bu oy uchun ma'lumot topilmadi</div>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 680 }}>
+      {monthPicker}
       {sal.myRank != null && sal.totalAgents > 0 && (
         <div style={{
           padding: '16px 20px', borderRadius: 12,

@@ -240,8 +240,6 @@ export const telegramApi = {
     api.patch(`/telegram/conversations/${id}/assign`, { agentId }),
   claim: (id: string) => api.patch(`/telegram/conversations/${id}/claim`),
   resolve: (id: string) => api.patch(`/telegram/conversations/${id}/resolve`),
-  // v12 FIX: suhbatni o'chirish
-  deleteConversation: (id: string) => api.delete(`/telegram/conversations/${id}`),
   linkClient: (id: string, clientId: string) =>
     api.patch(`/telegram/conversations/${id}/link-client`, { clientId }),
   templates: (params?: any) => api.get('/telegram/templates', { params }),
@@ -441,7 +439,9 @@ export const teamApi = {
 };
 
 export const salaryApi = {
-  mySalary: (month = 0) => api.get('/reports/my-salary', { params: { month } }),
+  // agentId berilsa — admin/manager o'sha agentning oyligini ko'radi
+  mySalary: (month = 0, agentId?: string) =>
+    api.get('/reports/my-salary', { params: { month, ...(agentId ? { agentId } : {}) } }),
   agentSalaries: (month = 0) => api.get('/reports/agent-salaries', { params: { month } }),
 };
 
@@ -561,14 +561,6 @@ export const userTelegramApi = {
   // suhbatga to'g'ri yoziladi va dublikat suhbat yaratilmaydi — backend shuni afzal ko'radi)
   sendMessage: (data: { conversationId?: string; phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
     api.post('/user-telegram/send', data),
-  // v11 FIX: shaxsiy akkaunt uchun shablon yuborish (endi bot-endpointiga
-  // emas, shu yerga yuboriladi — shaxsiy suhbatlarda shablon "restart"siz
-  // darhol ko'rinishi uchun)
-  sendTemplate: (conversationId: string, templateId: string) =>
-    api.post('/user-telegram/send-template', { conversationId, templateId }),
-  // v11 FIX: shaxsiy akkaunt uchun rasm/fayl yuborish
-  sendMedia: (conversationId: string, fileUrl: string, caption?: string) =>
-    api.post('/user-telegram/send-media', { conversationId, fileUrl, caption }),
   // Status
   getMyAccount: () => api.get('/user-telegram/me'),
   disconnect: () => api.delete('/user-telegram/me'),
