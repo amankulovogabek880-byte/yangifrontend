@@ -70,6 +70,10 @@ function InboxPageInner() {
 
   useSocket();
 
+  // convs'ning eng so'nggi holatini socket handler ichida ko'rish uchun
+  const convsRef = useRef<any[]>([]);
+  useEffect(() => { convsRef.current = convs; }, [convs]);
+
   // Check if user has personal Telegram account
   useEffect(() => {
     userTelegramApi.getMyAccount()
@@ -192,19 +196,28 @@ function InboxPageInner() {
     const socket = getSocket();
     if (!socket) return;
     const onNew = (msg: any) => {
-      // Always update conversation list (unread badge)
-      setConvs((prev: any[]) => prev.map((cv: any) => {
-        if (cv.id === msg.conversationId) {
-          const isActive = cv.id === active?.id;
-          return {
-            ...cv,
-            lastMessageText: msg.text || '',
-            lastMessageAt: msg.createdAt || new Date().toISOString(),
-            unreadCount: isActive ? 0 : (cv.unreadCount || 0) + 1,
-          };
-        }
-        return cv;
-      }));
+      // MUAMMO FIX: agar xabar hali ro'yxatda yo'q (yangi/birinchi marta
+      // yozgan) suhbatga tegishli bo'lsa — avval bu holatda hech narsa
+      // qilinmasdi, shu sabab yangi suhbat sahifani qo'lda yangilamaguncha
+      // ro'yxatda ko'rinmasdi (xuddi "yo'qolganday" tuyulardi).
+      const exists = convsRef.current.some((cv: any) => cv.id === msg.conversationId);
+      if (!exists) {
+        loadConvs();
+      } else {
+        // Always update conversation list (unread badge)
+        setConvs((prev: any[]) => prev.map((cv: any) => {
+          if (cv.id === msg.conversationId) {
+            const isActive = cv.id === active?.id;
+            return {
+              ...cv,
+              lastMessageText: msg.text || '',
+              lastMessageAt: msg.createdAt || new Date().toISOString(),
+              unreadCount: isActive ? 0 : (cv.unreadCount || 0) + 1,
+            };
+          }
+          return cv;
+        }));
+      }
       // If active conversation - append message to chat
       if (msg.conversationId === active?.id) {
         setMessages((m: any[]) => {
@@ -318,8 +331,27 @@ function InboxPageInner() {
           borderRight: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
-            <Input placeholder="🔍 Suhbat qidirish" value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
+          <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <Input placeholder="🔍 Suhbat qidirish" value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
+            </div>
+            <button
+              onClick={() => {
+                if (!hasPersonalAccount) {
+                  toast.error("Avval Sozlamalar → Telegram bo'limidan shaxsiy accountingizni ulang");
+                  return;
+                }
+                setShowNewPersonal(true);
+              }}
+              title="Birinchi xabar yuborish (yangi suhbat)"
+              style={{
+                width: 40, height: 40, borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: hasPersonalAccount ? '#3d7eff' : 'var(--bg-3)',
+                color: hasPersonalAccount ? 'white' : 'var(--fg-3)',
+                fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >✎</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 14 }}><Skeleton height={60} count={5} /></div>}
@@ -768,8 +800,14 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
                     const text = window.prompt('Shablonni tahrirlang:', tpl.text);
                     if (text && text.trim()) {
                       telegramApi.sendMessage(conversationId, text, false)
-                        .then(() => { toast.success('Yuborildi'); onSent(); })
-                        .catch((e: any) => toast.error('Xato'));
+                        .then((r: any) => {
+                          toast.success('Yuborildi');
+                          // MUAMMO FIX: avval onSent() argumentsiz chaqirilardi,
+                          // shu sabab yuborilgan xabar chatga qo'shilmasdi va
+                          // faqat sahifa qayta yuklanganda (restart) ko'rinardi.
+                          onSent(r.data ? [r.data] : []);
+                        })
+                        .catch((e: any) => toast.error(errMsg(e)));
                     }
                   }}>✏️ Tahrir</Btn>
                   <Btn size="sm" variant="gradient" onClick={() => send(tpl.id)} loading={sending === tpl.id} disabled={!!sending}>Yuborish</Btn>
