@@ -561,9 +561,12 @@ export const userTelegramApi = {
   // suhbatga to'g'ri yoziladi va dublikat suhbat yaratilmaydi — backend shuni afzal ko'radi)
   sendMessage: (data: { conversationId?: string; phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
     api.post('/user-telegram/send', data),
-  // Fayl/rasm/video yuborish — shaxsiy Telegram orqali (conversationId, fayl URL, izoh)
-  sendMedia: (conversationId: string, fileUrl: string, caption?: string, mimeType?: string) =>
-    api.post('/user-telegram/send-media', { conversationId, fileUrl, caption, mimeType }),
+  // Fayl/rasm/video yuborish — shaxsiy Telegram orqali (backend: conversationId, fileUrl, caption)
+  sendMedia: (conversationId: string, fileUrl: string, caption?: string) =>
+    api.post('/user-telegram/send-media', { conversationId, fileUrl, caption }),
+  // Shablon yuborish — shaxsiy Telegram orqali (bot endpointidan farqli, MTProto orqali)
+  sendTemplate: (conversationId: string, templateId: string) =>
+    api.post('/user-telegram/send-template', { conversationId, templateId }),
   // Status
   getMyAccount: () => api.get('/user-telegram/me'),
   disconnect: () => api.delete('/user-telegram/me'),
