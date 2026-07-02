@@ -1,4 +1,8 @@
+'use client';
+
+import { useState } from 'react';
 import { create } from 'zustand';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { authApi, setAccessToken, refreshAccessToken } from '@/services/api';
 import { disconnectSocket } from '@/hooks/useSocket';
 
@@ -97,3 +101,28 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
   },
 }));
+
+/**
+ * Root Providers komponenti
+ *
+ * layout.tsx uchun: TanStack Query'ning QueryClientProvider'ini o'rnatadi
+ * (queries.tsx dagi useQuery/useMutation hooklar shu context'siz ishlamaydi).
+ * QueryClient har bir foydalanuvchi sessiyasida (component mount) faqat
+ * bir marta yaratiladi — useState orqali, SSR'da qayta yaratilib ketmasligi uchun.
+ */
+export default function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+            retry: 1,
+          },
+        },
+      }),
+  );
+
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
