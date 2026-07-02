@@ -7,13 +7,13 @@ import toast from 'react-hot-toast';
 
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { Card, Stat, Btn, Empty, Skeleton, Avatar, Badge } from '@/components/ui';
+import { Card, Stat, Btn, Empty, Skeleton, Avatar, Badge, StatCard, EmptyState } from '@/components/ui';
 import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, api, getAccessToken } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { useDialer } from '@/lib/dialer';
 import { useSocket, getSocket } from '@/hooks/useSocket';
-import { Trophy, DollarSign, TrendingUp, Calendar, Wallet } from 'lucide-react';
+import { Trophy, DollarSign, TrendingUp, Calendar, Wallet, TrendingUp as TrendUpIc, Users as UsersIc, UserPlus as UserPlusIc, Banknote, CalendarCheck, Percent, Briefcase, PhoneCall, Plus, ClipboardCheck } from 'lucide-react';
 import { fmtDate, fmtMoney } from '@/lib/helpers';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -218,7 +218,6 @@ export default function DashboardPage() {
             ))}
             <div style={{ flex: 1 }}/>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
-              <DateRangePicker from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
               <ExportButton />
             </div>
           </div>
@@ -274,32 +273,35 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
   const wonCount = stats?.bookings?.won ?? stats?.conversion?.won ?? stats?.bookings?.thisMonth ?? 0;
   const totalLeads = stats?.leads?.total ?? stats?.conversion?.total ?? 0;
 
-  const kpis = isAgent ? [
-    { label: 'Daromadim (oy)', value: `$${money(totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami' },
-    { label: 'Komissiyam', value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} x ${kpiPct}%)` : '') },
-    { label: 'Bookinglarim', value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}` },
-    { label: 'Conversion rate', value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead` },
-    { label: 'Leadlarim', value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}` },
-    { label: 'Kompaniyaga', value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: 'Mening ulushim chiqarilgandan' },
-  ] : [
-    { label: 'Jami daromad', value: `$${money(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0)}`, color: '#10b981', sub: 'Booking narxlari jami' },
-    { label: 'Operator narxi', value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami' },
+  // v10.2: sparkline seriyalari — oylik revenue-chart ma'lumotidan
+  const revSeries: number[] = (revenueChart || []).map((d: any) => Number(d.revenue ?? d.total ?? 0));
+  const profitSeries: number[] = (revenueChart || []).map((d: any) => Number(d.profit ?? d.netProfit ?? 0));
+  const countSeries: number[] = (revenueChart || []).map((d: any) => Number(d.bookings ?? d.count ?? 0));
 
-    { label: 'Sof foyda', value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Daromad - Xarajat - Maosh' },
-    { label: 'Klientlar', value: stats?.clients?.total ?? 0, color: '#3d7eff' },
-    { label: 'Yangi leadlar', value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `Bugun: +${stats?.clients?.newToday ?? 0}` },
-    { label: 'Agent maoshlari', value: `$${money(stats?.salary?.totalAgentSalariesThisMonth || 0)}`, color: '#ec4899', sub: `${stats?.salary?.kpiPercent || 0}% foydadan` },
-    { label: 'Bookinglar (oy)', value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `Jami: ${stats?.bookings?.total ?? 0}` },
+  const kpis = isAgent ? [
+    { label: 'Daromadim (oy)', value: `$${money(totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries, emphasis: true },
+    { label: 'Komissiyam', value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} x ${kpiPct}%)` : ''), icon: <Wallet size={15} /> },
+    { label: 'Bookinglarim', value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
+    { label: 'Conversion rate', value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead`, icon: <Percent size={15} /> },
+    { label: 'Leadlarim', value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
+    { label: 'Kompaniyaga', value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: 'Mening ulushim chiqarilgandan', icon: <Briefcase size={15} /> },
+  ] : [
+    // Vizual iyerarxiya: "Sof foyda" — eng muhim metrika, kattaroq (emphasis)
+    { label: 'Sof foyda', value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Daromad - Xarajat - Maosh', icon: <TrendUpIc size={16} />, series: profitSeries, emphasis: true },
+    { label: 'Jami daromad', value: `$${money(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
+    { label: 'Operator narxi', value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
+    { label: 'Klientlar', value: stats?.clients?.total ?? 0, color: '#3d7eff', icon: <UsersIc size={15} /> },
+    { label: 'Yangi leadlar', value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `Bugun: +${stats?.clients?.newToday ?? 0}`, icon: <UserPlusIc size={15} /> },
+    { label: 'Agent maoshlari', value: `$${money(stats?.salary?.totalAgentSalariesThisMonth || 0)}`, color: '#ec4899', sub: `${stats?.salary?.kpiPercent || 0}% foydadan`, icon: <Wallet size={15} /> },
+    { label: 'Bookinglar (oy)', value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-        {kpis.map((k, i) => (
-          <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{k.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</div>
-          </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+        {kpis.map((k: any, i) => (
+          <StatCard key={i} label={k.label} value={k.value} color={k.color} sub={k.sub}
+            icon={k.icon} series={k.series} emphasis={k.emphasis} />
         ))}
       </div>
 
@@ -309,7 +311,31 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
         <div style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Bugungi eslatmalar ({todayTasks.length})</h3>
           {todayTasks.length === 0 ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Bugun eslatma yo\'q</div>
+            <div>
+              <EmptyState
+                icon={<ClipboardCheck size={22} />}
+                title="Bugun eslatma yo'q"
+                description="Hammasi nazoratda. Tezkor amallardan foydalaning:"
+              />
+              {/* Tezkor amallar — bo'sh joy o'rniga */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+                {[
+                  { label: 'Yangi lead', icon: <UserPlusIc size={14} />, href: '/clients' },
+                  { label: 'Yangi booking', icon: <Plus size={14} />, href: '/bookings' },
+                  { label: "Qo'ng'iroqlar", icon: <PhoneCall size={14} />, href: '/calls' },
+                  { label: 'Inbox', icon: <UsersIc size={14} />, href: '/inbox' },
+                ].map((qa) => (
+                  <button key={qa.label} onClick={() => router.push(qa.href)} style={{
+                    display: 'flex', alignItems: 'center', gap: 7, padding: '9px 12px',
+                    background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 9,
+                    color: 'var(--fg-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                    <span style={{ color: 'var(--primary)', display: 'inline-flex' }}>{qa.icon}</span>
+                    {qa.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {todayTasks.map((t: any) => (
@@ -376,22 +402,13 @@ function AgentsTab({ agents, isAgent }: any) {
 
   const [salaries, setSalaries] = useState<Record<string, any>>({});
   const [payStatus, setPayStatus] = useState<Record<string, { paid: boolean; note: string; saving: boolean }>>({});
-  // v11: Admin istalgan oy uchun maoshlarni ko'ra oladi (payroll oyma-oy hisoblanadi)
-  const [monthOffset, setMonthOffset] = useState(0);
-  const monthOptions = [
-    { value: 0, label: 'Bu oy' },
-    { value: -1, label: "O'tgan oy" },
-    { value: -2, label: '2 oy oldin' },
-    { value: -3, label: '3 oy oldin' },
-  ];
 
   useEffect(() => {
     if (!agents?.length) return;
-    setSalaries({});
     agents.forEach((a: any) => {
       const agentId = a.agent?.id;
       if (!agentId) return;
-      api.get('/reports/my-salary', { params: { agentId, month: monthOffset } })
+      api.get('/reports/my-salary', { params: { agentId } })
         .then((r: any) => {
           setSalaries((prev: any) => ({ ...prev, [agentId]: r.data }));
           setPayStatus((prev: any) => ({
@@ -405,7 +422,7 @@ function AgentsTab({ agents, isAgent }: any) {
         })
         .catch(() => {});
     });
-  }, [agents, monthOffset]);
+  }, [agents]);
 
   async function savePay(agentId: string, newPaid?: boolean) {
     const ps = payStatus[agentId];
@@ -437,26 +454,10 @@ function AgentsTab({ agents, isAgent }: any) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Trophy size={16} color="#f59e0b" />
-            Agentlar reytingi va oyliklar
-          </h3>
-          <select
-            value={monthOffset}
-            onChange={e => setMonthOffset(Number(e.target.value))}
-            style={{
-              padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)',
-              background: 'var(--bg-input)', color: 'var(--fg)', fontSize: 12.5,
-              fontWeight: 600, cursor: 'pointer', outline: 'none',
-            }}
-          >
-            {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: -8, marginBottom: 12 }}>
-          Leadlar/bookinglar — yuqoridagi sana oralig'i bo'yicha. Komissiya/maosh — tanlangan oy bo'yicha.
-        </div>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Trophy size={16} color="#f59e0b" />
+          Agentlar reytingi
+        </h3>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
@@ -559,48 +560,19 @@ function AgentsTab({ agents, isAgent }: any) {
 function MySalaryCard() {
   const [sal, setSal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  // v11: Agent o'tgan oylarni ham ko'ra oladi, faqat o'zinikini
-  const [monthOffset, setMonthOffset] = useState(0);
-  const monthOptions = [
-    { value: 0, label: 'Bu oy' },
-    { value: -1, label: "O'tgan oy" },
-    { value: -2, label: '2 oy oldin' },
-    { value: -3, label: '3 oy oldin' },
-  ];
 
   useEffect(() => {
-    setLoading(true);
-    api.get('/reports/my-salary', { params: { month: monthOffset } })
+    api.get('/reports/my-salary')
       .then((r: any) => setSal(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [monthOffset]);
-
-  const monthPicker = (
-    <select
-      value={monthOffset}
-      onChange={e => setMonthOffset(Number(e.target.value))}
-      style={{
-        padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)',
-        background: 'var(--bg-input)', color: 'var(--fg)', fontSize: 12.5,
-        fontWeight: 600, cursor: 'pointer', outline: 'none', marginBottom: 14,
-      }}
-    >
-      {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-    </select>
-  );
+  }, []);
 
   if (loading) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
-  if (!sal) return (
-    <div style={{ maxWidth: 680 }}>
-      {monthPicker}
-      <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Bu oy uchun ma'lumot topilmadi</div>
-    </div>
-  );
+  if (!sal) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Ma'lumot topilmadi</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 680 }}>
-      {monthPicker}
       {sal.myRank != null && sal.totalAgents > 0 && (
         <div style={{
           padding: '16px 20px', borderRadius: 12,

@@ -145,6 +145,11 @@ export default function BookingDetailPage() {
               <Btn variant="gradient" onClick={() => setShowSendInvoice(true)}>
                 📤 Mijozga yuborish
               </Btn>
+              {/* v10.2: Voucher chop etish — tour agentlik uchun MUST-HAVE.
+                  Chop etish oynasidan "Save as PDF" qilib mijozga beriladi. */}
+              <Btn variant="secondary" onClick={() => printVoucher(b, user?.tenantName)}>
+                🖨 Voucher (PDF)
+              </Btn>
             </div>
           </div>
         </div>
@@ -1483,4 +1488,94 @@ function BookingSendMenu({ booking: b }: any) {
       {sending ? '⏳ Yuborilmoqda...' : '📤 Mijozga yuborish'}
     </button>
   );
+}
+
+// ═════════════════════════════════════════════════════════════
+// v10.2: VOUCHER CHOP ETISH
+// Booking ma'lumotlaridan chop etishga tayyor voucher yaratadi.
+// Yangi oynada ochiladi -> brauzer print dialogi -> "Save as PDF".
+// Backend o'zgarishisiz ishlaydi (hamma data allaqachon sahifada).
+// ═════════════════════════════════════════════════════════════
+function printVoucher(b: any, tenantName?: string) {
+  const esc = (v: any) => String(v ?? '').replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c] as string));
+  const dt = (d: any) => (d ? new Date(d).toLocaleDateString('uz-UZ', { day: '2-digit', month: 'long', year: 'numeric' }) : '—');
+  const money = (n: any) => `${esc(b.currency || 'USD')} ${Number(n || 0).toLocaleString()}`;
+  const debt = Math.max(0, Number(b.totalPrice || 0) - Number(b.paidAmount || 0));
+
+  const row = (label: string, value: string) => value && value !== '—'
+    ? `<tr><td class="l">${label}</td><td class="v">${value}</td></tr>` : '';
+
+  const html = `<!DOCTYPE html><html lang="uz"><head><meta charset="utf-8">
+<title>Voucher — ${esc(b.bookingRef)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1d29; padding: 36px; max-width: 760px; margin: 0 auto; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #3d7eff; padding-bottom: 16px; margin-bottom: 22px; }
+  .brand { font-size: 21px; font-weight: 800; color: #3d7eff; }
+  .brand small { display: block; font-size: 11px; color: #6b7194; font-weight: 500; margin-top: 3px; }
+  .ref { text-align: right; }
+  .ref b { font-family: monospace; font-size: 15px; }
+  .ref .st { display: inline-block; margin-top: 5px; font-size: 10px; font-weight: 800; letter-spacing: .5px; padding: 3px 10px; border-radius: 10px; background: #10b98122; color: #0d8f68; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: #3d7eff; margin: 20px 0 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 7px 10px; font-size: 13px; border-bottom: 1px solid #edeef2; vertical-align: top; }
+  td.l { width: 36%; color: #6b7194; }
+  td.v { font-weight: 600; }
+  .money { display: flex; gap: 12px; margin-top: 18px; }
+  .money > div { flex: 1; border: 1px solid #e2e4ea; border-radius: 10px; padding: 12px 14px; }
+  .money .lbl { font-size: 10px; text-transform: uppercase; color: #6b7194; margin-bottom: 4px; letter-spacing: .5px; }
+  .money .val { font-size: 17px; font-weight: 800; }
+  .foot { margin-top: 30px; padding-top: 14px; border-top: 1px solid #e2e4ea; font-size: 11px; color: #6b7194; display: flex; justify-content: space-between; }
+  @media print { body { padding: 12mm; } .noprint { display: none; } }
+</style></head><body>
+  <div class="head">
+    <div class="brand">${esc(tenantName || 'Tour Agency')}<small>Sayohat voucheri / Travel Voucher</small></div>
+    <div class="ref"><b>${esc(b.bookingRef)}</b><br><span class="st">${esc(b.status)}</span></div>
+  </div>
+
+  <h2>Mijoz</h2>
+  <table>
+    ${row('F.I.SH.', esc(b.client?.fullName))}
+    ${row('Telefon', esc(b.client?.phone))}
+  </table>
+
+  <h2>Sayohat</h2>
+  <table>
+    ${row('Tur', esc(b.tourName))}
+    ${row('Yo\'nalish', esc(b.destination))}
+    ${row('Ketish', dt(b.departureDate))}
+    ${row('Qaytish', dt(b.returnDate))}
+    ${row('Yo\'lovchilar', b.adultsCount || b.childrenCount ? `${b.adultsCount || 0} kattalar${b.childrenCount ? ', ' + b.childrenCount + ' bola' : ''}` : '')}
+  </table>
+
+  ${b.hotelName ? `<h2>Mehmonxona</h2><table>
+    ${row('Nomi', esc(b.hotelName) + (b.hotelStars ? ' ' + '★'.repeat(b.hotelStars) : ''))}
+    ${row('Xona', esc(b.roomType))}
+    ${row('Ovqatlanish', esc(b.mealPlan))}
+    ${row('Check-in / out', (b.checkInDate ? dt(b.checkInDate) : '') + (b.checkOutDate ? ' — ' + dt(b.checkOutDate) : ''))}
+  </table>` : ''}
+
+  ${b.airline || b.flightNumber ? `<h2>Parvoz</h2><table>
+    ${row('Aviakompaniya', esc(b.airline))}
+    ${row('Reys', esc(b.flightNumber))}
+    ${row('PNR', esc(b.pnrCode))}
+  </table>` : ''}
+
+  <div class="money">
+    <div><div class="lbl">Umumiy narx</div><div class="val">${money(b.totalPrice)}</div></div>
+    <div><div class="lbl">To'langan</div><div class="val" style="color:#0d8f68">${money(b.paidAmount)}</div></div>
+    <div><div class="lbl">Qoldiq</div><div class="val" style="color:${debt > 0 ? '#dc2626' : '#0d8f68'}">${money(debt)}</div></div>
+  </div>
+
+  <div class="foot">
+    <span>Chop etildi: ${new Date().toLocaleDateString('uz-UZ')}</span>
+    <span>${esc(tenantName || '')} • CRM tomonidan yaratildi</span>
+  </div>
+  <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 250); }<\/script>
+</body></html>`;
+
+  const w = window.open('', '_blank', 'width=820,height=900');
+  if (!w) { alert('Popup bloklangan — brauzerda ruxsat bering'); return; }
+  w.document.write(html);
+  w.document.close();
 }

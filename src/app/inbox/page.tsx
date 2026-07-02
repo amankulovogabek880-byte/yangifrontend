@@ -10,8 +10,25 @@ import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { errMsg, fmtMoney } from '@/lib/helpers';
 import { useSocket, getSocket } from '@/hooks/useSocket';
-import { User, Bot, Users2 } from 'lucide-react';
+import {
+  User, Bot, Users2, Wallet, CalendarCheck, PhoneCall,
+  ClipboardList, ExternalLink, PanelRightClose, PanelRightOpen,
+  GitBranch, Clock, Plane,
+} from 'lucide-react';
+import { FaTelegramPlane, FaWhatsapp, FaInstagram } from 'react-icons/fa';
+import { Globe as GlobeIc } from 'lucide-react';
+import { STAGE_LABELS, STAGE_COLORS } from '@/lib/helpers';
 import toast from 'react-hot-toast';
+
+// Real brend iconlar (emoji o'rniga)
+function ChannelIcon({ channel, size = 9 }: { channel?: string; size?: number }) {
+  switch (channel) {
+    case 'TELEGRAM':  return <FaTelegramPlane size={size} />;
+    case 'WHATSAPP':  return <FaWhatsapp size={size} />;
+    case 'INSTAGRAM': return <FaInstagram size={size} />;
+    default:          return <GlobeIc size={size} />;
+  }
+}
 
 const CHANNEL_ICONS: Record<string, string> = {
   TELEGRAM: '✈',
@@ -44,9 +61,10 @@ function InboxPageInner() {
   const [msgRefresh, setMsgRefresh] = useState(0);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showNewPersonal, setShowNewPersonal] = useState(false);
-  const [prefillUsername, setPrefillUsername] = useState('');
   const [hasPersonalAccount, setHasPersonalAccount] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
+  // v10.2: amoCRM-uslubidagi mijoz kontekst paneli (o'ng tomonda)
+  const [showContext, setShowContext] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -278,38 +296,16 @@ function InboxPageInner() {
     try {
       const res = await uploadsApi.one(file);
       const { url, mimeType } = res.data;
-      // v11 FIX: shaxsiy (isPersonal) suhbatlarda fayl endi MTProto orqali
-      // (shaxsiy akkauntdan) yuboriladi — ilgari bu yerda har doim BOT
-      // endpointi chaqirilardi, shaxsiy suhbatlarga tegishli emasdi.
-      if (active.isPersonal) {
-        await userTelegramApi.sendMedia(active.id, url, draft || undefined);
-      } else {
-        const mediaType = mimeType?.startsWith('image/') ? 'photo' : mimeType?.startsWith('video/') ? 'video' : 'document';
-        await telegramV6.sendMedia(active.id, {
-          fileUrl: url, mimeType, mediaType,
-          caption: draft || undefined,
-        });
-      }
+      const mediaType = mimeType?.startsWith('image/') ? 'photo' : mimeType?.startsWith('video/') ? 'video' : 'document';
+      await telegramV6.sendMedia(active.id, {
+        fileUrl: url, mimeType, mediaType,
+        caption: draft || undefined,
+      });
       // Show sent media in chat
       setDraft('');
       setMsgRefresh((n: number) => n + 1);
       toast.success('Yuborildi', { id: 'upload' });
     } catch (e: any) { toast.error(errMsg(e), { id: 'upload' }); }
-  }
-
-  // v12 FIX: suhbatni o'chirish imkoniyati umuman yo'q edi
-  async function deleteConversation(conv: any) {
-    if (!conv?.id) return;
-    const name = conv.client?.fullName
-      || [conv.firstName, conv.lastName].filter(Boolean).join(' ')
-      || (conv.username ? '@' + conv.username : 'bu suhbat');
-    if (!window.confirm(`"${name}" bilan suhbatni butunlay o'chirmoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.`)) return;
-    try {
-      await telegramApi.deleteConversation(conv.id);
-      setConvs((prev: any[]) => prev.filter((c: any) => c.id !== conv.id));
-      if (active?.id === conv.id) { setActive(null); setMessages([]); }
-      toast.success("Suhbat o'chirildi");
-    } catch (e: any) { toast.error(errMsg(e)); }
   }
 
   return (
@@ -322,18 +318,8 @@ function InboxPageInner() {
           borderRight: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <Input placeholder="🔍 Suhbat qidirish" value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
-            </div>
-            {/* v12 FIX: hozirgacha bu tugma umuman yo'q edi — shaxsiy
-                akkaunt orqali birinchi xabar yuborish modali (PersonalMessageModal)
-                kodda bor edi, lekin uni ochadigan hech qanday joy yo'q edi. */}
-            {hasPersonalAccount && (
-              <Btn size="sm" variant="secondary" title="Yangi xabar (shaxsiy akkaunt)" onClick={() => { setPrefillUsername(''); setShowNewPersonal(true); }}>
-                ✍️
-              </Btn>
-            )}
+          <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
+            <Input placeholder="🔍 Suhbat qidirish" value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 14 }}><Skeleton height={60} count={5} /></div>}
@@ -348,26 +334,7 @@ function InboxPageInner() {
                 return name.includes(q) || username.includes(q) || phone.includes(q) || lastMsg.includes(q);
               });
               if (!loading && convs.length > 0 && filtered.length === 0) {
-                // v12 FIX: qidiruv mavjud suhbatlar ICHIDAgina qidiradi edi —
-                // yozishmagan (yangi) username topilmasa, foydalanuvchi
-                // "Hech narsa topilmadi" deb qolib ketardi va boshqa iloj
-                // yo'q edi. Shaxsiy akkaunt bo'lsa endi shu yerdan to'g'ridan
-                // to'g'ri o'sha userga BIRINCHI xabarni yuborish taklif qilinadi
-                // — xuddi Telegramning o'zidagidek.
-                return (
-                  <div style={{ padding: 20, textAlign: 'center' }}>
-                    <Empty title="Hech narsa topilmadi" icon="🔍" />
-                    {hasPersonalAccount && q && (
-                      <Btn
-                        variant="gradient"
-                        style={{ marginTop: 12 }}
-                        onClick={() => { setPrefillUsername(q); setShowNewPersonal(true); }}
-                      >
-                        ✍️ @{q} ga birinchi xabar yuborish
-                      </Btn>
-                    )}
-                  </div>
-                );
+                return <Empty title="Hech narsa topilmadi" icon="🔍" />;
               }
               return filtered.map((c) => {
               const isActive = active?.id === c.id;
@@ -377,7 +344,9 @@ function InboxPageInner() {
                   borderBottom: '1px solid var(--border-2)',
                   cursor: 'pointer',
                   background: isActive ? 'var(--primary-soft)' : 'transparent',
-                  borderLeft: isActive ? '3px solid var(--primary)' : '3px solid transparent',
+                  // Kanal rangli chiziq — Telegram ko'k, WhatsApp yashil, Instagram pushti.
+                  // Aktiv suhbatda primary rang ustun.
+                  borderLeft: `3px solid ${isActive ? 'var(--primary)' : (CHANNEL_COLORS[c.channel] || 'transparent')}`,
                   display: 'flex', gap: 10,
                   transition: 'all 0.1s',
                 }}
@@ -394,7 +363,7 @@ function InboxPageInner() {
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       border: '2px solid var(--bg-2)',
                     }}>
-                      {CHANNEL_ICONS[c.channel]}
+                      <ChannelIcon channel={c.channel} size={9} />
                     </div>
                     {c.isPersonal && (
                       <div style={{
@@ -456,18 +425,6 @@ function InboxPageInner() {
                       )}
                     </div>
                   </div>
-                  {/* v12 FIX: ro'yxatdagi har bir suhbatni to'g'ridan-to'g'ri o'chirish */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteConversation(c); }}
-                    title="O'chirish"
-                    style={{
-                      alignSelf: 'flex-start', border: 'none', background: 'transparent',
-                      color: 'var(--fg-4)', cursor: 'pointer', fontSize: 13, padding: 4,
-                      opacity: 0.6,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                    onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
-                  >🗑</button>
                 </div>
               );
               });
@@ -544,10 +501,6 @@ function InboxPageInner() {
                       👤 Yaratish
                     </Btn>
                   )}
-                  {/* v12 FIX: suhbatni o'chirish imkoniyati umuman yo'q edi */}
-                  <Btn size="sm" variant="secondary" title="Suhbatni o'chirish" onClick={() => deleteConversation(active)}>
-                    🗑
-                  </Btn>
                 </div>
               </div>
 
@@ -582,11 +535,7 @@ function InboxPageInner() {
                         borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                         boxShadow: 'var(--shadow-sm)',
                       }}>
-                        {/* v11 FIX: bazada rasm turi "PHOTO" deb saqlanadi,
-                            "IMAGE" emas — shu nomuvofiqlik tufayli yuborilgan
-                            rasmlar chatda hech qachon <img> sifatida
-                            ko'rinmas, faqat matn/caption ko'rinar edi. */}
-                        {m.messageType === 'PHOTO' && m.fileUrl && (
+                        {m.messageType === 'IMAGE' && m.fileUrl && (
                           <img src={m.fileUrl} alt="" style={{
                             maxWidth: '100%', borderRadius: 8, marginBottom: m.caption ? 6 : 0,
                           }} />
@@ -665,6 +614,28 @@ function InboxPageInner() {
             </>
           )}
         </div>
+
+        {/* ═══ v10.2: MIJOZ KONTEKST PANELI ═══
+            Agent chatdan chiqmasdan mijozning bosqichi, daromadi,
+            bookinglari va keyingi vazifasini ko'radi. */}
+        {active?.clientId && showContext && (
+          <ClientContextPanel
+            key={active.clientId}
+            clientId={active.clientId}
+            onOpen={() => router.push(`/clients/${active.clientId}`)}
+            onCall={(name: string, phone: string) => callClient(active.clientId, name, phone)}
+            onClose={() => setShowContext(false)}
+          />
+        )}
+        {active?.clientId && !showContext && (
+          <button onClick={() => setShowContext(true)} title="Mijoz panelini ochish" style={{
+            width: 34, borderLeft: '1px solid var(--border)', background: 'var(--bg-2)',
+            border: 'none', cursor: 'pointer', color: 'var(--fg-3)',
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 16,
+          }}>
+            <PanelRightOpen size={16} />
+          </button>
+        )}
       </div>
 
       {showTemplates && active && (
@@ -705,7 +676,6 @@ function InboxPageInner() {
       )}
       {showNewPersonal && (
         <PersonalMessageModal
-          initialUsername={prefillUsername}
           onClose={() => setShowNewPersonal(false)}
           onSent={(convId: string) => {
             setShowNewPersonal(false);
@@ -741,13 +711,7 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
   async function send(tplId: string) {
     setSending(tplId);
     try {
-      // v11 FIX: shaxsiy (isPersonal) suhbatlarda shablon endi shaxsiy
-      // MTProto endpointi orqali yuboriladi — ilgari bu yerda har doim
-      // BOT endpointi chaqirilardi, shaxsiy suhbatlarga tegishli emasdi va
-      // xabar sahifani qayta yuklamaguncha ("restart" qilmaguncha) ko'rinmasdi.
-      const r: any = conversation?.isPersonal
-        ? await userTelegramApi.sendTemplate(conversationId, tplId)
-        : await telegramV6.sendTemplate(conversationId, tplId);
+      const r: any = await telegramV6.sendTemplate(conversationId, tplId);
       toast.success('Shablon yuborildi');
       // Backend qaytargan real xabarlarni chatga qo'shamiz
       onSent(r.data?.messages || []);
@@ -803,13 +767,9 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
                   <Btn size="sm" variant="secondary" onClick={() => {
                     const text = window.prompt('Shablonni tahrirlang:', tpl.text);
                     if (text && text.trim()) {
-                      // v11 FIX: shaxsiy suhbatlarda ham to'g'ri (MTProto) endpointga yuboriladi
-                      const req = conversation?.isPersonal
-                        ? userTelegramApi.sendMessage({ conversationId, text })
-                        : telegramApi.sendMessage(conversationId, text, false);
-                      req
+                      telegramApi.sendMessage(conversationId, text, false)
                         .then(() => { toast.success('Yuborildi'); onSent(); })
-                        .catch((e: any) => toast.error(errMsg(e)));
+                        .catch((e: any) => toast.error('Xato'));
                     }
                   }}>✏️ Tahrir</Btn>
                   <Btn size="sm" variant="gradient" onClick={() => send(tpl.id)} loading={sending === tpl.id} disabled={!!sending}>Yuborish</Btn>
@@ -1047,11 +1007,11 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
 }
 
 // ─── Personal Message Modal (birinchi xabar - MTProto orqali) ────────────────
-function PersonalMessageModal({ onClose, onSent, initialUsername }: any) {
+function PersonalMessageModal({ onClose, onSent }: any) {
   const [phone, setPhone] = useState('');
-  const [username, setUsername] = useState(initialUsername || '');
+  const [username, setUsername] = useState('');
   const [text, setText] = useState('');
-  const [method, setMethod] = useState<'phone' | 'username'>(initialUsername ? 'username' : 'phone');
+  const [method, setMethod] = useState<'phone' | 'username'>('phone');
   const [loading, setLoading] = useState(false);
 
   async function send() {
@@ -1134,5 +1094,143 @@ export default function InboxPage() {
     <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}><span className="spinner spinner-lg" /></div>}>
       <InboxPageInner />
     </Suspense>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// v10.2: MIJOZ KONTEKST PANELI — chat yonidagi CRM kartasi
+// ═════════════════════════════════════════════════════════════
+function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
+  clientId: string;
+  onOpen: () => void;
+  onCall: (name: string, phone: string) => void;
+  onClose: () => void;
+}) {
+  const [client, setClient] = useState<any>(null);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    Promise.all([
+      clientsApi.one(clientId).catch(() => ({ data: null })),
+      bookingsApi.list({ clientId, limit: 3 }).catch(() => ({ data: { data: [] } })),
+    ]).then(([c, b]: any[]) => {
+      if (!alive) return;
+      setClient(c.data);
+      setBookings(b.data?.data || b.data || []);
+    }).finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, [clientId]);
+
+  const stage = client?.pipelineStage;
+  const stageColor = (STAGE_COLORS as any)?.[stage] || '#6366f1';
+  const paidTotal = bookings.reduce((s, b) => s + Number(b.paidAmount || 0), 0);
+  const debtTotal = bookings.reduce((s, b) => s + Math.max(0, Number(b.totalPrice || 0) - Number(b.paidAmount || 0)), 0);
+
+  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--fg-2)' };
+  const sect: React.CSSProperties = { padding: '12px 14px', borderBottom: '1px solid var(--border-2)' };
+
+  return (
+    <div style={{
+      width: 264, flexShrink: 0,
+      borderLeft: '1px solid var(--border)', background: 'var(--bg-2)',
+      display: 'flex', flexDirection: 'column', overflowY: 'auto',
+    }}>
+      <div style={{ ...sect, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--fg-3)' }}>Mijoz kartasi</span>
+        <button onClick={onClose} title="Panelni yopish" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', display: 'inline-flex' }}>
+          <PanelRightClose size={15} />
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 14 }}><Skeleton height={54} count={4} /></div>
+      ) : !client ? (
+        <div style={{ padding: 20, fontSize: 12, color: 'var(--fg-3)', textAlign: 'center' }}>Mijoz topilmadi</div>
+      ) : (
+        <>
+          {/* Kim */}
+          <div style={{ ...sect, display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Avatar name={client.fullName} size={40} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.fullName}</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{client.phone}</div>
+            </div>
+          </div>
+
+          {/* Bosqich */}
+          <div style={sect}>
+            <div style={{ ...row, marginBottom: 6 }}>
+              <GitBranch size={13} style={{ color: 'var(--fg-3)' }} />
+              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--fg-3)' }}>Bosqich</span>
+            </div>
+            <span style={{ fontSize: 11.5, fontWeight: 800, padding: '3px 10px', borderRadius: 8, background: stageColor + '20', color: stageColor }}>
+              {(STAGE_LABELS as any)?.[stage] || stage || '—'}
+            </span>
+          </div>
+
+          {/* Pul */}
+          <div style={{ ...sect, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 3 }}>To'langan</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#10b981' }}>${paidTotal.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 3 }}>Qarzi</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: debtTotal > 0 ? '#ef4444' : 'var(--fg-3)' }}>${debtTotal.toLocaleString()}</div>
+            </div>
+          </div>
+
+          {/* Bookinglar */}
+          <div style={sect}>
+            <div style={{ ...row, marginBottom: 8 }}>
+              <Plane size={13} style={{ color: 'var(--fg-3)' }} />
+              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--fg-3)' }}>Bookinglar ({bookings.length})</span>
+            </div>
+            {bookings.length === 0 ? (
+              <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>Hali booking yo'q</div>
+            ) : bookings.map((b: any) => (
+              <div key={b.id} style={{ padding: '7px 9px', background: 'var(--bg-3)', borderRadius: 8, marginBottom: 6 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.tourName || b.destination || b.bookingRef}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--fg-3)', marginTop: 2 }}>
+                  <span>{b.departureDate ? new Date(b.departureDate).toLocaleDateString('uz-UZ') : b.status}</span>
+                  <span style={{ fontWeight: 800, color: '#10b981' }}>${Number(b.totalPrice || 0).toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Oxirgi izoh / manba */}
+          <div style={sect}>
+            <div style={{ ...row, marginBottom: 4 }}>
+              <ClipboardList size={13} style={{ color: 'var(--fg-3)' }} />
+              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--fg-3)' }}>Ma'lumot</span>
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--fg-2)', lineHeight: 1.5 }}>
+              Manba: <b>{client.source || '—'}</b><br />
+              {client.lastContactAt && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Clock size={11} /> Oxirgi aloqa: {new Date(client.lastContactAt).toLocaleDateString('uz-UZ')}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Amallar */}
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 7, marginTop: 'auto' }}>
+            {client.phone && (
+              <Btn size="sm" variant="secondary" icon={<PhoneCall size={13} />} onClick={() => onCall(client.fullName, client.phone)}>
+                Qo'ng'iroq qilish
+              </Btn>
+            )}
+            <Btn size="sm" icon={<ExternalLink size={13} />} onClick={onOpen}>
+              To'liq profil
+            </Btn>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

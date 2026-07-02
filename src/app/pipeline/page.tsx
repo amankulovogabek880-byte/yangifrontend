@@ -5,7 +5,20 @@ import CrmLayout from '@/components/layout/CrmLayout';
 import { pipelinesApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { fmtDate, errMsg } from '@/lib/helpers';
+import { SourceIcon, EmptyState } from '@/components/ui';
+import {
+  Phone, MessageCircle, User, Plane, Clock, AlertTriangle,
+  ChevronRight, CircleDollarSign, CalendarClock, Inbox,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// Pul formati: $12.5K ko'rinishida (kanban ustuni tor bo'lgani uchun)
+function fmtSum(n: number): string {
+  if (!n) return '$0';
+  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1_000) return '$' + (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return '$' + Math.round(n).toLocaleString();
+}
 
 const STAGE_COLORS: Record<string, string> = {
   NEW_LEAD:'#6366f1', CONTACTED:'#3b82f6', NO_CONTACT:'#f97316',
@@ -143,16 +156,29 @@ function KanbanCol({ col, onCardClick, onMove, onCall, allStages }: any) {
   const clients: any[] = col.clients || [];
   const color = stage.color || STAGE_COLORS[stage.stageKey] || '#6366f1';
   const isNoContact = stage.stageKey === 'NO_CONTACT';
+  // amoCRM-uslubida: bosqich jami summasi (kartalardagi deal qiymatlari yig'indisi)
+  const totalValue = clients.reduce((sum, c) => sum + (Number(c.totalRevenue) || 0), 0);
 
   return (
     <div style={{ minWidth: 220, maxWidth: 250, flex: '0 0 235px', display: 'flex', flexDirection: 'column', background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border)', maxHeight: 'calc(100vh - 130px)' }}>
-      <div style={{ padding: '8px 12px', borderBottom: `3px solid ${color}`, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
-        <span style={{ fontSize: 12, fontWeight: 700, flex: 1, color: 'var(--fg)' }}>{stage.name}</span>
-        <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: `${color}25`, color }}>{clients.length}</span>
+      <div style={{ padding: '8px 12px', borderBottom: `3px solid ${color}`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 700, flex: 1, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stage.name}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: `${color}25`, color }}>{clients.length}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 11.5, fontWeight: 800, color: totalValue > 0 ? color : 'var(--fg-3)' }}>
+          <CircleDollarSign size={12} />
+          {fmtSum(totalValue)}
+        </div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
-        {clients.length === 0 && <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: 'var(--fg-3)' }}>Bo'sh</div>}
+        {clients.length === 0 && (
+          <div style={{ padding: '20px 8px', textAlign: 'center' }}>
+            <Inbox size={22} style={{ color: 'var(--fg-3)', opacity: 0.5 }} />
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 6 }}>Bu bosqichda lead yo'q</div>
+          </div>
+        )}
         {clients.map((c: any) => (
           <ClientCard key={c.id} client={c} isNoContact={isNoContact} color={color}
             onClick={() => onCardClick(c.id)}
@@ -178,38 +204,62 @@ function ClientCard({ client: c, isNoContact, color, onClick, onMove, onCall, al
   const countdown = () => {
     if (!c.nextCallAt) return null;
     const diff = new Date(c.nextCallAt).getTime() - Date.now();
-    if (diff < 0) return <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 700 }}>⚠️ Vaqt o'tdi!</div>;
+    const row = (color: string, txt: string, warn?: boolean) => (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color, fontWeight: warn ? 700 : 500 }}>
+        {warn ? <AlertTriangle size={10} /> : <Clock size={10} />} {txt}
+      </span>
+    );
+    if (diff < 0) return row('#dc2626', "Vaqt o'tdi!", true);
     const h = Math.floor(diff / 3600000);
-    if (h < 1) return <div style={{ fontSize: 10, color: '#f97316' }}>⏰ {Math.floor(diff / 60000)}daq</div>;
-    if (h < 24) return <div style={{ fontSize: 10, color: '#f97316' }}>⏰ {h}soat</div>;
-    return <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>📅 {fmtDate(c.nextCallAt)}</div>;
+    if (h < 1) return row('#f97316', Math.floor(diff / 60000) + 'daq');
+    if (h < 24) return row('#f97316', h + 'soat');
+    return row('var(--fg-3)', fmtDate(c.nextCallAt));
   };
 
   return (
     <div style={{ background: 'var(--bg)', borderRadius: 8, marginBottom: 6, padding: '8px 10px', border: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
-        <div style={{ flex: 1, cursor: 'pointer' }} onClick={onClick}>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>{c.fullName}</div>
+        <div style={{ flex: 1, cursor: 'pointer', minWidth: 0 }} onClick={onClick}>
+          <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fullName}</div>
           <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{c.phone}</div>
         </div>
         {c.leadScore > 60 && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 8, background: '#10b98120', color: '#10b981', fontWeight: 700, height: 'fit-content' }}>{c.leadScore}%</span>}
       </div>
-      {c.source && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginBottom: 4 }}>{c.source === 'TELEGRAM' ? '📨' : c.source === 'INSTAGRAM' ? '📷' : c.source === 'WHATSAPP' ? '💚' : '📋'} {c.source}</div>}
-      {isNoContact && (
-        <div style={{ fontSize: 10, padding: '3px 6px', background: '#f9731615', color: '#f97316', borderRadius: 5, marginBottom: 4, fontWeight: 600 }}>
-          📵 {c.noContactAttempts || 0}/6 {countdown()}
+      {/* DEAL SUMMASI — amoCRM'dagi kabi kartaning eng ko'zga tashlanadigan qismi */}
+      {Number(c.totalRevenue) > 0 && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 800, color: '#10b981', background: '#10b98114', padding: '2px 8px', borderRadius: 6, marginBottom: 5 }}>
+          <CircleDollarSign size={12} />
+          ${Number(c.totalRevenue).toLocaleString()}
         </div>
       )}
-      {c.travelDepartDate && <div style={{ fontSize: 10, color: '#3d7eff', marginBottom: 4 }}>✈️ {fmtDate(c.travelDepartDate)}</div>}
-      {c.assignedAgent && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginBottom: 6 }}>👤 {c.assignedAgent.name}</div>}
+      {c.source && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--fg-3)', marginBottom: 4 }}>
+          <SourceIcon source={c.source} size={11} /> {c.source}
+        </div>
+      )}
+      {isNoContact && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, padding: '3px 6px', background: '#f9731615', color: '#f97316', borderRadius: 5, marginBottom: 4, fontWeight: 600 }}>
+          <Phone size={10} /> {c.noContactAttempts || 0}/6 {countdown()}
+        </div>
+      )}
+      {c.travelDepartDate && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#3d7eff', marginBottom: 4 }}>
+          <Plane size={11} /> {fmtDate(c.travelDepartDate)}
+        </div>
+      )}
+      {c.assignedAgent && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--fg-3)', marginBottom: 6 }}>
+          <User size={11} /> {c.assignedAgent.name}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 4 }}>
         {isNoContact && (
-          <button onClick={e => { e.stopPropagation(); onCall(); }} style={{ flex: 1, padding: '3px 0', fontSize: 10, fontWeight: 700, background: '#f97316', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer' }}>📞 Qo'ng'iroq</button>
+          <button onClick={e => { e.stopPropagation(); onCall(); }} style={{ flex: 1, padding: '3px 0', fontSize: 10, fontWeight: 700, background: '#f97316', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Phone size={10} /> Qo'ng'iroq</button>
         )}
-        <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ padding: '3px 6px', fontSize: 10, background: '#0088cc15', color: '#0088cc', border: 'none', borderRadius: 5, cursor: 'pointer' }}>💬</button>
+        <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ padding: '3px 7px', fontSize: 10, background: '#0088cc15', color: '#0088cc', border: 'none', borderRadius: 5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><MessageCircle size={12} /></button>
         <div ref={ref} style={{ position: 'relative', marginLeft: 'auto' }}>
-          <button onClick={e => { e.stopPropagation(); setMenu(!menu); }} style={{ padding: '3px 8px', fontSize: 11, background: 'var(--bg-3)', color: 'var(--fg-2)', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer' }}>▸</button>
+          <button onClick={e => { e.stopPropagation(); setMenu(!menu); }} style={{ padding: '3px 7px', fontSize: 11, background: 'var(--bg-3)', color: 'var(--fg-2)', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><ChevronRight size={12} /></button>
           {menu && (
             <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 100, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.15)', minWidth: 180, padding: 4 }}>
               <div style={{ fontSize: 10, color: 'var(--fg-3)', padding: '4px 8px', fontWeight: 700, textTransform: 'uppercase' }}>Ko'chirish</div>

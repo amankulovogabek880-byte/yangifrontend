@@ -240,7 +240,6 @@ export const telegramApi = {
     api.patch(`/telegram/conversations/${id}/assign`, { agentId }),
   claim: (id: string) => api.patch(`/telegram/conversations/${id}/claim`),
   resolve: (id: string) => api.patch(`/telegram/conversations/${id}/resolve`),
-  deleteConversation: (id: string) => api.delete(`/telegram/conversations/${id}`),
   linkClient: (id: string, clientId: string) =>
     api.patch(`/telegram/conversations/${id}/link-client`, { clientId }),
   templates: (params?: any) => api.get('/telegram/templates', { params }),
@@ -307,6 +306,8 @@ export const reportsV6 = {
   // v7: Agent shaxsiy stats
   myStats: (from?: string, to?: string) => api.get('/reports/my-stats', { params: { from, to } }),
   calendar: (params: { date?: string; from?: string; to?: string }) => api.get('/reports/calendar', { params }),
+  // v10.2: Oylik kalendar eventlari (parvoz, viza, to'lov muddati, vazifa)
+  calendarMonth: (year: number, month: number) => api.get('/reports/calendar-month', { params: { year, month } }),
 };
 
 // ── OWNER ────────────────────────────────────────────────────
@@ -440,9 +441,7 @@ export const teamApi = {
 };
 
 export const salaryApi = {
-  // agentId berilsa — admin/manager o'sha agentning oyligini ko'radi
-  mySalary: (month = 0, agentId?: string) =>
-    api.get('/reports/my-salary', { params: { month, ...(agentId ? { agentId } : {}) } }),
+  mySalary: (month = 0) => api.get('/reports/my-salary', { params: { month } }),
   agentSalaries: (month = 0) => api.get('/reports/agent-salaries', { params: { month } }),
 };
 
@@ -562,12 +561,6 @@ export const userTelegramApi = {
   // suhbatga to'g'ri yoziladi va dublikat suhbat yaratilmaydi — backend shuni afzal ko'radi)
   sendMessage: (data: { conversationId?: string; phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
     api.post('/user-telegram/send', data),
-  // Fayl/rasm/video yuborish — shaxsiy Telegram orqali (backend: conversationId, fileUrl, caption)
-  sendMedia: (conversationId: string, fileUrl: string, caption?: string) =>
-    api.post('/user-telegram/send-media', { conversationId, fileUrl, caption }),
-  // Shablon yuborish — shaxsiy Telegram orqali (bot endpointidan farqli, MTProto orqali)
-  sendTemplate: (conversationId: string, templateId: string) =>
-    api.post('/user-telegram/send-template', { conversationId, templateId }),
   // Status
   getMyAccount: () => api.get('/user-telegram/me'),
   disconnect: () => api.delete('/user-telegram/me'),
