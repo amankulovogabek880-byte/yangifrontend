@@ -47,6 +47,25 @@ const HOTEL_TYPE_LABELS: Record<string, string> = {
 
 const STAGE_OPTIONS = Object.keys(STAGE_LABELS);
 
+// v10.4: Bitta taklif formasi tasodifan 2-3 marta yuborilganda backend'da
+// bir xil nomli/narxli alohida yozuvlar paydo bo'lardi va ular ro'yxatda
+// bir xil kartalar sifatida takrorlanardi. Bu yerda faqat KO'RINISH
+// darajasida (hech qanday ma'lumot o'chirilmaydi) bir xil takliflarni
+// bitta guruhga yig'amiz.
+function offerSignature(o: any): string {
+  return [o.tourName, o.destination, o.clientPrice, o.actualPrice, o.status].join('|');
+}
+function groupDuplicateOffers(offers: any[]): any[][] {
+  const groups: Record<string, any[]> = {};
+  const order: string[] = [];
+  for (const o of offers) {
+    const sig = offerSignature(o);
+    if (!groups[sig]) { groups[sig] = []; order.push(sig); }
+    groups[sig].push(o);
+  }
+  return order.map((sig) => groups[sig]);
+}
+
 export default function Client360Page() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -177,10 +196,28 @@ export default function Client360Page() {
 
           {/* ── CHAP: mijoz ma'lumoti ── */}
           <div>
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>${(offers.reduce((s: number, o: any) => s + (o.status !== 'SOLD' ? (o.clientPrice || 0) : 0), 0)).toLocaleString()}</div>
-              <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{offers.length} ta taklif yuborilgan</div>
-            </div>
+            {/* v10.4: Jami / sotilgan — avval faqat "sotilmagan" takliflar
+                yig'indisi umumiy summa sifatida ko'rsatilardi, bu ro'yxatdagi
+                raqamlar bilan mos kelmasdi. Endi ikkalasi ham aniq ko'rsatiladi. */}
+            {(() => {
+              const totalSum = offers.reduce((s: number, o: any) => s + (o.clientPrice || 0), 0);
+              const soldOffers = offers.filter((o: any) => o.status === 'SOLD');
+              const soldSum = soldOffers.reduce((s: number, o: any) => s + (o.clientPrice || 0), 0);
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
+                  <div>
+                    <div style={{ fontSize: 22, fontWeight: 700 }}>${totalSum.toLocaleString()}</div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{offers.length} ta taklif yuborilgan</div>
+                  </div>
+                  {soldOffers.length > 0 && (
+                    <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--success-soft)' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>${soldSum.toLocaleString()}</div>
+                      <div style={{ fontSize: 11, color: 'var(--success)' }}>{soldOffers.length} ta sotildi</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
               {c.assignedAgent && (
@@ -270,18 +307,21 @@ export default function Client360Page() {
                 </div>
               ) : (
                 <div style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-                  {offers.map((o: any, i: number) => (
-                    <OfferRow
-                      key={o.id}
-                      offer={o}
-                      isLast={i === offers.length - 1}
+                  {/* v10.4: Bir xil taklif (masalan, forma tasodifan 2 marta
+                      yuborilganda) endi bitta karta sifatida, "×N" belgisi
+                      bilan ko'rsatiladi — ro'yxat cho'zilib ketmaydi. */}
+                  {groupDuplicateOffers(offers).map((group: any[], gi: number) => (
+                    <OfferGroupRow
+                      key={group[0].id}
+                      group={group}
+                      isLast={gi === groupDuplicateOffers(offers).length - 1}
                       clientId={id}
                       clientPhone={c.phone}
                       clientUsername={c.telegramUsername}
-                      onSent={() => setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? { ...x, status: 'SENT' } : x))}
-                      onEdit={() => setEditingOffer(o)}
-                      onSold={() => setOfferBooking(o)}
-                      selling={sellingOfferId === o.id}
+                      onSent={(offerId: string) => setOffers((prev: any[]) => prev.map((x: any) => x.id === offerId ? { ...x, status: 'SENT' } : x))}
+                      onEdit={(o: any) => setEditingOffer(o)}
+                      onSold={(o: any) => setOfferBooking(o)}
+                      sellingOfferId={sellingOfferId}
                     />
                   ))}
                 </div>
@@ -678,7 +718,60 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
 }
 
 // ─── Offer Row (ro'yxat ko'rinishidagi taklif qatori, "..." menyu bilan) ───────
-function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onSold, selling }: any) {
+function OfferGroupRow({ group, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onSold, sellingOfferId }: any) {
+  const [expanded, setExpanded] = useState(false);
+  const primary = group[0];
+  const extra = group.length - 1;
+
+  return (
+    <div style={{ borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
+      <OfferRow
+        offer={primary}
+        isLast
+        clientId={clientId}
+        clientPhone={clientPhone}
+        clientUsername={clientUsername}
+        onSent={() => onSent(primary.id)}
+        onEdit={() => onEdit(primary)}
+        onSold={() => onSold(primary)}
+        selling={sellingOfferId === primary.id}
+        noBorder
+      />
+      {extra > 0 && (
+        <div style={{ padding: '0 14px 11px' }}>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            style={{ fontSize: 11, color: 'var(--fg-3)', background: 'var(--bg-3)', border: 'none', borderRadius: 6, padding: '4px 9px', cursor: 'pointer' }}
+          >
+            {expanded ? '– Yashirish' : `Yana ${extra} ta bir xil taklif →`}
+          </button>
+          {expanded && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {group.slice(1).map((o: any) => (
+                <div key={o.id} style={{ border: '1px solid var(--border)', borderRadius: 8, opacity: 0.85 }}>
+                  <OfferRow
+                    offer={o}
+                    isLast
+                    clientId={clientId}
+                    clientPhone={clientPhone}
+                    clientUsername={clientUsername}
+                    onSent={() => onSent(o.id)}
+                    onEdit={() => onEdit(o)}
+                    onSold={() => onSold(o)}
+                    selling={sellingOfferId === o.id}
+                    noBorder
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onSold, selling, noBorder }: any) {
   const [menuOpen, setMenuOpen] = useState(false);
   const hotels = Array.isArray(o.hotels) && o.hotels.length ? o.hotels : (o.hotelName ? [{ name: o.hotelName, stars: o.hotelStars }] : []);
   const mealLabel: Record<string, string> = { BREAKFAST: '🍳 Nonushta', FULL_BOARD: '🍽 3 mahal' };
@@ -693,7 +786,7 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
   ].filter(Boolean);
 
   return (
-    <div style={{ padding: '11px 14px', borderBottom: isLast ? 'none' : '1px solid var(--border)' }}>
+    <div style={{ padding: '11px 14px', borderBottom: (noBorder || isLast) ? 'none' : '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600 }}>{o.tourName}</div>
@@ -724,8 +817,8 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
             <div style={{ fontSize: 10, color: 'var(--fg-4)' }}>tan narx ${(o.actualPrice || 0).toLocaleString()} · foyda ${(o.markup || 0).toLocaleString()}</div>
             <div style={{
               fontSize: 10, padding: '1px 8px', borderRadius: 999, fontWeight: 700, marginTop: 3, display: 'inline-block',
-              background: o.status === 'SOLD' ? '#10b98120' : o.status === 'SENT' ? '#3d7eff20' : '#94a3b820',
-              color: o.status === 'SOLD' ? '#10b981' : o.status === 'SENT' ? '#3d7eff' : '#94a3b8',
+              background: o.status === 'SOLD' ? 'var(--success-soft)' : o.status === 'SENT' ? 'var(--info-soft)' : 'var(--warning-soft)',
+              color: o.status === 'SOLD' ? 'var(--success)' : o.status === 'SENT' ? 'var(--info)' : 'var(--warning)',
             }}>{o.status === 'SOLD' ? '✅ sotildi' : o.status === 'SENT' ? 'yuborildi' : "ko'rib chiqilmoqda"}</div>
           </div>
           {o.status !== 'SOLD' && (
