@@ -277,11 +277,18 @@ function InboxPageInner() {
     try {
       const res = await uploadsApi.one(file);
       const { url, mimeType } = res.data;
-      const mediaType = mimeType?.startsWith('image/') ? 'photo' : mimeType?.startsWith('video/') ? 'video' : 'document';
-      await telegramV6.sendMedia(active.id, {
-        fileUrl: url, mimeType, mediaType,
-        caption: draft || undefined,
-      });
+      // v11 FIX: shaxsiy (isPersonal) suhbatlarda fayl endi MTProto orqali
+      // (shaxsiy akkauntdan) yuboriladi — ilgari bu yerda har doim BOT
+      // endpointi chaqirilardi, shaxsiy suhbatlarga tegishli emasdi.
+      if (active.isPersonal) {
+        await userTelegramApi.sendMedia(active.id, url, draft || undefined);
+      } else {
+        const mediaType = mimeType?.startsWith('image/') ? 'photo' : mimeType?.startsWith('video/') ? 'video' : 'document';
+        await telegramV6.sendMedia(active.id, {
+          fileUrl: url, mimeType, mediaType,
+          caption: draft || undefined,
+        });
+      }
       // Show sent media in chat
       setDraft('');
       setMsgRefresh((n: number) => n + 1);
@@ -514,7 +521,11 @@ function InboxPageInner() {
                         borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                         boxShadow: 'var(--shadow-sm)',
                       }}>
-                        {m.messageType === 'IMAGE' && m.fileUrl && (
+                        {/* v11 FIX: bazada rasm turi "PHOTO" deb saqlanadi,
+                            "IMAGE" emas — shu nomuvofiqlik tufayli yuborilgan
+                            rasmlar chatda hech qachon <img> sifatida
+                            ko'rinmas, faqat matn/caption ko'rinar edi. */}
+                        {m.messageType === 'PHOTO' && m.fileUrl && (
                           <img src={m.fileUrl} alt="" style={{
                             maxWidth: '100%', borderRadius: 8, marginBottom: m.caption ? 6 : 0,
                           }} />
@@ -668,7 +679,13 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
   async function send(tplId: string) {
     setSending(tplId);
     try {
-      const r: any = await telegramV6.sendTemplate(conversationId, tplId);
+      // v11 FIX: shaxsiy (isPersonal) suhbatlarda shablon endi shaxsiy
+      // MTProto endpointi orqali yuboriladi — ilgari bu yerda har doim
+      // BOT endpointi chaqirilardi, shaxsiy suhbatlarga tegishli emasdi va
+      // xabar sahifani qayta yuklamaguncha ("restart" qilmaguncha) ko'rinmasdi.
+      const r: any = conversation?.isPersonal
+        ? await userTelegramApi.sendTemplate(conversationId, tplId)
+        : await telegramV6.sendTemplate(conversationId, tplId);
       toast.success('Shablon yuborildi');
       // Backend qaytargan real xabarlarni chatga qo'shamiz
       onSent(r.data?.messages || []);
@@ -724,9 +741,13 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
                   <Btn size="sm" variant="secondary" onClick={() => {
                     const text = window.prompt('Shablonni tahrirlang:', tpl.text);
                     if (text && text.trim()) {
-                      telegramApi.sendMessage(conversationId, text, false)
+                      // v11 FIX: shaxsiy suhbatlarda ham to'g'ri (MTProto) endpointga yuboriladi
+                      const req = conversation?.isPersonal
+                        ? userTelegramApi.sendMessage({ conversationId, text })
+                        : telegramApi.sendMessage(conversationId, text, false);
+                      req
                         .then(() => { toast.success('Yuborildi'); onSent(); })
-                        .catch((e: any) => toast.error('Xato'));
+                        .catch((e: any) => toast.error(errMsg(e)));
                     }
                   }}>✏️ Tahrir</Btn>
                   <Btn size="sm" variant="gradient" onClick={() => send(tpl.id)} loading={sending === tpl.id} disabled={!!sending}>Yuborish</Btn>
