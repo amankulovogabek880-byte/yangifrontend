@@ -111,7 +111,8 @@ const NAV = [
   { href: '/clients',   labelKey: 'nav.clients',   label: 'Mijozlar',     Icon: Icons.Clients,   roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/tasks',     labelKey: 'nav.tasks',     label: 'Vazifalar',    Icon: Icons.Tasks,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/bookings',  labelKey: 'nav.bookings',  label: 'Bookinglar',   Icon: Icons.Bookings,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/calls',     labelKey: 'nav.calls',     label: "Qo'ng'iroq",   Icon: Icons.Calls,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  // Qo'ng'iroqlar asosiy menyudan olib tashlandi — Dashboard ichida alohida bo'lim bor.
+  // (kerak bo'lsa /calls sahifasi hali ham to'g'ridan-to'g'ri URL orqali ochiladi)
   { href: '/settings',  labelKey: 'nav.settings',  label: 'Sozlamalar',   Icon: Icons.Settings,  roles: ['*'] },
 ];
 

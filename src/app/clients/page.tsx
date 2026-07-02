@@ -7,8 +7,43 @@ import { Btn, Input, Select, Card, Skeleton, Badge, Modal, Label, Textarea, Avat
 import { TIER_LABELS, SOURCE_LABELS, STAGE_LABELS, STAGE_COLORS, errMsg, timeAgo } from '@/lib/helpers';
 import {
   Users, UserPlus, Search, Download, GitBranch, UserCheck, X, Loader2, CheckSquare,
+  Globe, Phone as PhoneIcon, Handshake, Footprints, HelpCircle,
 } from 'lucide-react';
+import { FaTelegram, FaInstagram, FaWhatsapp, FaFacebook } from 'react-icons/fa';
 import toast from 'react-hot-toast';
+
+// ─── Manba indikatori: har bir manba uchun mos brand ikoni + rangi ──────────────
+const SOURCE_META: Record<string, { label: string; color: string; Icon: any }> = {
+  TELEGRAM:   { label: 'Telegram',   color: '#229ED9', Icon: FaTelegram },
+  INSTAGRAM:  { label: 'Instagram',  color: '#E1306C', Icon: FaInstagram },
+  WHATSAPP:   { label: 'WhatsApp',   color: '#25D366', Icon: FaWhatsapp },
+  FACEBOOK:   { label: 'Facebook',   color: '#1877F2', Icon: FaFacebook },
+  REFERRAL:   { label: 'Tavsiya',    color: '#8b5cf6', Icon: Handshake },
+  WALKIN:     { label: 'Ofisga keldi', color: '#f59e0b', Icon: Footprints },
+  WEBSITE:    { label: 'Sayt',       color: '#0ea5e9', Icon: Globe },
+  CALL:       { label: "Qo'ng'iroq", color: '#10b981', Icon: PhoneIcon },
+  GOOGLE_ADS: { label: 'Google',     color: '#EA4335', Icon: Search },
+  OTHER:      { label: 'Boshqa',     color: 'var(--fg-3)', Icon: HelpCircle },
+};
+
+function SourceBadge({ source }: { source?: string }) {
+  const meta = SOURCE_META[source || ''] || SOURCE_META.OTHER;
+  const Icon = meta.Icon;
+  return (
+    <span
+      title={meta.label}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px',
+        borderRadius: 999, fontSize: 12, fontWeight: 600, color: meta.color,
+        background: 'color-mix(in srgb, ' + meta.color + ' 12%, transparent)',
+        border: '1px solid color-mix(in srgb, ' + meta.color + ' 30%, transparent)',
+      }}
+    >
+      <Icon size={13} style={{ flexShrink: 0 }} />
+      {meta.label}
+    </span>
+  );
+}
 
 export default function ClientsPage() {
   const router = useRouter();
@@ -125,7 +160,7 @@ export default function ClientsPage() {
 
         {/* Filters */}
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
             <div style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', pointerEvents: 'none' }} />
               <Input style={{ paddingLeft: 32 }} placeholder="Qidirish (ism, telefon, email...)" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
@@ -138,11 +173,8 @@ export default function ClientsPage() {
               <option value="">Barcha bosqich</option>
               {Object.entries(STAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
-            <Select value={filters.sortBy} onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}>
-              <option value="recent">Yangi</option>
-              <option value="name">Ism</option>
-              <option value="revenue">Daromad</option>
-            </Select>
+            {/* 3-chi "Yangi" (saralash) filtri olib tashlandi — ro'yxat sukut bo'yicha
+                eng yangi mijozlardan boshlab ko'rsatiladi (sortBy: 'recent'). */}
           </div>
         </Card>
 
@@ -241,8 +273,8 @@ export default function ClientsPage() {
                         <td style={{ padding: 12 }}>
                           <Badge color={STAGE_COLORS[c.pipelineStage]}>{STAGE_LABELS[c.pipelineStage]?.replace(/^\S+\s/, '')}</Badge>
                         </td>
-                        <td style={{ padding: 12, fontSize: 11, color: 'var(--fg-2)' }}>
-                          {SOURCE_LABELS[c.source]}
+                        <td style={{ padding: 12 }}>
+                          <SourceBadge source={c.source} />
                         </td>
                         <td style={{ padding: 12 }}>
                           <span style={{ fontWeight: 600 }}>{(c.preferences?.offers?.length) || 0}</span>
