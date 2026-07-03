@@ -772,7 +772,6 @@ function OfferGroupRow({ group, isLast, clientId, clientPhone, clientUsername, o
 }
 
 function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onSold, selling, noBorder }: any) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const hotels = Array.isArray(o.hotels) && o.hotels.length ? o.hotels : (o.hotelName ? [{ name: o.hotelName, stars: o.hotelStars }] : []);
   const mealLabel: Record<string, string> = { BREAKFAST: '🍳 Nonushta', FULL_BOARD: '🍽 3 mahal' };
   const tags = [
@@ -799,11 +798,30 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
             </div>
           )}
           {hotels.some((h: any) => h.photos?.length > 0) && (
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
-              {hotels.flatMap((h: any) => h.photos || []).slice(0, 8).map((p: string, i: number) => (
-                <a key={i} href={p} target="_blank" rel="noreferrer">
-                  <img src={p} alt="" style={{ width: 36, height: 36, borderRadius: 5, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                </a>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {hotels.filter((h: any) => h.photos?.length > 0).map((h: any, hi: number) => (
+                <div key={hi}>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 5, fontWeight: 600 }}>
+                    🏨 {h.name}{h.stars ? ' ' + '⭐'.repeat(h.stars) : ''}
+                  </div>
+                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                    {(h.photos || []).slice(0, 8).map((p: string, i: number) => (
+                      <a key={i} href={p} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                        <img
+                          src={p}
+                          alt={h.name}
+                          style={{
+                            width: 68, height: 68, borderRadius: 9, objectFit: 'cover',
+                            border: '1px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,.15)',
+                            transition: 'transform .15s ease',
+                          }}
+                          onMouseEnter={(e: any) => { e.currentTarget.style.transform = 'scale(1.06)'; }}
+                          onMouseLeave={(e: any) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -821,28 +839,13 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
               color: o.status === 'SOLD' ? 'var(--success)' : o.status === 'SENT' ? 'var(--info)' : 'var(--warning)',
             }}>{o.status === 'SOLD' ? '✅ sotildi' : o.status === 'SENT' ? 'yuborildi' : "ko'rib chiqilmoqda"}</div>
           </div>
-          {o.status !== 'SOLD' && (
-            <div style={{ position: 'relative' }}>
-              <button aria-label="Ko'proq" onClick={() => setMenuOpen((v) => !v)} style={{ padding: '4px 7px', borderRadius: 6, border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', fontSize: 14 }}>⋯</button>
-              {menuOpen && (
-                <>
-                  <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
-                  <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.2)', zIndex: 11, minWidth: 170 }}>
-                    <div style={{ padding: '4px 4px 2px' }}>
-                      <OfferSendMenu offerId={o.id} clientId={clientId}
-                        onSent={() => { onSent(); setMenuOpen(false); }} fullWidth
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
       {/* v10.3: Ko'rinadigan amallar — mijoz taklifni yoqtirsa,
-          BITTA bosishda avtomatik booking yaratiladi. Tahrirlash ham ochiq. */}
+          BITTA bosishda avtomatik booking yaratiladi. Tahrirlash ham ochiq.
+          v11: "Taklif yuborish" endi "⋯" menyu ichida yashirin emas —
+          har doim, doimiy ko'rinadigan tugma sifatida turadi. */}
       {o.status !== 'SOLD' && (
         <div style={{ display: 'flex', gap: 7, marginTop: 9 }}>
           <button
@@ -857,6 +860,7 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
           >
             {selling ? 'Yaratilmoqda...' : '✓ Booking yaratish'}
           </button>
+          <OfferSendMenu offerId={o.id} clientId={clientId} onSent={onSent} />
           <button
             onClick={onEdit}
             title="Taklifni tahrirlash"
@@ -1738,11 +1742,13 @@ function OfferSendMenu({ offerId, clientId, onSent, fullWidth }: any) {
       display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
       padding: '9px 12px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg)',
     } : {
-      padding: '3px 10px', borderRadius: 6, border: 'none',
-      background: 'var(--success-soft)', color: 'var(--success)',
-      cursor: 'pointer', fontSize: 11, fontWeight: 700,
+      padding: '7px 14px', borderRadius: 8, border: 'none',
+      background: 'var(--info-soft)', color: 'var(--info)',
+      cursor: 'pointer', fontSize: 12, fontWeight: 700,
+      display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+      opacity: sending ? 0.7 : 1,
     }}>
-      {sending ? '⏳ Yuborilmoqda...' : '📤 Telegramda yuborish'}
+      {sending ? '⏳ Yuborilmoqda...' : '📤 Yuborish'}
     </button>
   );
 }

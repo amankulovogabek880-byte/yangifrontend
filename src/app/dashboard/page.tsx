@@ -279,8 +279,14 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
   const countSeries: number[] = (revenueChart || []).map((d: any) => Number(d.bookings ?? d.count ?? 0));
 
   const kpis = isAgent ? [
-    { label: 'Daromadim (oy)', value: `$${money(totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries, emphasis: true },
-    { label: 'Komissiyam', value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} x ${kpiPct}%)` : ''), icon: <Wallet size={15} /> },
+    // v11: "Daromadim"/"Komissiyam" o'rniga — admin dashbordidagi kabi
+    // "Jami daromad" va "Operator narxi", so'ng shulardan kelib chiqib
+    // hisoblangan "Mening oyligim". Foiz har doim admin Sozlamalarda
+    // qo'ygan komissiya foizidan (kpiPct) olinadi — qattiq kodlangan
+    // (masalan 8%) qiymat ishlatilmaydi.
+    { label: 'Jami daromad', value: `$${money(stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
+    { label: 'Operator narxi', value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
+    { label: 'Mening oyligim', value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} x ${kpiPct}%)` : ''), icon: <Wallet size={15} />, emphasis: true },
     { label: 'Bookinglarim', value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
     { label: 'Conversion rate', value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead`, icon: <Percent size={15} /> },
     { label: 'Leadlarim', value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
