@@ -771,6 +771,48 @@ function OfferGroupRow({ group, isLast, clientId, clientPhone, clientUsername, o
   );
 }
 
+// ─── Mehmonxona rasmlari bloki: rasmlar ustida, ma'lumot (nomi/yulduzi)
+// pastida — nechta rasm bo'lishidan qat'i nazar chiroyli grid bilan
+// joylashadi. Yuklanmagan/buzuq rasm ko'rinishni buzmasligi uchun
+// xato bergan rasm ro'yxatdan chetlashtiriladi. ─────────────────────
+function HotelPhotoBlock({ name, stars, photos }: { name: string; stars?: number | string; photos: string[] }) {
+  const [broken, setBroken] = useState<Record<number, boolean>>({});
+  const valid = photos.slice(0, 10).map((p, i) => ({ p, i })).filter(({ i }) => !broken[i]);
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 8, background: 'var(--bg-3)' }}>
+      {valid.length > 0 ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 6 }}>
+          {valid.map(({ p, i }) => (
+            <a key={i} href={p} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+              <img
+                src={p}
+                alt={name}
+                onError={() => setBroken((b) => ({ ...b, [i]: true }))}
+                style={{
+                  width: '100%', aspectRatio: '1 / 1', borderRadius: 8, objectFit: 'cover',
+                  border: '1px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,.15)',
+                  transition: 'transform .15s ease', display: 'block',
+                }}
+                onMouseEnter={(e: any) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
+                onMouseLeave={(e: any) => { e.currentTarget.style.transform = 'scale(1)'; }}
+              />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: 'var(--fg-4)', padding: '10px 0', textAlign: 'center' }}>
+          🖼 Rasm yuklanmadi
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: 'var(--fg-2)', marginTop: 7, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+        🏨 {name}{stars ? <span style={{ color: '#f59e0b' }}>{' ' + '⭐'.repeat(Number(stars))}</span> : null}
+        {photos.length > 1 && <span style={{ color: 'var(--fg-4)', fontWeight: 400 }}>· {photos.length} ta rasm</span>}
+      </div>
+    </div>
+  );
+}
+
 function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onSold, selling, noBorder }: any) {
   const hotels = Array.isArray(o.hotels) && o.hotels.length ? o.hotels : (o.hotelName ? [{ name: o.hotelName, stars: o.hotelStars }] : []);
   const mealLabel: Record<string, string> = { BREAKFAST: '🍳 Nonushta', FULL_BOARD: '🍽 3 mahal' };
@@ -798,30 +840,9 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
             </div>
           )}
           {hotels.some((h: any) => h.photos?.length > 0) && (
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {hotels.filter((h: any) => h.photos?.length > 0).map((h: any, hi: number) => (
-                <div key={hi}>
-                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 5, fontWeight: 600 }}>
-                    🏨 {h.name}{h.stars ? ' ' + '⭐'.repeat(h.stars) : ''}
-                  </div>
-                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                    {(h.photos || []).slice(0, 8).map((p: string, i: number) => (
-                      <a key={i} href={p} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
-                        <img
-                          src={p}
-                          alt={h.name}
-                          style={{
-                            width: 68, height: 68, borderRadius: 9, objectFit: 'cover',
-                            border: '1px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,.15)',
-                            transition: 'transform .15s ease',
-                          }}
-                          onMouseEnter={(e: any) => { e.currentTarget.style.transform = 'scale(1.06)'; }}
-                          onMouseLeave={(e: any) => { e.currentTarget.style.transform = 'scale(1)'; }}
-                        />
-                      </a>
-                    ))}
-                  </div>
-                </div>
+                <HotelPhotoBlock key={hi} name={h.name} stars={h.stars} photos={h.photos || []} />
               ))}
             </div>
           )}
