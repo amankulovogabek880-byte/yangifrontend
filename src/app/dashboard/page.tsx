@@ -262,15 +262,20 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
   }, [isAgent]);
 
   const conversionRate = stats?.conversion?.rate ?? 0;
-  const salaryAmount = mySalary?.grossSalary ?? mySalary?.pending ?? 0;
-  const salaryPercent = mySalary?.myCommissionPercent ?? 0;
-  const companyProfit = stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? 0;
 
-  // Komisyon foizi — myStats.salary.kpiPercent yoki mySalary.myCommissionPercent
-  const kpiPct = stats?.salary?.kpiPercent ?? mySalary?.myCommissionPercent ?? salaryPercent ?? 10;
-  const myProfit = stats?.thisMonth?.profit ?? stats?.profit?.thisMonth ?? 0;
-  const myCommissionAmount = mySalary?.grossSalary ?? salaryAmount ?? Math.round(myProfit * kpiPct / 100);
-  const wonCount = stats?.bookings?.won ?? stats?.conversion?.won ?? stats?.bookings?.thisMonth ?? 0;
+  // ── v12 FIX: Komissiya raqamlari BITTA manbadan (my-salary, KPI tier bo'yicha) ──
+  // Ilgari "Mening oyligim" SUMMASI tier foizi (masalan 12%) bilan, lekin uning
+  // YORLIG'I va "Kompaniyaga" flat foiz (8%) bilan hisoblanib, bir-biriga mos
+  // kelmasdi. Endi foiz, oylik va kompaniya ulushi bitta manbadan olinadi va
+  // har doim mos keladi:  oylik + kompaniyaga = foyda.
+  const kpiPct = mySalary?.myCommissionPercent ?? stats?.salary?.kpiPercent ?? 10;
+  const myProfit = mySalary?.profit ?? stats?.thisMonth?.profit ?? stats?.profit?.thisMonth ?? 0;
+  const myCommissionAmount = mySalary?.grossSalary ?? Math.round(myProfit * kpiPct / 100);
+  const companyProfit = Math.max(0, myProfit - myCommissionAmount);
+  const agentTier = mySalary?.appliedTier ?? null;
+
+  // Conversion yorlig'i rate bilan bir xil manbadan (jami booking / jami lead)
+  const wonCount = stats?.bookings?.total ?? stats?.conversion?.won ?? 0;
   const totalLeads = stats?.leads?.total ?? stats?.conversion?.total ?? 0;
 
   // v10.2: sparkline seriyalari — oylik revenue-chart ma'lumotidan
@@ -286,7 +291,7 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
     // (masalan 8%) qiymat ishlatilmaydi.
     { label: 'Jami daromad', value: `$${money(stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
     { label: 'Operator narxi', value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
-    { label: 'Mening oyligim', value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} x ${kpiPct}%)` : ''), icon: <Wallet size={15} />, emphasis: true },
+    { label: 'Mening oyligim', value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} × ${kpiPct}%)` : '') + (agentTier ? ` · ${agentTier}` : ''), icon: <Wallet size={15} />, emphasis: true },
     { label: 'Bookinglarim', value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
     { label: 'Conversion rate', value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead`, icon: <Percent size={15} /> },
     { label: 'Leadlarim', value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
