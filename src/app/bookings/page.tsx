@@ -6,7 +6,6 @@ import { bookingsApi, clientsApi, api } from '@/services/api';
 import { Btn, Card, Input, Select, Empty, Skeleton, Badge, Modal, Label, Textarea } from '@/components/ui';
 import { BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS, fmt, fmtDate, errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
-import { useAuth } from '@/lib/store';
 
 export default function BookingsPage() {
   const router = useRouter();
@@ -104,8 +103,8 @@ export default function BookingsPage() {
 }
 
 function AddBookingModal({ onClose, onSaved }: any) {
-  const { user } = useAuth();
-  const isAdmin = user?.role !== 'AGENT';
+  // v11: agent va admin bir xil to'liq formadan foydalanadi — tannarx/foyda
+  // maydonlari yashirilmaydi, chunki agent komissiyasi shu foydadan hisoblanadi.
   const [clients, setClients] = useState<any[]>([]);
   const [form, setForm] = useState<any>({
     clientId: '', tourName: '', destination: '', tourType: 'PACKAGE',
@@ -237,35 +236,31 @@ function AddBookingModal({ onClose, onSaved }: any) {
                 </div>
               )}
             </div>
-            {isAdmin && (
-              <div>
-                <Label>
-                  Provayder tannarxi 🔒
-                  <span style={{ color: 'var(--fg-3)', fontWeight: 400, fontSize: 10 }}> (klientga ko'rinmaydi)</span>
-                </Label>
-                <Input
-                  type="number"
-                  value={form.supplierCost}
-                  onChange={(e) => setForm({ ...form, supplierCost: e.target.value })}
-                  placeholder="1000"
-                />
-              </div>
-            )}
-            {isAdmin && (
-              <div>
-                <Label>Chegirma <span style={{ color: 'var(--fg-3)', fontWeight: 400, fontSize: 10 }}>(ixtiyoriy)</span></Label>
-                <Input
-                  type="number"
-                  value={form.discount}
-                  onChange={(e) => setForm({ ...form, discount: e.target.value })}
-                  placeholder="0"
-                />
-              </div>
-            )}
+            <div>
+              <Label>
+                Provayder tannarxi 🔒
+                <span style={{ color: 'var(--fg-3)', fontWeight: 400, fontSize: 10 }}> (klientga ko'rinmaydi)</span>
+              </Label>
+              <Input
+                type="number"
+                value={form.supplierCost}
+                onChange={(e) => setForm({ ...form, supplierCost: e.target.value })}
+                placeholder="1000"
+              />
+            </div>
+            <div>
+              <Label>Chegirma <span style={{ color: 'var(--fg-3)', fontWeight: 400, fontSize: 10 }}>(ixtiyoriy)</span></Label>
+              <Input
+                type="number"
+                value={form.discount}
+                onChange={(e) => setForm({ ...form, discount: e.target.value })}
+                placeholder="0"
+              />
+            </div>
           </div>
 
-          {/* PROFIT — admin only */}
-          {isAdmin && <div style={{
+          {/* FOYDA — agent ham ko'radi: komissiyasi shu foydadan hisoblanadi */}
+          <div style={{
             marginTop: 12,
             padding: 12,
             background: 'var(--bg-2)',
@@ -294,7 +289,7 @@ function AddBookingModal({ onClose, onSaved }: any) {
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-3)' }}>≈ ${usdProfitPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
               )}
             </div>
-          </div>}
+          </div>
 
           {isForeign && (
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--fg-3)' }}>
@@ -302,7 +297,7 @@ function AddBookingModal({ onClose, onSaved }: any) {
             </div>
           )}
 
-          {isAdmin && totalPrice > 0 && supplierCost > totalPrice && (
+          {totalPrice > 0 && supplierCost > totalPrice && (
             <div style={{
               marginTop: 8, padding: 8,
               background: 'var(--danger-soft, rgba(239,68,68,0.1))',

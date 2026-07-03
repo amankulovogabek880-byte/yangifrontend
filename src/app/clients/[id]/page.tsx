@@ -384,7 +384,7 @@ export default function Client360Page() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: 13, fontWeight: 600 }}>{b.currency} {b.paidAmount || 0} / {b.totalPrice}</div>
-                            {isAdmin && b.profit > 0 && <div style={{ fontSize: 11, color: 'var(--success)' }}>foyda {fmtMoney(b.profit)}</div>}
+                            {b.profit > 0 && <div style={{ fontSize: 11, color: 'var(--success)' }}>foyda {fmtMoney(b.profit)}</div>}
                           </div>
                           <button onClick={(e) => { e.stopPropagation(); setEditingBooking(b); }} title="Tahrirlash" style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center' }}><FaPen size={11} /></button>
                         </div>
@@ -829,7 +829,7 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
                   <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
                   <div style={{ position: 'absolute', right: 0, top: 28, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.2)', zIndex: 11, minWidth: 170 }}>
                     <div style={{ padding: '4px 4px 2px' }}>
-                      <OfferSendMenu offerId={o.id} clientId={clientId} clientPhone={clientPhone} clientUsername={clientUsername}
+                      <OfferSendMenu offerId={o.id} clientId={clientId}
                         onSent={() => { onSent(); setMenuOpen(false); }} fullWidth
                       />
                     </div>
@@ -944,7 +944,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
       const r = isEdit
         ? await api.put(`/offers/${existingOffer.id}`, data)
         : await api.post('/offers', data);
-      if (sendNow && !isEdit) await api.post(`/offers/${r.data.id}/send`);
+      if (sendNow && !isEdit) await api.post(`/offers/${r.data.id}/send`, { clientId });
       toast.success(isEdit ? 'Taklif yangilandi!' : (sendNow ? 'Taklif yuborildi!' : 'Taklif saqlandi'));
       onSaved(r.data);
     } catch (e: any) { toast.error(errMsg(e)); setSaving(false); }
@@ -1180,26 +1180,22 @@ function OfferBookingModal({ offer: o, clientId, onClose, onSaved }: any) {
               <input type="number" min={0} style={inp} value={form.children} onChange={(e) => set('children', e.target.value)} />
             </div>
           </div>
-          <div style={{ padding: '12px 14px', background: 'var(--bg-2)', borderRadius: 10, display: 'grid', gridTemplateColumns: isAdmin ? '1fr 1fr 1fr' : '1fr 1fr', gap: 12 }}>
+          <div style={{ padding: '12px 14px', background: 'var(--bg-2)', borderRadius: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <div>
               <label style={lbl}>Klient narxi (Sale Price) *</label>
               <input type="number" min={0} step="0.01" style={{ ...inp, background: 'var(--bg)' }} value={form.totalPrice} onChange={(e) => set('totalPrice', e.target.value)} placeholder="0" />
             </div>
-            {isAdmin && (
-              <div>
-                <label style={lbl}>Operator narxi (Cost)</label>
-                <input type="number" min={0} step="0.01" style={{ ...inp, background: 'var(--bg)' }} value={form.supplierCost} onChange={(e) => set('supplierCost', e.target.value)} placeholder="0" />
-              </div>
-            )}
+            <div>
+              <label style={lbl}>Operator narxi (Cost)</label>
+              <input type="number" min={0} step="0.01" style={{ ...inp, background: 'var(--bg)' }} value={form.supplierCost} onChange={(e) => set('supplierCost', e.target.value)} placeholder="0" />
+            </div>
             <div>
               <label style={lbl}>Chegirma</label>
               <input type="number" min={0} step="0.01" style={{ ...inp, background: 'var(--bg)' }} value={form.discount} onChange={(e) => set('discount', e.target.value)} placeholder="0" />
             </div>
-            {isAdmin && (
-              <div style={{ gridColumn: '1/-1', fontSize: 12, color: 'var(--fg-3)' }}>
-                Foyda: <b style={{ color: 'var(--success)' }}>{form.currency} {profit.toLocaleString()}</b>
-              </div>
-            )}
+            <div style={{ gridColumn: '1/-1', fontSize: 12, color: 'var(--fg-3)' }}>
+              Foyda: <b style={{ color: 'var(--success)' }}>{form.currency} {profit.toLocaleString()}</b>
+            </div>
           </div>
           <div>
             <label style={lbl}>Valyuta</label>
@@ -1348,13 +1344,11 @@ function InlineBookingModal({ clientId, clientName, onClose, onSaved }: any) {
               <label style={lbl}>Operator narxi (Cost)</label>
               <input type="number" style={inp} value={form.supplierCost} onChange={e => set('supplierCost', e.target.value)} placeholder="0" />
             </div>
-            {isAdmin && (
-              <div>
-                <label style={lbl}>Chegirma</label>
-                <input type="number" style={inp} value={form.discount} onChange={e => set('discount', e.target.value)} placeholder="0" />
-              </div>
-            )}
-            {isAdmin && totalPrice > 0 && (
+            <div>
+              <label style={lbl}>Chegirma</label>
+              <input type="number" style={inp} value={form.discount} onChange={e => set('discount', e.target.value)} placeholder="0" />
+            </div>
+            {totalPrice > 0 && (
               <div style={{ gridColumn: '1/-1', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 <div style={{ padding: '8px 14px', background: '#6366f115', borderRadius: 8, fontSize: 12 }}>
                   <div style={{ color: 'var(--fg-3)', fontSize: 10, fontWeight: 700, marginBottom: 2 }}>KLIENT NARXI</div>
@@ -1711,119 +1705,45 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
   );
 }
 
-// ─── Offer Send Menu (Telegram / Instagram) ──────────────────────────────────
-function OfferSendMenu({ offerId, clientId, clientPhone, clientUsername, onSent, fullWidth }: any) {
-  const [open, setOpen] = useState(false);
-  const [sending, setSending] = useState('');
+// ─── Offer Send Menu (Telegram) ──────────────────────────────────
+// v11: matn shabloni va bot/shaxsiy akkaunt tanlovi endi BACKEND tomonida
+// (OffersService.buildOfferMessage + send()) hal qilinadi — mavjud suhbat
+// bo'lsa o'shandan davom etadi, bo'lmasa (birinchi xabar) avtomatik
+// shaxsiy akkauntdan yuboradi. Frontend faqat bitta so'rov yuboradi —
+// oldingi versiyada bu yerda IKKINCHI marta (qo'lda) userTelegramApi orqali
+// ham yuborilardi, natijada xabar DUBLIKAT ketardi. Endi olib tashlandi.
+function OfferSendMenu({ offerId, clientId, onSent, fullWidth }: any) {
+  const [sending, setSending] = useState(false);
 
-  async function sendVia(channel: 'telegram' | 'instagram' | 'personal') {
-    setSending(channel);
+  async function send() {
+    setSending(true);
     try {
-      // 1. Mark offer as sent
-      await api.post('/offers/' + offerId + '/send', { clientId });
+      const r = await api.post('/offers/' + offerId + '/send', { clientId });
       onSent();
-
-      // 2. Build offer text
-      const offerRes = await api.get('/offers/client/' + clientId);
-      const offer = (Array.isArray(offerRes.data) ? offerRes.data : []).find((o: any) => o.id === offerId);
-      if (!offer) { toast.success('Taklif yuborildi!'); setOpen(false); return; }
-
-      const mealLabel: Record<string, string> = { BREAKFAST: '🍳 Nonushta', FULL_BOARD: '🍽 3 mahal (to\'liq)' };
-      const hotels: any[] = Array.isArray(offer.hotels) && offer.hotels.length
-        ? offer.hotels
-        : (offer.hotelName ? [{ name: offer.hotelName, stars: offer.hotelStars, photos: [] }] : []);
-      const pax = offer.pax > 0 ? offer.pax : 1;
-      const total = offer.clientPrice || 0; // ── faqat mijoz narxi — tan narx/foyda hech qachon shu yerga chiqmaydi ──
-      const perPerson = pax > 1 ? total / pax : null;
-      const includedList = [
-        offer.includesFlight && '✈️ Aviabilet',
-        offer.includesHotel && '🏨 Mehmonxona',
-        offer.includesTransfer && '🚕 Transfer',
-        offer.includesInsurance && '🛡 Sug\'urta',
-        offer.includesVisa && '🛂 Viza',
-      ].filter(Boolean).join(' · ');
-      const firstPhoto = hotels.find((h: any) => h.photos?.length)?.photos?.[0];
-
-      const text = [
-        '🌍 SAYOHAT TAKLIFI',
-        '',
-        '✈️ Tur: ' + offer.tourName,
-        offer.destination ? '📍 Yo\'nalish: ' + offer.destination : '',
-        offer.departDate
-          ? '📅 ' + new Date(offer.departDate).toLocaleDateString('uz-UZ') + (offer.departFlightTime ? ' (' + offer.departFlightTime + ')' : '')
-            + (offer.returnDate ? ' → ' + new Date(offer.returnDate).toLocaleDateString('uz-UZ') + (offer.returnFlightTime ? ' (' + offer.returnFlightTime + ')' : '') : '')
-          : '',
-        offer.pax > 1 ? '👥 Kishilar: ' + offer.pax : '',
-        hotels.length ? '🏨 ' + hotels.map((h: any) => h.name + (h.stars ? ' ' + '⭐'.repeat(h.stars) : '')).join(' | ') : '',
-        firstPhoto ? '🖼 Rasm: ' + firstPhoto : '',
-        offer.mealPlan && mealLabel[offer.mealPlan] ? mealLabel[offer.mealPlan] : '',
-        includedList ? '✅ ' + includedList : '',
-        '',
-        perPerson ? '💰 Narx: $' + perPerson.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' / kishi · Jami: $' + total.toLocaleString() : '💰 Narx: $' + total.toLocaleString(),
-        offer.notes ? '\n📝 ' + offer.notes : '',
-        '',
-        'Qo\'shimcha ma\'lumot uchun murojaat qiling.',
-      ].filter(v => v !== undefined && v !== '').join('\n');
-
-      if (channel === 'personal') {
-        await userTelegramApi.sendMessage({
-          phone: clientPhone || undefined,
-          username: clientUsername ? clientUsername.replace('@', '') : undefined,
-          userId: undefined,
-          text,
-          clientId,
-        });
-      }
-      // Bot (telegram/instagram) channels are notified via offer send API
-      toast.success('✅ Taklif ' + (channel === 'personal' ? 'Telegram' : channel) + ' orqali yuborildi!');
+      const via = r.data?.via;
+      toast.success(
+        via === 'personal'
+          ? '✅ Taklif shaxsiy Telegram orqali yuborildi!'
+          : '✅ Taklif Telegram orqali yuborildi!'
+      );
     } catch (e: any) {
       toast.error(errMsg(e));
     } finally {
-      setSending('');
-      setOpen(false);
+      setSending(false);
     }
   }
 
   return (
-    <div style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(!open)} disabled={!!sending} style={fullWidth ? {
-        display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
-        padding: '9px 12px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg)',
-      } : {
-        padding: '3px 10px', borderRadius: 6, border: 'none',
-        background: 'var(--success-soft)', color: 'var(--success)',
-        cursor: 'pointer', fontSize: 11, fontWeight: 700,
-      }}>
-        {sending ? '...' : fullWidth ? '📤 Yuborish' : '📤 Yuborish ▾'}
-      </button>
-      {open && (
-        <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
-          <div style={{
-            position: 'absolute', top: '100%', right: 0, marginTop: 4,
-            background: 'var(--bg-2)', border: '1px solid var(--border-strong)',
-            borderRadius: 10, boxShadow: 'var(--shadow-lg)',
-            padding: 6, zIndex: 100, minWidth: 180,
-          }}>
-            {[
-              { key: 'personal', label: '📱 Shaxsiy Telegram', icon: '📱' },
-            ].map(opt => (
-              <button key={opt.key} onClick={() => sendVia(opt.key as any)} style={{
-                width: '100%', textAlign: 'left', padding: '8px 12px',
-                borderRadius: 7, border: 'none', background: 'transparent',
-                cursor: 'pointer', color: 'var(--fg)', fontSize: 12,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
-                {opt.icon} {opt.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <button onClick={send} disabled={sending} style={fullWidth ? {
+      display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+      padding: '9px 12px', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg)',
+    } : {
+      padding: '3px 10px', borderRadius: 6, border: 'none',
+      background: 'var(--success-soft)', color: 'var(--success)',
+      cursor: 'pointer', fontSize: 11, fontWeight: 700,
+    }}>
+      {sending ? '⏳ Yuborilmoqda...' : '📤 Telegramda yuborish'}
+    </button>
   );
 }
 
@@ -1968,7 +1888,7 @@ function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: 
               const total = b.totalPrice || 0;
               const paid = b.paidAmount || 0;
               const balance = Math.max(0, total - paid);
-              const markup = isAdmin ? Math.max(0, total - (b.supplierCost || 0) - (b.discount || 0)) : null;
+              const markup = Math.max(0, total - (b.supplierCost || 0) - (b.discount || 0));
               const isPaid = balance <= 0 && total > 0;
               return (
                 <div key={b.id} style={{ padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
@@ -1980,17 +1900,15 @@ function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: 
                       color: isPaid ? 'var(--success)' : 'var(--warning)',
                     }}>{isPaid ? "✅ TO'LANDI" : "⏳ TO'LANMAGAN"}</span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12 }}>
                     <div>
                       <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>Narx</div>
                       <div style={{ fontWeight: 700 }}>{b.currency} {total.toLocaleString()}</div>
                     </div>
-                    {isAdmin && (
-                      <div>
-                        <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>Markup / foyda</div>
-                        <div style={{ fontWeight: 700, color: '#f59e0b' }}>{b.currency} {(markup || 0).toLocaleString()}</div>
-                      </div>
-                    )}
+                    <div>
+                      <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>Markup / foyda</div>
+                      <div style={{ fontWeight: 700, color: '#f59e0b' }}>{b.currency} {markup.toLocaleString()}</div>
+                    </div>
                     <div>
                       <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>To'langan</div>
                       <div style={{ fontWeight: 700, color: 'var(--success)' }}>{b.currency} {paid.toLocaleString()}</div>

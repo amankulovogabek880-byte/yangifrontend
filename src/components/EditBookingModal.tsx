@@ -377,47 +377,45 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
             </div>
           )}
 
-          {isAdmin && (
-            <>
-              <div style={row2}>
-                <div>
-                  <Label>Tannarx / Provayder narxi 🔒</Label>
-                  <Input type="number" value={form.supplierCost} onChange={(e) => set('supplierCost', e.target.value)} placeholder="0" />
-                </div>
-                <div>
-                  <Label>Chegirma</Label>
-                  <Input type="number" value={form.discount} onChange={(e) => set('discount', e.target.value)} placeholder="0" />
-                </div>
-              </div>
+          {/* v11: agent ham admin bilan bir xil to'liq narx/provayder formasini ko'radi —
+              komissiyasi shu yerdagi foydadan (totalPrice - supplierCost - discount) hisoblanadi. */}
+          <div style={row2}>
+            <div>
+              <Label>Tannarx / Provayder narxi 🔒</Label>
+              <Input type="number" value={form.supplierCost} onChange={(e) => set('supplierCost', e.target.value)} placeholder="0" />
+            </div>
+            <div>
+              <Label>Chegirma</Label>
+              <Input type="number" value={form.discount} onChange={(e) => set('discount', e.target.value)} placeholder="0" />
+            </div>
+          </div>
 
-              <div style={{
-                padding: 10, background: 'var(--bg-3)', borderRadius: 8,
-                fontSize: 12, display: 'flex', justifyContent: 'space-between', marginBottom: 14,
-              }}>
-                <span style={{ color: 'var(--fg-3)' }}>Yangi foyda (avtomatik hisoblanadi)</span>
-                <span style={{ textAlign: 'right' }}>
-                  <b style={{ color: 'var(--success)' }}>{form.currency} {previewProfit.toLocaleString()}</b>
-                  {isForeignCur && usdProfitPreview != null && (
-                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>≈ ${usdProfitPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-                  )}
-                </span>
-              </div>
+          <div style={{
+            padding: 10, background: 'var(--bg-3)', borderRadius: 8,
+            fontSize: 12, display: 'flex', justifyContent: 'space-between', marginBottom: 14,
+          }}>
+            <span style={{ color: 'var(--fg-3)' }}>Yangi foyda (avtomatik hisoblanadi)</span>
+            <span style={{ textAlign: 'right' }}>
+              <b style={{ color: 'var(--success)' }}>{form.currency} {previewProfit.toLocaleString()}</b>
+              {isForeignCur && usdProfitPreview != null && (
+                <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>≈ ${usdProfitPreview.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+              )}
+            </span>
+          </div>
 
-              <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>
-                Provayder ma'lumotlari 🔒
-              </div>
-              <div style={row2}>
-                <div><Label>Provayder nomi</Label><Input value={form.supplierName} onChange={(e) => set('supplierName', e.target.value)} /></div>
-                <div><Label>Provayder kontakt</Label><Input value={form.supplierContact} onChange={(e) => set('supplierContact', e.target.value)} /></div>
-              </div>
-              <div style={row2}>
-                <div><Label>Provayder ref</Label><Input value={form.supplierRef} onChange={(e) => set('supplierRef', e.target.value)} /></div>
-                <div><Label>Provayderga to'langan</Label><Input type="number" value={form.supplierPaid} onChange={(e) => set('supplierPaid', e.target.value)} /></div>
-              </div>
-              <Label>Provayder izohi</Label>
-              <Textarea value={form.supplierNotes} onChange={(e: any) => set('supplierNotes', e.target.value)} rows={2} />
-            </>
-          )}
+          <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>
+            Provayder ma'lumotlari 🔒
+          </div>
+          <div style={row2}>
+            <div><Label>Provayder nomi</Label><Input value={form.supplierName} onChange={(e) => set('supplierName', e.target.value)} /></div>
+            <div><Label>Provayder kontakt</Label><Input value={form.supplierContact} onChange={(e) => set('supplierContact', e.target.value)} /></div>
+          </div>
+          <div style={row2}>
+            <div><Label>Provayder ref</Label><Input value={form.supplierRef} onChange={(e) => set('supplierRef', e.target.value)} /></div>
+            <div><Label>Provayderga to'langan</Label><Input type="number" value={form.supplierPaid} onChange={(e) => set('supplierPaid', e.target.value)} /></div>
+          </div>
+          <Label>Provayder izohi</Label>
+          <Textarea value={form.supplierNotes} onChange={(e: any) => set('supplierNotes', e.target.value)} rows={2} />
         </div>
       )}
 
