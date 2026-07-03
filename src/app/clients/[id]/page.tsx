@@ -1746,11 +1746,23 @@ function OfferSendMenu({ offerId, clientId, onSent, fullWidth }: any) {
       const r = await api.post('/offers/' + offerId + '/send', { clientId });
       onSent();
       const via = r.data?.via;
-      toast.success(
-        via === 'personal'
-          ? '✅ Taklif shaxsiy Telegram orqali yuborildi!'
-          : '✅ Taklif Telegram orqali yuborildi!'
-      );
+      const photosSent = r.data?.photosSent ?? 0;
+      const photosFailed = r.data?.photosFailed ?? 0;
+      const baseMsg = via === 'personal'
+        ? '✅ Taklif shaxsiy Telegram orqali yuborildi!'
+        : '✅ Taklif Telegram orqali yuborildi!';
+      if (photosFailed > 0) {
+        // v11: rasm(lar) yuborilmasa ham matn ketgan bo'ladi — buni yashirmasdan
+        // agentga ochiq aytamiz, aks holda "nega mijozga rasm bormadi" degan
+        // savol javobsiz qoladi.
+        toast.error(
+          photosSent > 0
+            ? `⚠️ Matn yuborildi, lekin ${photosFailed} ta rasm yuborilmadi (${photosSent} tasi ketdi). Birozdan so'ng qayta urinib ko'ring.`
+            : `⚠️ Matn yuborildi, lekin rasmlar yuborilmadi. Birozdan so'ng qayta urinib ko'ring yoki Telegram ulanishini tekshiring.`
+        );
+      } else {
+        toast.success(photosSent > 0 ? `${baseMsg} (${photosSent} ta rasm bilan)` : baseMsg);
+      }
     } catch (e: any) {
       toast.error(errMsg(e));
     } finally {
