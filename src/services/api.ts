@@ -194,6 +194,7 @@ export const kpiApi = {
 // ── CLIENTS ──────────────────────────────────────────────────
 export const clientsApi = {
   list: (params?: any) => api.get('/clients', { params }),
+  lost: (params?: any) => api.get('/clients/lost', { params }),
   stats: () => api.get('/clients/stats'),
   one: (id: string) => api.get(`/clients/${id}`),
   timeline: (id: string) => api.get(`/clients/${id}/timeline`),
