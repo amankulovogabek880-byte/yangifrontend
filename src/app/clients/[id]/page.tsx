@@ -252,6 +252,9 @@ export default function Client360Page() {
                 );
               })()}
 
+              {/* v14: mijozning ixtiyoriy ma'lumotlari (key = value) */}
+              <CustomFields client={c} />
+
               {/* Keyingi vazifa */}
               {(() => {
                 const nextTask = (data.tasks || [])[0];
@@ -625,17 +628,84 @@ function StagePill({ clientId, stage, onChanged }: any) {
 }
 
 // ─── Activity Feed (chat + izohlar + vazifalar + bosqich o'zgarishlari) ────────
+function CustomFields({ client }: any) {
+  const [fields, setFields] = useState<{ key: string; value: string }[]>(
+    () => (Array.isArray(client?.preferences?.customFields) ? client.preferences.customFields : []),
+  );
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  const upd = (i: number, k: 'key' | 'value', v: string) => {
+    setFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, [k]: v } : f)));
+    setDirty(true);
+  };
+  const add = () => { setFields((prev) => [...prev, { key: '', value: '' }]); setDirty(true); };
+  const remove = (i: number) => { setFields((prev) => prev.filter((_, idx) => idx !== i)); setDirty(true); };
+
+  async function save() {
+    setSaving(true);
+    try {
+      const clean = fields.filter((f) => f.key.trim() || f.value.trim());
+      await clientsApi.setCustomFields(client.id, clean);
+      setFields(clean);
+      setDirty(false);
+      toast.success('Ma\'lumot saqlandi');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+  const inp: any = { flex: 1, minWidth: 0, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 12, boxSizing: 'border-box' };
+
+  return (
+    <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+      <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 6 }}>Qo'shimcha ma'lumot</div>
+      {fields.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
+          {fields.map((f, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input style={inp} placeholder="Nomi (masalan: Qayerga)" value={f.key} onChange={(e) => upd(i, 'key', e.target.value)} />
+              <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>=</span>
+              <input style={inp} placeholder="Qiymati (masalan: Istanbul)" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} />
+              <button onClick={() => remove(i)} title="O'chirish" style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button onClick={add} style={{ fontSize: 12, padding: '4px 0', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+          + Ma'lumot qo'shish
+        </button>
+        {dirty && (
+          <button onClick={save} disabled={saving} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+            {saving ? '...' : 'Saqlash'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat, onRefresh }: any) {
   const [mode, setMode] = useState<'message' | 'note'>('message');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  // v16: to'liq tarix (eski xabarlar, bosqich o'zgarishlari, loglar) endi
-  // sticky komponent ichida emas — faqat "Tarixni ko'rish" bossangina
-  // modalda ochiladi. Shu orqali tepada faqat kichkina yozish maydoni
-  // "qotib" turadi, katta jurnal esa oldinga chiqib xalaqit bermaydi.
-  // (showHistory olib tashlandi — feed endi inline)
-  // v14: faoliyat tarixini turi bo'yicha filtrlash (chat / taklif / bron / izoh)
-  const [feedFilter, setFeedFilter] = useState<'all' | 'chat' | 'offer' | 'booking' | 'note'>('all');
+  // v14: faoliyat tarixini turi bo'yicha filtrlash (chat / taklif / izoh)
+  const [feedFilter, setFeedFilter] = useState<'all' | 'chat' | 'offer' | 'note'>('all');
+  // v14 FIX: har xabar yuborilganda BUTUN sahifa refresh bo'lardi (onRefresh→load)
+  // va yozishmalar "sakrab" ketardi. Endi xabarlar LOKAL holatda saqlanadi:
+  // yuborilgani darhol ko'rinadi (optimistik), so'ng jimgina qayta o'qiladi —
+  // sahifa qayta yuklanmaydi.
+  const [msgs, setMsgs] = useState<any[]>(chatMsgs || []);
+  useEffect(() => { setMsgs(chatMsgs || []); }, [chatMsgs]);
+
+  async function refetchMsgs() {
+    if (!conversation?.id) return;
+    try {
+      const r = await telegramApi.messages(conversation.id);
+      const list = r.data?.messages || r.data?.items || r.data || [];
+      if (Array.isArray(list)) setMsgs(list);
+    } catch {}
+  }
 
   async function send() {
     const val = text.trim();
@@ -645,30 +715,35 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
       if (mode === 'note') {
         await clientsApi.addNote(client.id, val);
         toast.success('Izoh saqlandi');
+        setText('');
+        onRefresh?.(); // izoh timeline'ga tushadi — bir marta yangilaymiz
+        return;
+      }
+      if (!conversation) { onStartChat?.(); setSending(false); return; }
+      // Optimistik: yuborilgan xabarni darhol ko'rsatamiz
+      const optimistic = { id: 'tmp-' + Date.now(), direction: 'OUTBOUND', text: val, createdAt: new Date().toISOString() };
+      setMsgs((prev) => [...prev, optimistic]);
+      setText('');
+
+      if (conversation.isPersonal) {
+        await userTelegramApi.sendMessage({ userId: conversation.externalChatId, text: val, clientId: client.id });
       } else {
-        if (!conversation) { onStartChat?.(); setSending(false); return; }
-        if (conversation.isPersonal) {
-          await userTelegramApi.sendMessage({ userId: conversation.externalChatId, text: val, clientId: client.id });
-        } else {
-          try {
-            await telegramApi.sendMessage(conversation.id, val);
-          } catch (botErr: any) {
-            // BOT ulanmagan/aktiv bo'lmasa — shaxsiy Telegram orqali qayta urinamiz,
-            // shu tenant uchun bot sozlanmagan bo'lishi tez-tez uchraydi.
-            const msg = botErr?.response?.data?.message || '';
-            if (String(msg).toLowerCase().includes('bot')) {
-              await userTelegramApi.sendMessage({ userId: conversation.externalChatId, text: val, clientId: client.id });
-            } else {
-              throw botErr;
-            }
+        try {
+          await telegramApi.sendMessage(conversation.id, val);
+        } catch (botErr: any) {
+          const msg = botErr?.response?.data?.message || '';
+          if (String(msg).toLowerCase().includes('bot')) {
+            await userTelegramApi.sendMessage({ userId: conversation.externalChatId, text: val, clientId: client.id });
+          } else {
+            throw botErr;
           }
         }
-        toast.success('Xabar yuborildi');
       }
-      setText('');
-      onRefresh?.();
+      // Jimgina qayta o'qiymiz (sahifa reload QILINMAYDI)
+      await refetchMsgs();
     } catch (e: any) {
       toast.error(errMsg(e));
+      await refetchMsgs(); // optimistik xabarni haqiqiy holat bilan almashtiramiz
     } finally {
       setSending(false);
     }
@@ -689,7 +764,7 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
         title: t.title, subtitle: t.description, isNote: type === 'note', kind,
       };
     }),
-    ...(chatMsgs || []).map((m: any) => {
+    ...(msgs || []).map((m: any) => {
       const isOut = m.direction === 'OUTBOUND' || m.direction === 'outbound';
       return {
         id: 'm-' + m.id, ts: m.createdAt, icon: isOut ? '↗️' : '↘️',
@@ -749,7 +824,6 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
             ['all', `Hammasi (${feed.length})`],
             ['chat', '💬 Chat'],
             ['offer', '📨 Takliflar'],
-            ['booking', '🧾 Bronlar'],
             ['note', '🔒 Izohlar'],
           ] as [any, string][]).map(([id, label]) => {
             const active = feedFilter === id;
@@ -1070,7 +1144,9 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
   // v14: sana tekshiruvi — qaytish sanasi jo'nashdan OLDIN bo'lsa xato
   const dateError = !!(f.departDate && f.returnDate && f.returnDate < f.departDate);
 
-  const inp: any = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', colorScheme: 'dark' };
+  // v14: colorScheme 'light dark' — sana/vaqt ikonlari va matn temaga moslashadi
+  // (yorug'da qora, qorong'ida oq).
+  const inp: any = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', colorScheme: 'light dark' };
   const lbl: any = { fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', display: 'block', marginBottom: 4 };
   const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
   // v14: W endi o'zi scroll bo'lmaydi (flex column) — sarlavha va yopish
@@ -1131,30 +1207,42 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, paddingLeft: 38 }}>{isEdit ? '✏️ Taklifni tahrirlash' : '📨 Yangi taklif'}</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Tur nomi *</label><input style={inp} value={f.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Turkiya — Antalya 7 kun" /></div>
-          <div><label style={lbl}>Yo'nalish</label><input style={inp} value={f.destination} onChange={e => set('destination', e.target.value)} /></div>
+          <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Yo'nalish</label><input style={inp} value={f.destination} onChange={e => set('destination', e.target.value)} /></div>
           <div><label style={lbl}>👤 Kattalar</label><input type="number" min={1} style={inp} value={f.pax} onChange={e => set('pax', e.target.value)} /></div>
           <div><label style={lbl}>🧒 Bolalar (arzon narx)</label><input type="number" min={0} style={inp} value={f.children} onChange={e => set('children', e.target.value)} /></div>
-          <div>
-            <label style={lbl}>Jo'nab ketish</label>
-            <input type="date" style={{ ...inp, colorScheme: 'light dark', borderColor: dateError ? '#ef4444' : (inp.border ? undefined : undefined) }} value={f.departDate} onChange={e => set('departDate', e.target.value)} />
-          </div>
-          <div>
-            <label style={lbl}>Qaytish</label>
-            <input type="date" style={{ ...inp, colorScheme: 'light dark', border: dateError ? '1px solid #ef4444' : inp.border }} value={f.returnDate} onChange={e => set('returnDate', e.target.value)} min={f.departDate || undefined} />
+
+          {/* v14: Jo'nab ketish + Qaytish — BIR QATORDA */}
+          <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={lbl}>Jo'nab ketish</label>
+              <input type="date" style={{ ...inp, colorScheme: 'light dark', border: dateError ? '1px solid #ef4444' : inp.border }} value={f.departDate} onChange={e => set('departDate', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Qaytish</label>
+              <input type="date" style={{ ...inp, colorScheme: 'light dark', border: dateError ? '1px solid #ef4444' : inp.border }} value={f.returnDate} onChange={e => set('returnDate', e.target.value)} min={f.departDate || undefined} />
+            </div>
           </div>
           {dateError && (
             <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444', fontSize: 12, fontWeight: 600, marginTop: -4 }}>
               ❗️ Qaytish sanasi jo'nab ketish sanasidan oldin bo'lishi mumkin emas
             </div>
           )}
-          <div>
-            <label style={lbl}>Parvoz vaqti (ixtiyoriy)</label>
-            <input type="time" style={{ ...inp, colorScheme: 'light dark' }} value={f.departFlightTime} onChange={e => set('departFlightTime', e.target.value)} />
+
+          {/* Parvoz vaqtlari — bir qatorda */}
+          <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={lbl}>Parvoz vaqti (ixtiyoriy)</label>
+              <input type="time" style={{ ...inp, colorScheme: 'light dark' }} value={f.departFlightTime} onChange={e => set('departFlightTime', e.target.value)} />
+            </div>
+            <div>
+              <label style={lbl}>Qaytish parvoz vaqti (ixtiyoriy)</label>
+              <input type="time" style={{ ...inp, colorScheme: 'light dark' }} value={f.returnFlightTime} onChange={e => set('returnFlightTime', e.target.value)} />
+            </div>
           </div>
-          <div>
-            <label style={lbl}>Qaytish parvoz vaqti (ixtiyoriy)</label>
-            <input type="time" style={{ ...inp, colorScheme: 'light dark' }} value={f.returnFlightTime} onChange={e => set('returnFlightTime', e.target.value)} />
-          </div>
+
+          {/* v14: Mehmonxonalar — endi Qaytish parvoz vaqtining TAGIDA */}
+          <HotelsPicker hotels={f.hotels} setHotels={setHotels} inp={inp} lbl={lbl} />
+
           {/* v14: Taklifga havola (Booking.com va h.k.) — mijozga yuborilganda
               Telegram avtomatik chiroyli preview (rasm+sarlavha) qilib ko'rsatadi */}
           <div style={{ gridColumn: '1/-1' }}>
@@ -1163,9 +1251,6 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
           </div>
           {/* Pricing */}
           <OfferPricingBox f={f} set={set} inp={inp} lbl={lbl} clientPrice={clientPrice} />
-
-          {/* Hotels (2-5 ta variant + rasmlar) */}
-          <HotelsPicker hotels={f.hotels} setHotels={setHotels} inp={inp} lbl={lbl} />
 
           {/* Ovqatlanish — bitta tanlov */}
           <div style={{ gridColumn: '1/-1' }}>

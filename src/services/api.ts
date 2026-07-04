@@ -202,6 +202,8 @@ export const clientsApi = {
   update: (id: string, data: any) => api.put(`/clients/${id}`, data),
   delete: (id: string) => api.delete(`/clients/${id}`),
   addNote: (id: string, note: string) => api.post(`/clients/${id}/notes`, { note }),
+  // v14: mijozning ixtiyoriy key=value ma'lumotlari
+  setCustomFields: (id: string, fields: {key:string;value:string}[]) => api.patch(`/clients/${id}/custom-fields`, { fields }),
   setTier: (id: string, tier: string) => api.patch(`/clients/${id}/tier`, { tier }),
   // v5: Open Chat va Call
   getConversation: (id: string) => api.get(`/clients/${id}/conversation`),
