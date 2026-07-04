@@ -107,7 +107,9 @@ export default function Client360Page() {
         if (conv?.id) {
           setChatLoading(true);
           telegramApi.messages(conv.id)
-            .then((mr: any) => setChatMsgs(Array.isArray(mr.data) ? mr.data : (mr.data?.data || [])))
+            // v14 FIX: backend { messages, conversation } qaytaradi — avval noto'g'ri
+            // `mr.data.data` o'qilardi, shu sabab CHAT xabarlari umuman chiqmasdi.
+            .then((mr: any) => setChatMsgs(Array.isArray(mr.data) ? mr.data : (mr.data?.messages || mr.data?.data || [])))
             .catch(() => {})
             .finally(() => setChatLoading(false));
         } else {
@@ -710,6 +712,15 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   // sahifa qayta yuklanmaydi.
   const [msgs, setMsgs] = useState<any[]>(chatMsgs || []);
   useEffect(() => { setMsgs(chatMsgs || []); }, [chatMsgs]);
+  // v14: sahifa pastga scroll qilinganda yozishmalar paneli KICHRAYADI (headerga
+  // taqalib faqat yozish maydoni qoladi) — shunda pastdagi ma'lumotlar oson topiladi.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setCollapsed((window.scrollY || document.documentElement.scrollTop || 0) > 120);
+    window.addEventListener('scroll', onScroll, true);
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, []);
 
   async function refetchMsgs() {
     if (!conversation?.id) return;
@@ -788,7 +799,8 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
     }),
   ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 
-  const inp: any = { width: '100%', padding: '6px 8px', borderRadius: 6, border: 'none', background: 'none', color: 'var(--fg)', fontSize: 12, resize: 'vertical', minHeight: 30, maxHeight: 60 };
+  // v14: yozish/izoh maydoni endi kattaroq va ko'rinarli
+  const inp: any = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 14, resize: 'vertical', minHeight: 64, maxHeight: 160, lineHeight: 1.4 };
 
   return (
     <div>
@@ -873,7 +885,7 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
           );
         }
         return (
-          <div style={{ marginTop: 8, maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
+          <div style={{ marginTop: 8, maxHeight: collapsed ? 0 : 300, opacity: collapsed ? 0 : 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4, transition: 'max-height .25s ease, opacity .2s ease' }}>
             {filtered.map((item: any) => {
               const isChatMsg = item.id.startsWith('m-');
               const isOut = item.icon === '↗️';
