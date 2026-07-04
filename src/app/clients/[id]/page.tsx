@@ -629,6 +629,11 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   const [mode, setMode] = useState<'message' | 'note'>('message');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  // v16: to'liq tarix (eski xabarlar, bosqich o'zgarishlari, loglar) endi
+  // sticky komponent ichida emas — faqat "Tarixni ko'rish" bossangina
+  // modalda ochiladi. Shu orqali tepada faqat kichkina yozish maydoni
+  // "qotib" turadi, katta jurnal esa oldinga chiqib xalaqit bermaydi.
+  const [showHistory, setShowHistory] = useState(false);
 
   async function send() {
     const val = text.trim();
@@ -668,6 +673,7 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   }
 
   // Timeline hodisalari va chat xabarlarini bitta xronologik oqimga birlashtiramiz
+  // (faqat "Tarixni ko'rish" modalida ko'rsatiladi)
   const feed = [
     ...(client.timeline || []).map((t: any) => ({
       id: 't-' + t.id, ts: t.createdAt, icon: TIMELINE_ICONS[t.type] || '•',
@@ -685,12 +691,20 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 
   const inp: any = { width: '100%', padding: '8px 10px', borderRadius: 7, border: 'none', background: 'none', color: 'var(--fg)', fontSize: 13, resize: 'vertical', minHeight: 44 };
+  const lastMsg = chatMsgs && chatMsgs.length ? chatMsgs[chatMsgs.length - 1] : null;
 
   return (
     <div>
-      <div style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 10 }}>Faoliyat</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Faoliyat</span>
+        <button onClick={() => setShowHistory(true)} style={{
+          fontSize: 11, padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
+          border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>🕘 Tarixni ko'rish{feed.length > 0 ? ` (${feed.length})` : ''}</button>
+      </div>
 
-      <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
         <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
           <button onClick={() => setMode('message')} style={{
             fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer',
@@ -719,24 +733,36 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
         </div>
       </div>
 
-      {chatLoading && <div style={{ fontSize: 12, color: 'var(--fg-4)', marginBottom: 10 }}>Yuklanmoqda...</div>}
-
-      {feed.length === 0 ? (
-        <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13 }}>Hali faoliyat yo'q</div>
-      ) : (
-        <div>
-          {feed.map((item) => (
-            <div key={item.id} style={{ display: 'flex', gap: 10, fontSize: 13, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 14, marginTop: 2, flexShrink: 0, opacity: 0.8 }}>{item.isNote ? '🔒' : item.icon}</span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{item.title}</div>
-                <div style={{ fontSize: 11, color: 'var(--fg-4)', marginTop: 2 }}>
-                  {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
-                </div>
-              </div>
-            </div>
-          ))}
+      {/* v16: eng oxirgi xabarning bir qatorlik ko'rinishi — to'liq tarix
+          ko'rishga majbur qilmasdan, so'nggi yozishma nima ekanini eslatib turadi */}
+      {chatLoading ? (
+        <div style={{ fontSize: 12, color: 'var(--fg-4)', marginTop: 8 }}>Yuklanmoqda...</div>
+      ) : lastMsg ? (
+        <div style={{ fontSize: 12, color: 'var(--fg-4)', marginTop: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {(lastMsg.direction === 'OUTBOUND' || lastMsg.direction === 'outbound') ? 'Siz: ' : ''}{lastMsg.text || lastMsg.caption || '—'}
         </div>
+      ) : null}
+
+      {showHistory && (
+        <Modal open onClose={() => setShowHistory(false)} title="🕘 To'liq tarix" maxWidth={560}>
+          {feed.length === 0 ? (
+            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13 }}>Hali faoliyat yo'q</div>
+          ) : (
+            <div>
+              {feed.map((item) => (
+                <div key={item.id} style={{ display: 'flex', gap: 10, fontSize: 13, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 14, marginTop: 2, flexShrink: 0, opacity: 0.8 }}>{item.isNote ? '🔒' : item.icon}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{item.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-4)', marginTop: 2 }}>
+                      {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   );
