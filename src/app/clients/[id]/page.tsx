@@ -237,6 +237,21 @@ export default function Client360Page() {
                 <div>{c.source}{c.tier ? ' · ' + c.tier : ''}</div>
               </div>
 
+              {/* v15: So'nggi booking qisqacha — agent bir qarashda mijoz
+                  hozir qanday bosqichda ekanini (tur, holat, to'lov) ko'radi,
+                  pastga tushib Bookinglar bo'limini qidirishi shart emas. */}
+              {c.bookings?.length > 0 && (() => {
+                const latest = c.bookings[0];
+                return (
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border)' }}>
+                    <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>So'nggi booking</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{latest.tourName}</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{latest.status}{latest.destination ? ' · ' + latest.destination : ''}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{latest.currency} {latest.paidAmount || 0} / {latest.totalPrice}</div>
+                  </div>
+                );
+              })()}
+
               {/* Keyingi vazifa */}
               {(() => {
                 const nextTask = (data.tasks || [])[0];
@@ -291,8 +306,28 @@ export default function Client360Page() {
             )}
           </div>
 
-          {/* ── O'NG: takliflar + faoliyat ── */}
+          {/* ── O'NG: faoliyat (chat) tepada qotib turadi + takliflar + bookinglar pastda aylanadi ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 26, minWidth: 0 }}>
+
+            {/* v15: Faoliyat (chat) ENDI ENG TEPADA — agent sahifaga kirgan
+                zahoti chatni ko'radi va yoza oladi, uni qidirib pastga
+                tushirishi shart emas. "sticky" bo'lgani uchun Takliflar/
+                Bookinglar ro'yxatini pastga aylantirsa ham, chat ekranning
+                yuqorisida QOTIB turadi. */}
+            <div style={{
+              position: 'sticky', top: 70, zIndex: 5,
+              maxHeight: 'calc(100vh - 90px)', overflowY: 'auto',
+              background: 'var(--bg)', borderRadius: 12,
+            }}>
+              <ActivityFeed
+                client={c}
+                conversation={data.activeConversation}
+                chatMsgs={chatMsgs}
+                chatLoading={chatLoading}
+                onStartChat={() => setShowPersonalMsg(true)}
+                onRefresh={load}
+              />
+            </div>
 
             {/* Takliflar */}
             <div>
@@ -354,25 +389,6 @@ export default function Client360Page() {
                   onSaved={(o: any) => { setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? o : x)); setEditingOffer(null); }}
                 />
               )}
-            </div>
-
-            {/* v14: Faoliyat (chat) — endi "sticky": foydalanuvchi Takliflar
-                yoki Bookinglar ro'yxatini pastga aylantirsa ham, chat panel
-                doim ko'rinib turadi (ekranning bir joyida "qotib" qoladi),
-                shu bilan birga o'zining ichida ham scroll bo'la oladi. */}
-            <div style={{
-              position: 'sticky', top: 70, zIndex: 5,
-              maxHeight: 'calc(100vh - 90px)', overflowY: 'auto',
-              background: 'var(--bg)', borderRadius: 12,
-            }}>
-              <ActivityFeed
-                client={c}
-                conversation={data.activeConversation}
-                chatMsgs={chatMsgs}
-                chatLoading={chatLoading}
-                onStartChat={() => setShowPersonalMsg(true)}
-                onRefresh={load}
-              />
             </div>
 
             {/* Sotilgandan keyin: booking / to'lov / hujjatlar shu yerda ochiladi */}
