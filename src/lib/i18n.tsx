@@ -32,10 +32,10 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
 
   // Navigation
   'nav.dashboard': { uz: 'Bosh sahifa', ru: 'Главная' },
-  'nav.pipeline': { uz: 'Pipeline', ru: 'Воронка' },
-  'nav.inbox': { uz: 'Inbox', ru: 'Входящие' },
+  'nav.pipeline': { uz: 'Sotuvlar', ru: 'Воронка' },
+  'nav.inbox': { uz: 'Chat', ru: 'Входящие' },
   'nav.clients': { uz: 'Mijozlar', ru: 'Клиенты' },
-  'nav.bookings': { uz: 'Bookinglar', ru: 'Брони' },
+  'nav.bookings': { uz: 'Bronlar', ru: 'Брони' },
   'nav.invoices': { uz: 'Hisob-fakturalar', ru: 'Счета' },
   'nav.payments': { uz: "To'lovlar", ru: 'Платежи' },
   'nav.followups': { uz: 'Eslatmalar', ru: 'Напоминания' },
