@@ -356,15 +356,24 @@ export default function Client360Page() {
               )}
             </div>
 
-            {/* Faoliyat — chat + izohlar + vazifalar + bosqich o'zgarishlari bitta oqimda */}
-            <ActivityFeed
-              client={c}
-              conversation={data.activeConversation}
-              chatMsgs={chatMsgs}
-              chatLoading={chatLoading}
-              onStartChat={() => setShowPersonalMsg(true)}
-              onRefresh={load}
-            />
+            {/* v14: Faoliyat (chat) — endi "sticky": foydalanuvchi Takliflar
+                yoki Bookinglar ro'yxatini pastga aylantirsa ham, chat panel
+                doim ko'rinib turadi (ekranning bir joyida "qotib" qoladi),
+                shu bilan birga o'zining ichida ham scroll bo'la oladi. */}
+            <div style={{
+              position: 'sticky', top: 70, zIndex: 5,
+              maxHeight: 'calc(100vh - 90px)', overflowY: 'auto',
+              background: 'var(--bg)', borderRadius: 12,
+            }}>
+              <ActivityFeed
+                client={c}
+                conversation={data.activeConversation}
+                chatMsgs={chatMsgs}
+                chatLoading={chatLoading}
+                onStartChat={() => setShowPersonalMsg(true)}
+                onRefresh={load}
+              />
+            </div>
 
             {/* Sotilgandan keyin: booking / to'lov / hujjatlar shu yerda ochiladi */}
             {c.bookings?.length > 0 && (
@@ -949,7 +958,9 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
   const inp: any = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', colorScheme: 'dark' };
   const lbl: any = { fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', display: 'block', marginBottom: 4 };
   const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
-  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
+  // v14: W endi o'zi scroll bo'lmaydi (flex column) — sarlavha va yopish
+  // tugmasi doim ko'rinib turadi, faqat ICHIDAGI kontent scroll bo'ladi.
+  const W: any = { position: 'relative', background: 'var(--bg)', borderRadius: 14, width: '100%', maxWidth: 560, maxHeight: '90vh', boxShadow: '0 20px 60px rgba(0,0,0,.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
 
   async function save() {
     if (!f.tourName.trim() || !f.actualPrice) { toast.error('Tur nomi va narx kerak'); return; }
@@ -976,9 +987,22 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
   }
 
   return (
-    <div style={S}>
+    <div style={S} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={W}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>{isEdit ? '✏️ Taklifni tahrirlash' : '📨 Yangi taklif'}</h2>
+        {/* v14: yopish tugmasi — doim ko'rinadi (scroll bo'lmaydi), oson bosish uchun yuqori chap burchakda */}
+        <button
+          onClick={onClose}
+          title="Yopish"
+          style={{
+            position: 'absolute', top: 10, left: 10, zIndex: 2,
+            width: 30, height: 30, borderRadius: '50%', border: 'none',
+            background: 'rgba(239,68,68,0.12)', color: '#ef4444',
+            fontSize: 16, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >✕</button>
+        <div style={{ overflowY: 'auto', padding: 24 }}>
+        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, paddingLeft: 38 }}>{isEdit ? '✏️ Taklifni tahrirlash' : '📨 Yangi taklif'}</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Tur nomi *</label><input style={inp} value={f.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Turkiya — Antalya 7 kun" /></div>
           <div><label style={lbl}>Yo'nalish</label><input style={inp} value={f.destination} onChange={e => set('destination', e.target.value)} /></div>
@@ -1038,11 +1062,11 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
                 <input type="checkbox" checked={sendNow} onChange={e => setSendNow(e.target.checked)} /> Darhol yuborish
               </label>
             )}
-            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>Bekor</button>
             <button onClick={save} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>
               {saving ? '...' : isEdit ? '💾 Saqlash' : sendNow ? '✉️ Yuborish' : '💾 Saqlash'}
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>
