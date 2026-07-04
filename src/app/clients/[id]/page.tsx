@@ -634,6 +634,8 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   // modalda ochiladi. Shu orqali tepada faqat kichkina yozish maydoni
   // "qotib" turadi, katta jurnal esa oldinga chiqib xalaqit bermaydi.
   const [showHistory, setShowHistory] = useState(false);
+  // v14: faoliyat tarixini turi bo'yicha filtrlash (chat / taklif / bron / izoh)
+  const [feedFilter, setFeedFilter] = useState<'all' | 'chat' | 'offer' | 'booking' | 'note'>('all');
 
   async function send() {
     const val = text.trim();
@@ -675,17 +677,25 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   // Timeline hodisalari va chat xabarlarini bitta xronologik oqimga birlashtiramiz
   // (faqat "Tarixni ko'rish" modalida ko'rsatiladi)
   const feed = [
-    ...(client.timeline || []).map((t: any) => ({
-      id: 't-' + t.id, ts: t.createdAt, icon: TIMELINE_ICONS[t.type] || '•',
-      title: t.title, subtitle: t.description, isNote: t.type === 'note',
-    })),
+    ...(client.timeline || []).map((t: any) => {
+      // v14: filter uchun turini aniqlaymiz (taklif / bron / izoh / boshqa)
+      const type = String(t.type || '');
+      const kind = type === 'note' ? 'note'
+        : type.startsWith('offer') ? 'offer'
+        : type.startsWith('booking') ? 'booking'
+        : 'other';
+      return {
+        id: 't-' + t.id, ts: t.createdAt, icon: TIMELINE_ICONS[t.type] || '•',
+        title: t.title, subtitle: t.description, isNote: type === 'note', kind,
+      };
+    }),
     ...(chatMsgs || []).map((m: any) => {
       const isOut = m.direction === 'OUTBOUND' || m.direction === 'outbound';
       return {
         id: 'm-' + m.id, ts: m.createdAt, icon: isOut ? '↗️' : '↘️',
         title: m.text || m.caption,
         subtitle: (isOut ? 'Siz' : client.fullName) + ' · ' + (m._source === 'personal' ? 'Telegram' : (isOut ? 'yuborildi' : 'keldi')),
-        isNote: false,
+        isNote: false, kind: 'chat',
       };
     }),
   ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
@@ -746,14 +756,38 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
 
       {showHistory && (
         <Modal open onClose={() => setShowHistory(false)} title="🕘 Yozishmalar va faoliyat tarixi" maxWidth={600}>
-          {feed.length === 0 ? (
-            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13 }}>Hali faoliyat yo'q</div>
-          ) : (
+          {/* v14: filter — faqat chat / taklif / bron / izohni ko'rish */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {([
+              ['all', `Hammasi (${feed.length})`],
+              ['chat', '💬 Chat'],
+              ['offer', '📨 Takliflar'],
+              ['booking', '🧾 Bronlar'],
+              ['note', '🔒 Izohlar'],
+            ] as [any, string][]).map(([id, label]) => {
+              const active = feedFilter === id;
+              return (
+                <button key={id} onClick={() => setFeedFilter(id)} style={{
+                  padding: '5px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
+                  border: active ? 'none' : '1px solid var(--border)',
+                  background: active ? '#3d7eff' : 'none',
+                  color: active ? 'white' : 'var(--fg-2)', fontWeight: active ? 700 : 500,
+                }}>{label}</button>
+              );
+            })}
+          </div>
+          {(() => {
+            const filtered = feedFilter === 'all' ? feed : feed.filter((x: any) => x.kind === feedFilter);
+            return filtered.length === 0 ? (
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13 }}>
+                {feedFilter === 'all' ? "Hali faoliyat yo'q" : 'Bu turda yozuv yo\'q'}
+              </div>
+            ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {/* v17: eskidan yangiga qarab ko'rsatiladi — xuddi Inboxdagi
                   chat kabi, xabarlar chap/o'ng pufakcha shaklida chiqadi;
                   izoh va bosqich o'zgarishlari esa kichik tizim-qatori sifatida. */}
-              {[...feed].reverse().map((item) => {
+              {[...filtered].reverse().map((item) => {
                 const isChatMsg = item.id.startsWith('m-');
                 const isOut = item.icon === '↗️';
                 if (isChatMsg) {
@@ -784,7 +818,8 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
                 );
               })}
             </div>
-          )}
+            );
+          })()}
         </Modal>
       )}
     </div>
@@ -979,6 +1014,12 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
   const isEdit = !!existingOffer;
   const [f, setF] = useState(() => {
     if (existingOffer) {
+      // v14: narxlar endi 1 KISHI uchun kiritiladi. Saqlangan qiymatlar JAMI —
+      // shuning uchun tahrirlashda kishi soniga bo'lib, 1 kishilik narxni ko'rsatamiz.
+      const exPax = Math.max(1, existingOffer.pax || 1);
+      const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+      const opTotal = Number(existingOffer.originalActualPrice ?? existingOffer.actualPrice ?? 0);
+      const mkTotal = Number(existingOffer.originalMarkup ?? existingOffer.markup ?? 0);
       return {
         tourName: existingOffer.tourName || '',
         destination: existingOffer.destination || '',
@@ -987,10 +1028,11 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
         returnDate: existingOffer.returnDate ? existingOffer.returnDate.slice(0, 10) : '',
         departFlightTime: existingOffer.departFlightTime || '',
         returnFlightTime: existingOffer.returnFlightTime || '',
-        // Asl kiritilgan valyuta/summa qaytarib ko'rsatiladi (agar EUR/UZS bo'lgan bo'lsa)
-        actualPrice: String(existingOffer.originalActualPrice ?? existingOffer.actualPrice ?? ''),
-        markup: String(existingOffer.originalMarkup ?? existingOffer.markup ?? '0'),
+        // 1 kishilik narx (jami / kishi soni)
+        actualPrice: opTotal ? String(r2(opTotal / exPax)) : '',
+        markup: mkTotal ? String(r2(mkTotal / exPax)) : '',
         currency: existingOffer.originalCurrency || existingOffer.currency || 'USD',
+        bookingLink: existingOffer.bookingLink || '',
         hotels: Array.isArray(existingOffer.hotels) && existingOffer.hotels.length
           ? existingOffer.hotels.map((h: any) => ({ name: h.name || '', stars: h.stars || '', photos: h.photos || [] }))
           : [{ name: existingOffer.hotelName || '', stars: existingOffer.hotelStars || '', photos: [] as string[] }],
@@ -1006,7 +1048,9 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
     return {
       tourName: '', destination: '', pax: 1,
       departDate: '', returnDate: '', departFlightTime: '', returnFlightTime: '',
-      actualPrice: '', markup: '0', currency: 'USD',
+      // v14: markup ham operator narxi kabi bo'sh boshlansin (majburiy "0" o'chirmasin)
+      actualPrice: '', markup: '', currency: 'USD',
+      bookingLink: '',
       hotels: [{ name: '', stars: '', photos: [] as string[] }],
       mealPlan: 'NONE',
       includesVisa: false, includesFlight: true, includesHotel: true,
@@ -1018,7 +1062,12 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
   const [sendNow, setSendNow] = useState(false);
   const set = (k: string, v: any) => setF(prev => ({ ...prev, [k]: v }));
   const setHotels = (hotels: any[]) => setF(prev => ({ ...prev, hotels }));
-  const clientPrice = (parseFloat(f.actualPrice) || 0) + (parseFloat(f.markup) || 0);
+  // v14: kiritilgan narxlar 1 KISHI uchun → jami = (operator + markup) × kishi soni
+  const paxN = Math.max(1, parseInt(String(f.pax)) || 1);
+  const perPersonPrice = (parseFloat(f.actualPrice) || 0) + (parseFloat(f.markup) || 0);
+  const clientPrice = perPersonPrice * paxN;
+  // v14: sana tekshiruvi — qaytish sanasi jo'nashdan OLDIN bo'lsa xato
+  const dateError = !!(f.departDate && f.returnDate && f.returnDate < f.departDate);
 
   const inp: any = { width: '100%', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', colorScheme: 'dark' };
   const lbl: any = { fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', display: 'block', marginBottom: 4 };
@@ -1029,6 +1078,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
 
   async function save() {
     if (!f.tourName.trim() || !f.actualPrice) { toast.error('Tur nomi va narx kerak'); return; }
+    if (dateError) { toast.error('Qaytish sanasi jo\'nab ketishdan oldin bo\'lishi mumkin emas'); return; }
     setSaving(true);
     try {
       const hotels = f.hotels
@@ -1036,10 +1086,13 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
         .filter(h => h.name);
       const data = {
         clientId, ...f,
-        actualPrice: parseFloat(f.actualPrice),
-        markup: parseFloat(f.markup) || 0,
+        // v14: kiritilgan narxlar 1 KISHI uchun — backendga JAMI (×kishi) yuboramiz,
+        // shunda profit/booking/hisobotlar avvalgidek to'g'ri qoladi.
+        actualPrice: (parseFloat(f.actualPrice) || 0) * paxN,
+        markup: (parseFloat(f.markup) || 0) * paxN,
         clientPrice,
-        pax: parseInt(String(f.pax)) || 1,
+        pax: paxN,
+        bookingLink: (f.bookingLink || '').trim() || null,
         hotels,
       };
       const r = isEdit
@@ -1074,19 +1127,30 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
           <div><label style={lbl}>Kishi soni</label><input type="number" min={1} style={inp} value={f.pax} onChange={e => set('pax', e.target.value)} /></div>
           <div>
             <label style={lbl}>Jo'nab ketish</label>
-            <input type="date" style={inp} value={f.departDate} onChange={e => set('departDate', e.target.value)} />
+            <input type="date" style={{ ...inp, colorScheme: 'light dark', borderColor: dateError ? '#ef4444' : (inp.border ? undefined : undefined) }} value={f.departDate} onChange={e => set('departDate', e.target.value)} />
           </div>
           <div>
             <label style={lbl}>Qaytish</label>
-            <input type="date" style={inp} value={f.returnDate} onChange={e => set('returnDate', e.target.value)} />
+            <input type="date" style={{ ...inp, colorScheme: 'light dark', border: dateError ? '1px solid #ef4444' : inp.border }} value={f.returnDate} onChange={e => set('returnDate', e.target.value)} min={f.departDate || undefined} />
           </div>
+          {dateError && (
+            <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444', fontSize: 12, fontWeight: 600, marginTop: -4 }}>
+              ❗️ Qaytish sanasi jo'nab ketish sanasidan oldin bo'lishi mumkin emas
+            </div>
+          )}
           <div>
             <label style={lbl}>Parvoz vaqti (ixtiyoriy)</label>
-            <input type="time" style={inp} value={f.departFlightTime} onChange={e => set('departFlightTime', e.target.value)} />
+            <input type="time" style={{ ...inp, colorScheme: 'light dark' }} value={f.departFlightTime} onChange={e => set('departFlightTime', e.target.value)} />
           </div>
           <div>
             <label style={lbl}>Qaytish parvoz vaqti (ixtiyoriy)</label>
-            <input type="time" style={inp} value={f.returnFlightTime} onChange={e => set('returnFlightTime', e.target.value)} />
+            <input type="time" style={{ ...inp, colorScheme: 'light dark' }} value={f.returnFlightTime} onChange={e => set('returnFlightTime', e.target.value)} />
+          </div>
+          {/* v14: Taklifga havola (Booking.com va h.k.) — mijozga yuborilganda
+              Telegram avtomatik chiroyli preview (rasm+sarlavha) qilib ko'rsatadi */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>🔗 Havola (ixtiyoriy — Booking.com, mehmonxona sahifasi...)</label>
+            <input style={inp} value={f.bookingLink} onChange={e => set('bookingLink', e.target.value)} placeholder="https://www.booking.com/..." />
           </div>
           {/* Pricing */}
           <OfferPricingBox f={f} set={set} inp={inp} lbl={lbl} clientPrice={clientPrice} />
@@ -1127,7 +1191,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
                 <input type="checkbox" checked={sendNow} onChange={e => setSendNow(e.target.checked)} /> Darhol yuborish
               </label>
             )}
-            <button onClick={save} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>
+            <button onClick={save} disabled={saving || dateError} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: dateError ? 'var(--fg-4)' : '#3d7eff', color: 'white', cursor: dateError ? 'not-allowed' : 'pointer', fontWeight: 700, opacity: dateError ? 0.6 : 1 }}>
               {saving ? '...' : isEdit ? '💾 Saqlash' : sendNow ? '✉️ Yuborish' : '💾 Saqlash'}
             </button>
           </div>
@@ -1763,6 +1827,7 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
   const isForeign = f.currency && f.currency !== 'USD';
   const usdClientPrice = isForeign && fxRate ? clientPrice / fxRate : null;
   const paxNum = Math.max(1, parseInt(String(f.pax)) || 1);
+  // v14: kiritilgan qiymatlar 1 KISHI uchun. clientPrice (prop) allaqachon JAMI.
   const perPerson = paxNum > 0 ? clientPrice / paxNum : clientPrice;
   const money = (n: number) => isForeign ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + f.currency : '$' + n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
@@ -1773,11 +1838,11 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
   return (
     <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
       <div>
-        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Operator narxi</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Operator narxi (1 kishi)</label>
         <input type="number" style={inp} value={f.actualPrice} onChange={(e: any) => set('actualPrice', e.target.value)} placeholder="0" />
       </div>
       <div>
-        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Markup (ustama)</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Markup (1 kishi)</label>
         <input type="number" style={inp} value={f.markup} onChange={(e: any) => set('markup', e.target.value)} placeholder="0" />
       </div>
       <div>
@@ -1792,19 +1857,19 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
         )}
       </div>
       <div>
-        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Mijozga narx (jami)</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Mijozga narx (jami: {paxNum} kishi)</label>
         <div style={{ padding: '7px 10px', background: '#10b98115', borderRadius: 7, fontSize: 16, fontWeight: 700, color: '#10b981' }}>
           {money(clientPrice)}
         </div>
         {isForeign && usdClientPrice != null && (
           <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>≈ ${usdClientPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
         )}
-        {paxNum > 1 && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>{money(perPerson)} / kishi</div>}
+        <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>{money(perPerson)} × {paxNum} kishi</div>
       </div>
       {f.actualPrice && Number(f.actualPrice) > 0 && (
         <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, padding: '8px 10px', background: '#8b5cf610', borderRadius: 7, fontSize: 12 }}>
-          <span>Foyda: <b style={{ color: '#8b5cf6' }}>{money(clientPrice - Number(f.actualPrice))}</b></span>
-          <span style={{ color: 'var(--fg-3)' }}>({Math.round(((clientPrice - Number(f.actualPrice)) / clientPrice) * 100)}% margin)</span>
+          <span>Foyda (jami): <b style={{ color: '#8b5cf6' }}>{money((parseFloat(f.markup) || 0) * paxNum)}</b></span>
+          <span style={{ color: 'var(--fg-3)' }}>({money(parseFloat(f.markup) || 0)} × {paxNum} kishi)</span>
         </div>
       )}
       {isForeign && (
