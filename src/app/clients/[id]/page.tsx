@@ -633,7 +633,7 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   // sticky komponent ichida emas — faqat "Tarixni ko'rish" bossangina
   // modalda ochiladi. Shu orqali tepada faqat kichkina yozish maydoni
   // "qotib" turadi, katta jurnal esa oldinga chiqib xalaqit bermaydi.
-  const [showHistory, setShowHistory] = useState(false);
+  // (showHistory olib tashlandi — feed endi inline)
   // v14: faoliyat tarixini turi bo'yicha filtrlash (chat / taklif / bron / izoh)
   const [feedFilter, setFeedFilter] = useState<'all' | 'chat' | 'offer' | 'booking' | 'note'>('all');
 
@@ -701,127 +701,116 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 
   const inp: any = { width: '100%', padding: '6px 8px', borderRadius: 6, border: 'none', background: 'none', color: 'var(--fg)', fontSize: 12, resize: 'vertical', minHeight: 30, maxHeight: 60 };
-  const lastMsg = chatMsgs && chatMsgs.length ? chatMsgs[chatMsgs.length - 1] : null;
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Faoliyat</span>
-        <button onClick={() => setShowHistory(true)} style={{
-          fontSize: 11, padding: '3px 8px', borderRadius: 7, cursor: 'pointer',
-          border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)',
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}>🕘 Yozishmalarni ko'rish{feed.length > 0 ? ` (${feed.length})` : ''}</button>
-      </div>
-
-      {/* v17: kichiklashtirildi — endi boshqa amallarga (Booking/Taklif
-          tugmalari) xalaqit bermaydi, faqat yozish uchun zarur joy oladi */}
-      <div style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '6px 8px' }}>
-        <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
-          <button onClick={() => setMode('message')} style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
-            border: mode === 'message' ? 'none' : '1px solid var(--border)',
-            background: mode === 'message' ? '#3d7eff' : 'none',
-            color: mode === 'message' ? 'white' : 'var(--fg-2)',
-          }}>Xabar</button>
-          <button onClick={() => setMode('note')} style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
-            border: mode === 'note' ? 'none' : '1px solid var(--border)',
-            background: mode === 'note' ? '#3d7eff' : 'none',
-            color: mode === 'note' ? 'white' : 'var(--fg-2)',
-          }}>Izoh</button>
+      {/* v14: Yozish maydoni endi "qotib" (sticky) turadi — sahifa scroll
+          bo'lganda ham ko'rinib turadi, shu bilan yozishmalarni o'qib turib
+          bemalol yozib boraverasiz. */}
+      <div style={{ position: 'sticky', top: 8, zIndex: 5, background: 'var(--bg)', paddingBottom: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Faoliyat</span>
+          {chatLoading && <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>Yuklanmoqda...</span>}
         </div>
-        <textarea
-          value={text} onChange={(e) => setText(e.target.value)} style={inp}
-          placeholder={mode === 'note' ? "Ichki izoh... (faqat xodimlar ko'radi)" : (conversation ? 'Mijozga xabar yozing...' : "Suhbat yo'q — bosing va birinchi xabarni yuboring")}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-          <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>
-            {mode === 'note' ? '🔒 Faqat sizga' : '✈️ Mijoz ko\'radi'}
-          </span>
-          <button onClick={send} disabled={sending || !text.trim()} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: sending || !text.trim() ? 0.6 : 1 }}>
-            {sending ? '...' : mode === 'note' ? 'Saqlash' : 'Yuborish'}
-          </button>
-        </div>
-      </div>
 
-      {/* eng oxirgi xabarning bir qatorlik ko'rinishi */}
-      {chatLoading ? (
-        <div style={{ fontSize: 11, color: 'var(--fg-4)', marginTop: 5 }}>Yuklanmoqda...</div>
-      ) : lastMsg ? (
-        <div style={{ fontSize: 11, color: 'var(--fg-4)', marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {(lastMsg.direction === 'OUTBOUND' || lastMsg.direction === 'outbound') ? 'Siz: ' : ''}{lastMsg.text || lastMsg.caption || '—'}
-        </div>
-      ) : null}
-
-      {showHistory && (
-        <Modal open onClose={() => setShowHistory(false)} title="🕘 Yozishmalar va faoliyat tarixi" maxWidth={600}>
-          {/* v14: filter — faqat chat / taklif / bron / izohni ko'rish */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            {([
-              ['all', `Hammasi (${feed.length})`],
-              ['chat', '💬 Chat'],
-              ['offer', '📨 Takliflar'],
-              ['booking', '🧾 Bronlar'],
-              ['note', '🔒 Izohlar'],
-            ] as [any, string][]).map(([id, label]) => {
-              const active = feedFilter === id;
-              return (
-                <button key={id} onClick={() => setFeedFilter(id)} style={{
-                  padding: '5px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
-                  border: active ? 'none' : '1px solid var(--border)',
-                  background: active ? '#3d7eff' : 'none',
-                  color: active ? 'white' : 'var(--fg-2)', fontWeight: active ? 700 : 500,
-                }}>{label}</button>
-              );
-            })}
+        <div style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '6px 8px' }}>
+          <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
+            <button onClick={() => setMode('message')} style={{
+              fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
+              border: mode === 'message' ? 'none' : '1px solid var(--border)',
+              background: mode === 'message' ? '#3d7eff' : 'none',
+              color: mode === 'message' ? 'white' : 'var(--fg-2)',
+            }}>Xabar</button>
+            <button onClick={() => setMode('note')} style={{
+              fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
+              border: mode === 'note' ? 'none' : '1px solid var(--border)',
+              background: mode === 'note' ? '#3d7eff' : 'none',
+              color: mode === 'note' ? 'white' : 'var(--fg-2)',
+            }}>Izoh</button>
           </div>
-          {(() => {
-            const filtered = feedFilter === 'all' ? feed : feed.filter((x: any) => x.kind === feedFilter);
-            return filtered.length === 0 ? (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13 }}>
-                {feedFilter === 'all' ? "Hali faoliyat yo'q" : 'Bu turda yozuv yo\'q'}
-              </div>
-            ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* v17: eskidan yangiga qarab ko'rsatiladi — xuddi Inboxdagi
-                  chat kabi, xabarlar chap/o'ng pufakcha shaklida chiqadi;
-                  izoh va bosqich o'zgarishlari esa kichik tizim-qatori sifatida. */}
-              {[...filtered].reverse().map((item) => {
-                const isChatMsg = item.id.startsWith('m-');
-                const isOut = item.icon === '↗️';
-                if (isChatMsg) {
-                  return (
-                    <div key={item.id} style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start' }}>
-                      <div style={{
-                        maxWidth: '75%', padding: '8px 12px', borderRadius: 12,
-                        background: isOut ? '#3d7eff' : 'var(--bg-2)',
-                        color: isOut ? 'white' : 'var(--fg)',
-                        fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                      }}>
-                        {item.title}
-                        <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7, textAlign: 'right' }}>{timeAgo(item.ts)}</div>
-                      </div>
-                    </div>
-                  );
-                }
+          <textarea
+            value={text} onChange={(e) => setText(e.target.value)} style={inp}
+            placeholder={mode === 'note' ? "Ichki izoh... (faqat xodimlar ko'radi)" : (conversation ? 'Mijozga xabar yozing...' : "Suhbat yo'q — bosing va birinchi xabarni yuboring")}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>
+              {mode === 'note' ? '🔒 Faqat sizga' : '✈️ Mijoz ko\'radi'}
+            </span>
+            <button onClick={send} disabled={sending || !text.trim()} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: sending || !text.trim() ? 0.6 : 1 }}>
+              {sending ? '...' : mode === 'note' ? 'Saqlash' : 'Yuborish'}
+            </button>
+          </div>
+        </div>
+
+        {/* v14: filter — modal EMAS, aynan yozish maydonining tagida. Tanlanganini
+            pastdagi oynada ochadi. */}
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
+          {([
+            ['all', `Hammasi (${feed.length})`],
+            ['chat', '💬 Chat'],
+            ['offer', '📨 Takliflar'],
+            ['booking', '🧾 Bronlar'],
+            ['note', '🔒 Izohlar'],
+          ] as [any, string][]).map(([id, label]) => {
+            const active = feedFilter === id;
+            return (
+              <button key={id} onClick={() => setFeedFilter(id)} style={{
+                padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontSize: 11,
+                border: active ? 'none' : '1px solid var(--border)',
+                background: active ? '#3d7eff' : 'none',
+                color: active ? 'white' : 'var(--fg-2)', fontWeight: active ? 700 : 500,
+              }}>{label}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Inline yozishmalar oynasi — ichida scroll bo'ladi (yangi xabar tepada,
+          yozish maydoniga eng yaqin). */}
+      {(() => {
+        const filtered = feedFilter === 'all' ? feed : feed.filter((x: any) => x.kind === feedFilter);
+        if (filtered.length === 0) {
+          return (
+            <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 12, marginTop: 6 }}>
+              {feedFilter === 'all' ? "Hali faoliyat yo'q" : 'Bu turda yozuv yo\'q'}
+            </div>
+          );
+        }
+        return (
+          <div style={{ marginTop: 8, maxHeight: 420, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
+            {filtered.map((item: any) => {
+              const isChatMsg = item.id.startsWith('m-');
+              const isOut = item.icon === '↗️';
+              if (isChatMsg) {
                 return (
-                  <div key={item.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 0', color: 'var(--fg-3)' }}>
-                    <span style={{ fontSize: 13, flexShrink: 0, opacity: 0.8 }}>{item.isNote ? '🔒' : item.icon}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{item.title}</div>
-                      <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 1 }}>
-                        {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
-                      </div>
+                  <div key={item.id} style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start' }}>
+                    <div style={{
+                      maxWidth: '75%', padding: '8px 12px', borderRadius: 12,
+                      background: isOut ? '#3d7eff' : 'var(--bg-2)',
+                      color: isOut ? 'white' : 'var(--fg)',
+                      fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    }}>
+                      {item.title}
+                      <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7, textAlign: 'right' }}>{timeAgo(item.ts)}</div>
                     </div>
                   </div>
                 );
-              })}
-            </div>
-            );
-          })()}
-        </Modal>
-      )}
+              }
+              return (
+                <div key={item.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 0', color: 'var(--fg-3)' }}>
+                  <span style={{ fontSize: 13, flexShrink: 0, opacity: 0.8 }}>{item.isNote ? '🔒' : item.icon}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{item.title}</div>
+                    <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 1 }}>
+                      {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1016,21 +1005,28 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
     if (existingOffer) {
       // v14: narxlar endi 1 KISHI uchun kiritiladi. Saqlangan qiymatlar JAMI —
       // shuning uchun tahrirlashda kishi soniga bo'lib, 1 kishilik narxni ko'rsatamiz.
-      const exPax = Math.max(1, existingOffer.pax || 1);
+      const exPax = Math.max(1, existingOffer.adults ?? existingOffer.pax ?? 1);
       const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
       const opTotal = Number(existingOffer.originalActualPrice ?? existingOffer.actualPrice ?? 0);
       const mkTotal = Number(existingOffer.originalMarkup ?? existingOffer.markup ?? 0);
       return {
         tourName: existingOffer.tourName || '',
         destination: existingOffer.destination || '',
-        pax: existingOffer.pax || 1,
+        // v14: pax = KATTALAR soni (eski takliflarda pax = jami odam, bola yo'q edi)
+        pax: existingOffer.adults ?? existingOffer.pax ?? 1,
+        // v14: bolalar (alohida, arzonroq narx)
+        children: existingOffer.children || 0,
         departDate: existingOffer.departDate ? existingOffer.departDate.slice(0, 10) : '',
         returnDate: existingOffer.returnDate ? existingOffer.returnDate.slice(0, 10) : '',
         departFlightTime: existingOffer.departFlightTime || '',
         returnFlightTime: existingOffer.returnFlightTime || '',
-        // 1 kishilik narx (jami / kishi soni)
-        actualPrice: opTotal ? String(r2(opTotal / exPax)) : '',
-        markup: mkTotal ? String(r2(mkTotal / exPax)) : '',
+        // 1 KATTA uchun narx — yangi takliflarda alohida saqlangan; eskilarda
+        // jami/kishi soniga bo'lib chiqaramiz.
+        actualPrice: existingOffer.adultActualPrice != null ? String(existingOffer.adultActualPrice) : (opTotal ? String(r2(opTotal / exPax)) : ''),
+        markup: existingOffer.adultMarkup != null ? String(existingOffer.adultMarkup) : (mkTotal ? String(r2(mkTotal / exPax)) : ''),
+        // 1 BOLA uchun narx
+        childActualPrice: existingOffer.childActualPrice != null ? String(existingOffer.childActualPrice) : '',
+        childMarkup: existingOffer.childMarkup != null ? String(existingOffer.childMarkup) : '',
         currency: existingOffer.originalCurrency || existingOffer.currency || 'USD',
         bookingLink: existingOffer.bookingLink || '',
         hotels: Array.isArray(existingOffer.hotels) && existingOffer.hotels.length
@@ -1047,9 +1043,11 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
     }
     return {
       tourName: '', destination: '', pax: 1,
+      children: 0,
       departDate: '', returnDate: '', departFlightTime: '', returnFlightTime: '',
       // v14: markup ham operator narxi kabi bo'sh boshlansin (majburiy "0" o'chirmasin)
       actualPrice: '', markup: '', currency: 'USD',
+      childActualPrice: '', childMarkup: '',
       bookingLink: '',
       hotels: [{ name: '', stars: '', photos: [] as string[] }],
       mealPlan: 'NONE',
@@ -1062,10 +1060,13 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
   const [sendNow, setSendNow] = useState(false);
   const set = (k: string, v: any) => setF(prev => ({ ...prev, [k]: v }));
   const setHotels = (hotels: any[]) => setF(prev => ({ ...prev, hotels }));
-  // v14: kiritilgan narxlar 1 KISHI uchun → jami = (operator + markup) × kishi soni
-  const paxN = Math.max(1, parseInt(String(f.pax)) || 1);
-  const perPersonPrice = (parseFloat(f.actualPrice) || 0) + (parseFloat(f.markup) || 0);
-  const clientPrice = perPersonPrice * paxN;
+  // v14: narxlar 1 KISHI uchun. Kattalar va bolalar ALOHIDA hisoblanadi:
+  //   jami = kattalar × (op + markup) + bolalar × (bola_op + bola_markup)
+  const adultsN = Math.max(1, parseInt(String(f.pax)) || 1);
+  const childrenN = Math.max(0, parseInt(String(f.children)) || 0);
+  const adultPer = (parseFloat(f.actualPrice) || 0) + (parseFloat(f.markup) || 0);
+  const childPer = (parseFloat(f.childActualPrice) || 0) + (parseFloat(f.childMarkup) || 0);
+  const clientPrice = adultsN * adultPer + childrenN * childPer;
   // v14: sana tekshiruvi — qaytish sanasi jo'nashdan OLDIN bo'lsa xato
   const dateError = !!(f.departDate && f.returnDate && f.returnDate < f.departDate);
 
@@ -1086,12 +1087,19 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
         .filter(h => h.name);
       const data = {
         clientId, ...f,
-        // v14: kiritilgan narxlar 1 KISHI uchun — backendga JAMI (×kishi) yuboramiz,
-        // shunda profit/booking/hisobotlar avvalgidek to'g'ri qoladi.
-        actualPrice: (parseFloat(f.actualPrice) || 0) * paxN,
-        markup: (parseFloat(f.markup) || 0) * paxN,
+        // v14: JAMI narxlar (kattalar + bolalar) — backend/hisobotlar uchun.
+        actualPrice: (parseFloat(f.actualPrice) || 0) * adultsN + (parseFloat(f.childActualPrice) || 0) * childrenN,
+        markup: (parseFloat(f.markup) || 0) * adultsN + (parseFloat(f.childMarkup) || 0) * childrenN,
         clientPrice,
-        pax: paxN,
+        // pax = JAMI odam (katta + bola) — eski mantiq bilan moslik uchun
+        pax: adultsN + childrenN,
+        // v14: breakdown — tahrirlash va xabar matni uchun 1 kishilik narxlar
+        adults: adultsN,
+        children: childrenN,
+        adultActualPrice: parseFloat(f.actualPrice) || 0,
+        adultMarkup: parseFloat(f.markup) || 0,
+        childActualPrice: childrenN > 0 ? (parseFloat(f.childActualPrice) || 0) : null,
+        childMarkup: childrenN > 0 ? (parseFloat(f.childMarkup) || 0) : null,
         bookingLink: (f.bookingLink || '').trim() || null,
         hotels,
       };
@@ -1124,7 +1132,8 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Tur nomi *</label><input style={inp} value={f.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Turkiya — Antalya 7 kun" /></div>
           <div><label style={lbl}>Yo'nalish</label><input style={inp} value={f.destination} onChange={e => set('destination', e.target.value)} /></div>
-          <div><label style={lbl}>Kishi soni</label><input type="number" min={1} style={inp} value={f.pax} onChange={e => set('pax', e.target.value)} /></div>
+          <div><label style={lbl}>👤 Kattalar</label><input type="number" min={1} style={inp} value={f.pax} onChange={e => set('pax', e.target.value)} /></div>
+          <div><label style={lbl}>🧒 Bolalar (arzon narx)</label><input type="number" min={0} style={inp} value={f.children} onChange={e => set('children', e.target.value)} /></div>
           <div>
             <label style={lbl}>Jo'nab ketish</label>
             <input type="date" style={{ ...inp, colorScheme: 'light dark', borderColor: dateError ? '#ef4444' : (inp.border ? undefined : undefined) }} value={f.departDate} onChange={e => set('departDate', e.target.value)} />
@@ -1826,9 +1835,11 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
 
   const isForeign = f.currency && f.currency !== 'USD';
   const usdClientPrice = isForeign && fxRate ? clientPrice / fxRate : null;
-  const paxNum = Math.max(1, parseInt(String(f.pax)) || 1);
-  // v14: kiritilgan qiymatlar 1 KISHI uchun. clientPrice (prop) allaqachon JAMI.
-  const perPerson = paxNum > 0 ? clientPrice / paxNum : clientPrice;
+  const adultsN = Math.max(1, parseInt(String(f.pax)) || 1);
+  const childrenN = Math.max(0, parseInt(String(f.children)) || 0);
+  const adultPer = (parseFloat(f.actualPrice) || 0) + (parseFloat(f.markup) || 0);
+  const childPer = (parseFloat(f.childActualPrice) || 0) + (parseFloat(f.childMarkup) || 0);
+  const profitTotal = (parseFloat(f.markup) || 0) * adultsN + (parseFloat(f.childMarkup) || 0) * childrenN;
   const money = (n: number) => isForeign ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + f.currency : '$' + n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
   // Diqqat: bu blokda ko'rinadigan Operator narxi/Foyda FAQAT CRM ichida
@@ -1838,11 +1849,11 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
   return (
     <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
       <div>
-        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Operator narxi (1 kishi)</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Operator narxi (1 katta)</label>
         <input type="number" style={inp} value={f.actualPrice} onChange={(e: any) => set('actualPrice', e.target.value)} placeholder="0" />
       </div>
       <div>
-        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Markup (1 kishi)</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Markup (1 katta)</label>
         <input type="number" style={inp} value={f.markup} onChange={(e: any) => set('markup', e.target.value)} placeholder="0" />
       </div>
       <div>
@@ -1857,19 +1868,41 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
         )}
       </div>
       <div>
-        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Mijozga narx (jami: {paxNum} kishi)</label>
+        <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Mijozga narx (jami)</label>
         <div style={{ padding: '7px 10px', background: '#10b98115', borderRadius: 7, fontSize: 16, fontWeight: 700, color: '#10b981' }}>
           {money(clientPrice)}
         </div>
         {isForeign && usdClientPrice != null && (
           <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>≈ ${usdClientPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
         )}
-        <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>{money(perPerson)} × {paxNum} kishi</div>
       </div>
-      {f.actualPrice && Number(f.actualPrice) > 0 && (
+
+      {/* v14: BOLALAR narxi — faqat bolalar soni > 0 bo'lsa ko'rinadi (arzon narx) */}
+      {childrenN > 0 && (
+        <>
+          <div>
+            <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>🧒 Operator narxi (1 bola)</label>
+            <input type="number" style={inp} value={f.childActualPrice} onChange={(e: any) => set('childActualPrice', e.target.value)} placeholder="0" />
+          </div>
+          <div>
+            <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>🧒 Markup (1 bola)</label>
+            <input type="number" style={inp} value={f.childMarkup} onChange={(e: any) => set('childMarkup', e.target.value)} placeholder="0" />
+          </div>
+          <div style={{ gridColumn: '3/-1', display: 'flex', alignItems: 'flex-end', fontSize: 11, color: 'var(--fg-3)' }}>
+            Bolalar alohida, arzon narxda hisoblanadi
+          </div>
+        </>
+      )}
+
+      {/* Hisob-kitob breakdown */}
+      <div style={{ gridColumn: '1/-1', fontSize: 11, color: 'var(--fg-3)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <span>👤 {adultsN} katta × {money(adultPer)} = <b style={{ color: 'var(--fg-2)' }}>{money(adultsN * adultPer)}</b></span>
+        {childrenN > 0 && <span>🧒 {childrenN} bola × {money(childPer)} = <b style={{ color: 'var(--fg-2)' }}>{money(childrenN * childPer)}</b></span>}
+      </div>
+
+      {(adultPer > 0 || childPer > 0) && (
         <div style={{ gridColumn: '1/-1', display: 'flex', gap: 12, padding: '8px 10px', background: '#8b5cf610', borderRadius: 7, fontSize: 12 }}>
-          <span>Foyda (jami): <b style={{ color: '#8b5cf6' }}>{money((parseFloat(f.markup) || 0) * paxNum)}</b></span>
-          <span style={{ color: 'var(--fg-3)' }}>({money(parseFloat(f.markup) || 0)} × {paxNum} kishi)</span>
+          <span>Foyda (jami): <b style={{ color: '#8b5cf6' }}>{money(profitTotal)}</b></span>
         </div>
       )}
       {isForeign && (
