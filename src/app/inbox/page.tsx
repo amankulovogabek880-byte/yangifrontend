@@ -316,10 +316,18 @@ function InboxPageInner() {
       const res = await uploadsApi.one(file);
       const { url, mimeType } = res.data;
       const mediaType = mimeType?.startsWith('image/') ? 'photo' : mimeType?.startsWith('video/') ? 'video' : 'document';
-      await telegramV6.sendMedia(active.id, {
-        fileUrl: url, mimeType, mediaType,
-        caption: draft || undefined,
-      });
+      // v14: shaxsiy/kompaniya (MTProto) suhbat — bot endpointi ishlamaydi,
+      // MTProto orqali yuboramiz. Aks holda avvalgidek bot orqali.
+      if (active.isPersonal) {
+        await userTelegramApi.sendMedia({
+          conversationId: active.id, fileUrl: url, mediaType, caption: draft || undefined,
+        });
+      } else {
+        await telegramV6.sendMedia(active.id, {
+          fileUrl: url, mimeType, mediaType,
+          caption: draft || undefined,
+        });
+      }
       // Show sent media in chat
       setDraft('');
       setMsgRefresh((n: number) => n + 1);
@@ -388,9 +396,16 @@ function InboxPageInner() {
     try {
       const res = await uploadsApi.one(file);
       const { url, mimeType } = res.data;
-      await telegramV6.sendMedia(active.id, {
-        fileUrl: url, mimeType: mimeType || mime, mediaType: 'voice',
-      });
+      // v14: shaxsiy/kompaniya (MTProto) suhbatda ovozni MTProto orqali yuboramiz
+      if (active.isPersonal) {
+        await userTelegramApi.sendMedia({
+          conversationId: active.id, fileUrl: url, mediaType: 'voice',
+        });
+      } else {
+        await telegramV6.sendMedia(active.id, {
+          fileUrl: url, mimeType: mimeType || mime, mediaType: 'voice',
+        });
+      }
       setMsgRefresh((n: number) => n + 1);
       toast.success('Ovozli xabar yuborildi', { id: 'voice' });
     } catch (e: any) {

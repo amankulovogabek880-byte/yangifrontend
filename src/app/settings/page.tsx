@@ -1247,35 +1247,42 @@ function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
         </Card>
       )}
 
-      {/* SHAXSIY TELEGRAM ACCOUNT (har bir agent) */}
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 14 }}>👤 Mening shaxsiy Telegram accountim</h3>
-            <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: '4px 0 0' }}>
-              Shaxsiy Telegram accountingizni ulang — klientlar siz bilan to'g'ridan-to'g'ri suhbat qurishadi.
-            </p>
+      {/* v14: KOMPANIYA (umumiy) TELEGRAM ACCOUNTI — faqat ADMIN ulaydi.
+          Agentlar endi o'z shaxsiy raqamini QO'SHMAYDI. Admin bitta umumiy
+          account ulaydi, klientlar shu orqali yozadi va yangi lead'lar
+          round-robin bilan agentlarga taqsimlanadi. */}
+      {isAdmin && (
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 14 }}>📱 Kompaniya Telegram accounti (umumiy)</h3>
+              <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: '4px 0 0' }}>
+                Bitta umumiy Telegram raqami. Hamma agent shu orqali ishlaydi. Yangi lead
+                avtomatik (round-robin) agentga biriktiriladi — bitta agent yozgan mijozni
+                boshqasi ko'rmaydi. <b>Faqat admin ulaydi.</b>
+              </p>
+            </div>
+            <Btn variant="primary" onClick={() => setShowPersonal(true)}>+ Account ulash</Btn>
           </div>
-          <Btn variant="primary" onClick={() => setShowPersonal(true)}>+ Account ulash</Btn>
-        </div>
 
-        {personalBots.length === 0 ? (
-          <div style={{
-            padding: 30, textAlign: 'center',
-            background: 'var(--bg-3)', borderRadius: 10,
-            color: 'var(--fg-3)',
-          }}>
-            <div style={{ fontSize: 32, opacity: 0.4 }}>👤</div>
-            <div style={{ fontSize: 13, marginTop: 8 }}>Shaxsiy bot ulanmagan</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {personalBots.map((b) => (
-              <BotCard key={b.id} bot={b} onDisconnect={() => disconnectBot(b.id, b.name)} />
-            ))}
-          </div>
-        )}
-      </Card>
+          {personalBots.length === 0 ? (
+            <div style={{
+              padding: 30, textAlign: 'center',
+              background: 'var(--bg-3)', borderRadius: 10,
+              color: 'var(--fg-3)',
+            }}>
+              <div style={{ fontSize: 32, opacity: 0.4 }}>📱</div>
+              <div style={{ fontSize: 13, marginTop: 8 }}>Kompaniya accounti hali ulanmagan</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {personalBots.map((b) => (
+                <BotCard key={b.id} bot={b} onDisconnect={() => disconnectBot(b.id, b.name)} />
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Modallar */}
       {showCompany && (

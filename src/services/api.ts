@@ -576,6 +576,10 @@ export const userTelegramApi = {
   // suhbatga to'g'ri yoziladi va dublikat suhbat yaratilmaydi — backend shuni afzal ko'radi)
   sendMessage: (data: { conversationId?: string; phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
     api.post('/user-telegram/send', data),
+  // v14: rasm / fayl / OVOZLI XABAR yuborish (shaxsiy/kompaniya MTProto account orqali).
+  // mediaType: 'photo' | 'voice' | 'document' | 'video'
+  sendMedia: (data: { conversationId: string; fileUrl: string; caption?: string; mediaType?: string }) =>
+    api.post('/user-telegram/send-media', data),
   // Status
   getMyAccount: () => api.get('/user-telegram/me'),
   disconnect: () => api.delete('/user-telegram/me'),
