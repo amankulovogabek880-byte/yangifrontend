@@ -7,7 +7,7 @@ import { Btn, Input, Select, Card, Skeleton, Badge, Modal, Label, Textarea, Avat
 import { TIER_LABELS, SOURCE_LABELS, STAGE_LABELS, STAGE_COLORS, errMsg, timeAgo } from '@/lib/helpers';
 import {
   Users, UserPlus, Search, Download, GitBranch, UserCheck, X, Loader2, CheckSquare,
-  Globe, Phone as PhoneIcon, Handshake, Footprints, HelpCircle,
+  Globe, Phone as PhoneIcon, Handshake, Footprints, HelpCircle, UserX,
 } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaWhatsapp, FaFacebook } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -51,6 +51,9 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', source: '', stage: '', sortBy: 'recent' });
   const [showAdd, setShowAdd] = useState(false);
+  // v18: "Yo'qotilgan leadlar" endi alohida sahifa emas — shu yerdan modal
+  // sifatida ochiladi.
+  const [showLostLeads, setShowLostLeads] = useState(false);
   const [page, setPage] = useState(1);
 
   // ── v10.3: BULK ACTIONS — checkboxlar faqat "Tanlash" rejimida ko'rinadi
@@ -154,6 +157,7 @@ export default function ClientsPage() {
               {selectMode ? 'Tanlashni yopish' : 'Tanlash'}
             </Btn>
             <Btn variant="secondary" icon={<Download size={14} />} onClick={exportCsv}>CSV</Btn>
+            <Btn variant="secondary" icon={<UserX size={14} />} onClick={() => setShowLostLeads(true)}>Yo'qotilgan mijozlar</Btn>
             <Btn icon={<UserPlus size={14} />} onClick={() => setShowAdd(true)}>Yangi Klient</Btn>
           </div>
         </div>
@@ -298,6 +302,7 @@ export default function ClientsPage() {
         )}
 
         {showAdd && <AddClientModal onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
+        {showLostLeads && <LostLeadsModal onClose={() => setShowLostLeads(false)} router={router} />}
       </div>
     </CrmLayout>
   );
@@ -358,6 +363,126 @@ function AddClientModal({ onClose, onSaved }: any) {
           <Btn type="submit" loading={loading} style={{ flex: 1 }}>Saqlash</Btn>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+// ─── v18: "Yo'qotilgan mijozlar" — endi Mijozlar sahifasidan modal
+// sifatida ochiladi (alohida sahifaga o'tish shart emas). Umumiy hovuz —
+// hamma agent ko'radi, istalgan agent qayta bog'lanishi mumkin. ────────────
+function fmtLostDate(d: any): string {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleDateString('uz-UZ', { day: 'numeric', month: 'short', year: 'numeric' }); }
+  catch { return '—'; }
+}
+function lostInitials(name: string): string {
+  return String(name || '?').trim().split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase();
+}
+const LOST_SOURCE_LABEL: Record<string, string> = {
+  TELEGRAM: 'Telegram', INSTAGRAM: 'Instagram', WHATSAPP: 'WhatsApp',
+  FACEBOOK: 'Facebook', WEBSITE: 'Website', REFERRAL: 'Tavsiya',
+  WALK_IN: 'Walk-in', WALKIN: 'Walk-in', PHONE: 'Telefon', OTHER: 'Boshqa',
+};
+
+function LostLeadsModal({ onClose, router }: any) {
+  const [items, setItems] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  function load() {
+    setLoading(true);
+    clientsApi.lost({ search: search || undefined, limit: 100 })
+      .then((r: any) => {
+        const arr = Array.isArray(r?.data) ? r.data : (r?.data?.data || []);
+        setItems(arr);
+        setTotal(r?.data?.total ?? arr.length);
+      })
+      .catch(() => { setItems([]); setTotal(0); })
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    const t = setTimeout(load, search ? 350 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  return (
+    <Modal open onClose={onClose} title="🗂️ Yo'qotilgan mijozlar" maxWidth={860}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+            Umumiy hovuz · hamma agent ko'rishi mumkin · {total} ta
+          </div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Ism yoki telefon…"
+            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, minWidth: 200 }}
+          />
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', color: 'var(--fg-3)', fontSize: 13, padding: 30 }}>Yuklanmoqda…</div>
+        ) : items.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--fg-3)', fontSize: 14, padding: 40 }}>
+            Yo'qotilgan lead yo'q 👍
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, maxHeight: '60vh', overflowY: 'auto' }}>
+            {items.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => { onClose(); router.push(`/clients/${c.id}`); }}
+                style={{
+                  background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12,
+                  padding: '14px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'var(--fg-2)', flexShrink: 0 }}>
+                    {lostInitials(c.fullName)}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fullName}</div>
+                    <div style={{ fontSize: 13, color: 'var(--fg-2)' }}>{c.phone || '—'}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11 }}>
+                  {c.source && (
+                    <span style={{ padding: '3px 8px', borderRadius: 6, background: 'var(--bg-3)', color: 'var(--fg-2)' }}>
+                      {LOST_SOURCE_LABEL[c.source] || c.source}
+                    </span>
+                  )}
+                  {typeof c._count?.bookings === 'number' && c._count.bookings > 0 && (
+                    <span style={{ padding: '3px 8px', borderRadius: 6, background: 'var(--bg-3)', color: 'var(--fg-2)' }}>
+                      {c._count.bookings} booking
+                    </span>
+                  )}
+                  {c.assignedAgent?.name && (
+                    <span style={{ padding: '3px 8px', borderRadius: 6, background: 'var(--bg-3)', color: 'var(--fg-3)' }}>
+                      avval: {c.assignedAgent.name}
+                    </span>
+                  )}
+                </div>
+
+                {c.notes && (
+                  <div style={{ fontSize: 12, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+                    {c.notes}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--fg-3)', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                  <span>Yo'qotilgan: {fmtLostDate(c.pipelineStageAt)}</span>
+                  <span style={{ color: 'var(--accent, #3d7eff)' }}>Ochish →</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </Modal>
   );
 }
