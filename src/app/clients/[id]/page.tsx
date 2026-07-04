@@ -79,6 +79,9 @@ export default function Client360Page() {
   const [chatMsgs, setChatMsgs] = useState<any[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [offers, setOffers] = useState<any[]>([]);
+  // v14: Faoliyat filtri parent'da — "Takliflar" bosilganda pastdagi taklif
+  // kartalari ko'rinadi, "Chat"da yashiriladi.
+  const [activeFilter, setActiveFilter] = useState<'all' | 'chat' | 'offer' | 'note'>('all');
   const [showOfferCreate, setShowOfferCreate] = useState(false);
   const [editingOffer, setEditingOffer] = useState<any>(null);
   const [sellingOfferId, setSellingOfferId] = useState<string | null>(null);
@@ -329,10 +332,14 @@ export default function Client360Page() {
                 chatLoading={chatLoading}
                 onStartChat={() => setShowPersonalMsg(true)}
                 onRefresh={load}
+                filter={activeFilter}
+                onFilterChange={setActiveFilter}
               />
             </div>
 
-            {/* Takliflar */}
+            {/* Takliflar — v14: faqat "Hammasi" yoki "Takliflar" filtrida ko'rinadi
+                (Chat/Izohlar tanlanganda yashiriladi — orqada chiqib turmaydi) */}
+            {(activeFilter === 'all' || activeFilter === 'offer') && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Takliflar</span>
@@ -343,16 +350,18 @@ export default function Client360Page() {
                 <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13, border: '1px solid var(--border)', borderRadius: 8 }}>
                   Hali taklif yuborilmagan
                 </div>
-              ) : (
+              ) : (() => {
+                // v14: booking'ga aylangan (sotilgan) takliflar ro'yxatning ENG PASTIDA
+                const isSold = (o: any) => o?.status === 'SOLD' || o?.status === 'CONVERTED' || !!o?.bookingId;
+                const offersSorted = [...offers].sort((a: any, b: any) => (isSold(a) ? 1 : 0) - (isSold(b) ? 1 : 0));
+                const groups = groupDuplicateOffers(offersSorted);
+                return (
                 <div style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-                  {/* v10.4: Bir xil taklif (masalan, forma tasodifan 2 marta
-                      yuborilganda) endi bitta karta sifatida, "×N" belgisi
-                      bilan ko'rsatiladi — ro'yxat cho'zilib ketmaydi. */}
-                  {groupDuplicateOffers(offers).map((group: any[], gi: number) => (
+                  {groups.map((group: any[], gi: number) => (
                     <OfferGroupRow
                       key={group[0].id}
                       group={group}
-                      isLast={gi === groupDuplicateOffers(offers).length - 1}
+                      isLast={gi === groups.length - 1}
                       clientId={id}
                       clientPhone={c.phone}
                       clientUsername={c.telegramUsername}
@@ -363,7 +372,8 @@ export default function Client360Page() {
                     />
                   ))}
                 </div>
-              )}
+                );
+              })()}
 
               <button onClick={() => setShowBooking(true)} style={{ fontSize: 11, color: 'var(--fg-4)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 0' }}>
                 yoki to'g'ridan-to'g'ri booking yarating →
@@ -393,6 +403,7 @@ export default function Client360Page() {
                 />
               )}
             </div>
+            )}
 
             {/* Sotilgandan keyin: booking / to'lov / hujjatlar shu yerda ochiladi */}
             {c.bookings?.length > 0 && (
@@ -685,12 +696,14 @@ function CustomFields({ client }: any) {
   );
 }
 
-function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat, onRefresh }: any) {
+function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat, onRefresh, filter, onFilterChange }: any) {
   const [mode, setMode] = useState<'message' | 'note'>('message');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  // v14: faoliyat tarixini turi bo'yicha filtrlash (chat / taklif / izoh)
-  const [feedFilter, setFeedFilter] = useState<'all' | 'chat' | 'offer' | 'note'>('all');
+  // v14: filter endi PARENT'da (controlled) — "Takliflar" bosilganda pastdagi
+  // haqiqiy taklif kartalari ko'rinadi, "Chat"da esa ular yashiriladi.
+  const feedFilter = filter || 'all';
+  const setFeedFilter = (v: any) => onFilterChange?.(v);
   // v14 FIX: har xabar yuborilganda BUTUN sahifa refresh bo'lardi (onRefresh→load)
   // va yozishmalar "sakrab" ketardi. Endi xabarlar LOKAL holatda saqlanadi:
   // yuborilgani darhol ko'rinadi (optimistik), so'ng jimgina qayta o'qiladi —
@@ -843,6 +856,15 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
           yozish maydoniga eng yaqin). */}
       {(() => {
         const filtered = feedFilter === 'all' ? feed : feed.filter((x: any) => x.kind === feedFilter);
+        // v14: "Takliflar" tanlanganda inline jurnal EMAS — pastda haqiqiy
+        // taklif kartalari ko'rsatiladi (2-rasmdagidek). Shu yerda faqat ishorat.
+        if (feedFilter === 'offer') {
+          return (
+            <div style={{ padding: '14px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 12, marginTop: 6 }}>
+              📨 Takliflar quyida ↓
+            </div>
+          );
+        }
         if (filtered.length === 0) {
           return (
             <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 12, marginTop: 6 }}>
