@@ -67,6 +67,12 @@ function InboxPageInner() {
   const [showContext, setShowContext] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // v13: ovozli xabar yozish
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<any>(null);
 
   useSocket();
 
@@ -321,6 +327,77 @@ function InboxPageInner() {
     } catch (e: any) { toast.error(errMsg(e), { id: 'upload' }); }
   }
 
+  // v13: ovozli xabar — yozishni boshlash
+  async function startRecording() {
+    if (!active?.id) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      recordChunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size > 0) recordChunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((tr) => tr.stop());
+      };
+      rec.start();
+      mediaRecorderRef.current = rec;
+      setIsRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch (e) {
+      toast.error("Mikrofonga ruxsat berilmadi");
+    }
+  }
+
+  // Yozishni bekor qilish (yubormasdan)
+  function cancelRecording() {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    setIsRecording(false);
+    setRecordSeconds(0);
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== 'inactive') {
+      rec.ondataavailable = null;
+      rec.onstop = () => { rec.stream?.getTracks().forEach((tr) => tr.stop()); };
+      rec.stop();
+    }
+    mediaRecorderRef.current = null;
+  }
+
+  // Yozishni to'xtatib, ovozli xabarni yuborish
+  async function stopAndSendRecording() {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    setIsRecording(false);
+    const rec = mediaRecorderRef.current;
+    if (!rec) return;
+    const mime = rec.mimeType || 'audio/webm';
+    await new Promise<void>((resolve) => {
+      rec.onstop = () => { rec.stream?.getTracks().forEach((tr) => tr.stop()); resolve(); };
+      if (rec.state !== 'inactive') rec.stop(); else resolve();
+    });
+    mediaRecorderRef.current = null;
+    setRecordSeconds(0);
+
+    const blob = new Blob(recordChunksRef.current, { type: mime });
+    recordChunksRef.current = [];
+    if (!blob.size || !active?.id) return;
+
+    const ext = mime.includes('ogg') ? 'ogg' : 'webm';
+    const file = new File([blob], `voice_${Date.now()}.${ext}`, { type: mime });
+
+    toast.loading('Yuborilmoqda...', { id: 'voice' });
+    try {
+      const res = await uploadsApi.one(file);
+      const { url, mimeType } = res.data;
+      await telegramV6.sendMedia(active.id, {
+        fileUrl: url, mimeType: mimeType || mime, mediaType: 'voice',
+      });
+      setMsgRefresh((n: number) => n + 1);
+      toast.success('Ovozli xabar yuborildi', { id: 'voice' });
+    } catch (e: any) {
+      toast.error(errMsg(e), { id: 'voice' });
+    }
+  }
+
   return (
     <CrmLayout>
       <div style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
@@ -424,6 +501,29 @@ function InboxPageInner() {
                           minWidth: 18, textAlign: 'center',
                         }}>{c.unreadCount}</span>
                       )}
+                      {/* v13: qo'lda o'qildi/o'qilmadi qilib belgilash */}
+                      <button
+                        title={c.unreadCount > 0 ? "O'qilgan deb belgilash" : "O'qilmagan deb belgilash"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const nextRead = !(c.unreadCount > 0);
+                          setConvs((prev: any[]) => prev.map((cv: any) =>
+                            cv.id === c.id ? { ...cv, unreadCount: nextRead ? 0 : Math.max(cv.unreadCount, 1) } : cv
+                          ));
+                          telegramApi.setRead(c.id, nextRead).catch(() => {
+                            // Xato bo'lsa — orqaga qaytaramiz
+                            setConvs((prev: any[]) => prev.map((cv: any) =>
+                              cv.id === c.id ? { ...cv, unreadCount: c.unreadCount } : cv
+                            ));
+                          });
+                        }}
+                        style={{
+                          border: 'none', background: 'transparent', cursor: 'pointer',
+                          fontSize: 12, opacity: 0.55, padding: 2, lineHeight: 1,
+                        }}
+                      >
+                        {c.unreadCount > 0 ? '✉️' : '📩'}
+                      </button>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {/* Agar client bog'lanmagan bo'lsa — username ko'rsatamiz */}
@@ -567,9 +667,22 @@ function InboxPageInner() {
                         borderRadius: isOut ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                         boxShadow: 'var(--shadow-sm)',
                       }}>
-                        {m.messageType === 'IMAGE' && m.fileUrl && (
+                        {/* v13 FIX: backendda tur nomi "PHOTO" (IMAGE emas) — shu nomuvofiqlik
+                            tufayli rasmlar hech qachon <img> sifatida chiqmasdi. */}
+                        {(m.messageType === 'PHOTO' || m.messageType === 'IMAGE') && m.fileUrl && (
                           <img src={m.fileUrl} alt="" style={{
                             maxWidth: '100%', borderRadius: 8, marginBottom: m.caption ? 6 : 0,
+                          }} />
+                        )}
+                        {m.messageType === 'VIDEO' && m.fileUrl && (
+                          <video src={m.fileUrl} controls style={{
+                            maxWidth: '100%', borderRadius: 8, marginBottom: m.caption ? 6 : 0,
+                          }} />
+                        )}
+                        {/* v13: ovozli xabar pleer — ilgari umuman ko'rsatilmasdi */}
+                        {m.messageType === 'VOICE' && m.fileUrl && (
+                          <audio src={m.fileUrl} controls style={{
+                            maxWidth: 220, height: 34, marginBottom: m.caption || m.text ? 6 : 0,
                           }} />
                         )}
                         {m.messageType === 'DOCUMENT' && m.fileUrl && (
@@ -610,6 +723,20 @@ function InboxPageInner() {
                 <Btn size="sm" variant="ghost" icon="📷" onClick={() => fileInputRef.current?.click()}>
                   Rasm
                 </Btn>
+                {/* v13: ovozli xabar yozish/yuborish tugmasi */}
+                {!isRecording ? (
+                  <Btn size="sm" variant="ghost" icon="🎤" onClick={startRecording}>
+                    Ovozli xabar
+                  </Btn>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700 }}>
+                      ● {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:{String(recordSeconds % 60).padStart(2, '0')}
+                    </span>
+                    <Btn size="sm" variant="secondary" onClick={cancelRecording}>Bekor qilish</Btn>
+                    <Btn size="sm" variant="primary" icon="✅" onClick={stopAndSendRecording}>Yuborish</Btn>
+                  </div>
+                )}
                 <Btn size="sm" variant="ghost" icon="🧾" onClick={() => setShowInvoice(true)}>
                   Invoice yuborish
                 </Btn>
@@ -1081,9 +1208,23 @@ function PersonalMessageModal({ onClose, onSent }: any) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'var(--bg)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 460, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
-        <h2 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700 }}>📱 Birinchi xabar yuborish</h2>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ position: 'relative', background: 'var(--bg)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 460, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+        {/* v14: yopish tugmasi — yuqori chap burchakda, doim ko'rinadi */}
+        <button
+          onClick={onClose}
+          title="Yopish"
+          style={{
+            position: 'absolute', top: 10, left: 10, zIndex: 2,
+            width: 30, height: 30, borderRadius: '50%', border: 'none',
+            background: 'rgba(239,68,68,0.12)', color: '#ef4444',
+            fontSize: 16, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >✕</button>
+        <h2 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700, paddingLeft: 38 }}>📱 Birinchi xabar yuborish</h2>
         <p style={{ margin: '0 0 18px', fontSize: 12, color: 'var(--fg-3)' }}>
           Shaxsiy Telegram accountingiz orqali — klient /start yozmagan bo'lsa ham ishlaydi
         </p>
@@ -1116,12 +1257,9 @@ function PersonalMessageModal({ onClose, onSent }: any) {
         />
         <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 14 }}>Ctrl+Enter — yuborish</div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-3)', cursor: 'pointer', fontSize: 13 }}>Bekor</button>
-          <button onClick={send} disabled={loading} style={{ flex: 2, padding: '10px', borderRadius: 9, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
-            {loading ? 'Yuborilmoqda...' : '📨 Yuborish'}
-          </button>
-        </div>
+        <button onClick={send} disabled={loading} style={{ width: '100%', padding: '10px', borderRadius: 9, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+          {loading ? 'Yuborilmoqda...' : '📨 Yuborish'}
+        </button>
       </div>
     </div>
   );

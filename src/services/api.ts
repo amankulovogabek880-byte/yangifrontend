@@ -252,6 +252,7 @@ export const telegramApi = {
     api.patch(`/telegram/conversations/${id}/assign`, { agentId }),
   claim: (id: string) => api.patch(`/telegram/conversations/${id}/claim`),
   resolve: (id: string) => api.patch(`/telegram/conversations/${id}/resolve`),
+  setRead: (id: string, read: boolean) => api.patch(`/telegram/conversations/${id}/read`, { read }),
   linkClient: (id: string, clientId: string) =>
     api.patch(`/telegram/conversations/${id}/link-client`, { clientId }),
   templates: (params?: any) => api.get('/telegram/templates', { params }),
