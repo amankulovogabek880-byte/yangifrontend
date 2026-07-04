@@ -3268,11 +3268,8 @@ function InstagramTab() {
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
 
-  const tenantId = typeof window !== 'undefined'
-    ? (JSON.parse(localStorage.getItem('user') || '{}').tenantId || '')
-    : '';
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-  const webhookUrl = `${API_BASE}/api/v1/instagram/webhook/${tenantId}`;
+  const webhookUrl = `${API_BASE}/api/v1/instagram/webhook`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -3303,10 +3300,16 @@ function InstagramTab() {
           <code style={{ display: 'block', background: 'var(--bg-2)', padding: '6px 10px', borderRadius: 6, margin: '6px 0', fontSize: 11, wordBreak: 'break-all' }}>
             {webhookUrl}
           </code>
-          <b>4.</b> Verify Token: quyida belgilangan tokenni kiriting<br />
-          <b>5.</b> Subscribe: <code>messages</code> va <code>messaging_postbacks</code>
+          <b>4.</b> Verify Token: serverdagi <code>INSTAGRAM_VERIFY_TOKEN</code> env qiymatini kiriting (barcha tenantlar uchun umumiy)<br />
+          <b>5.</b> Subscribe: <code>messages</code> va <code>messaging_postbacks</code><br />
+          <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(225,48,108,0.1)', borderRadius: 6, color: '#e1306c' }}>
+            ⚠️ Bu webhook manzili <b>bitta Meta App uchun umumiy</b> — barcha tenantlar shu bitta URL orqali ishlaydi.
+            Tenant avtomatik ravishda pastda kiritilgan <b>Page ID</b> orqali aniqlanadi, shuning uchun har bir
+            tenant o'z Page ID va Access Tokenini to'g'ri kiritishi shart.
+          </div>
         </div>
       </Card>
+
 
       {/* Config form */}
       <Card>
