@@ -3416,31 +3416,39 @@ function InstagramTab() {
 // XAVFSIZLIK TAB — Parol, 2FA, faol sessiyalar, login tarixi
 // ═══════════════════════════════════════════════════════════════════
 function SecurityTab() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'TENANT_ADMIN';
   const [tab, setTab] = useState<'password' | '2fa' | 'sessions' | 'history'>('password');
+
+  // v14: "Kirish tarixi" (login history) — faqat admin uchun. Agent uni ko'rmaydi.
+  const tabs = ([
+    ['password', '🔑 Parol'],
+    ['2fa', '📱 2FA'],
+    ['sessions', '💻 Sessiyalar'],
+    ...(isAdmin ? [['history', '📋 Kirish tarixi']] : []),
+  ] as [string, string][]);
+
+  // Agent boshqa yo'l bilan 'history' tab'ida qolib ketmasin
+  const activeTab = (!isAdmin && tab === 'history') ? 'password' : tab;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Card>
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-          {([
-            ['password', '🔑 Parol'],
-            ['2fa', '📱 2FA'],
-            ['sessions', '💻 Sessiyalar'],
-            ['history', '📋 Kirish tarixi'],
-          ] as const).map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{
+          {tabs.map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id as any)} style={{
               padding: '8px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: tab === id ? 'var(--primary-soft)' : 'var(--bg-3)',
-              color: tab === id ? 'var(--primary)' : 'var(--fg-2)',
-              fontSize: 12.5, fontWeight: tab === id ? 700 : 500,
+              background: activeTab === id ? 'var(--primary-soft)' : 'var(--bg-3)',
+              color: activeTab === id ? 'var(--primary)' : 'var(--fg-2)',
+              fontSize: 12.5, fontWeight: activeTab === id ? 700 : 500,
             }}>{label}</button>
           ))}
         </div>
 
-        {tab === 'password' && <ChangePasswordPanel />}
-        {tab === '2fa' && <TwoFactorPanel />}
-        {tab === 'sessions' && <SessionsPanel />}
-        {tab === 'history' && <LoginHistoryPanel />}
+        {activeTab === 'password' && <ChangePasswordPanel />}
+        {activeTab === '2fa' && <TwoFactorPanel />}
+        {activeTab === 'sessions' && <SessionsPanel />}
+        {activeTab === 'history' && isAdmin && <LoginHistoryPanel />}
       </Card>
     </div>
   );
