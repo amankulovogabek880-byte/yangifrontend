@@ -690,30 +690,32 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
     }),
   ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 
-  const inp: any = { width: '100%', padding: '8px 10px', borderRadius: 7, border: 'none', background: 'none', color: 'var(--fg)', fontSize: 13, resize: 'vertical', minHeight: 44 };
+  const inp: any = { width: '100%', padding: '6px 8px', borderRadius: 6, border: 'none', background: 'none', color: 'var(--fg)', fontSize: 12, resize: 'vertical', minHeight: 30, maxHeight: 60 };
   const lastMsg = chatMsgs && chatMsgs.length ? chatMsgs[chatMsgs.length - 1] : null;
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Faoliyat</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Faoliyat</span>
         <button onClick={() => setShowHistory(true)} style={{
-          fontSize: 11, padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
+          fontSize: 11, padding: '3px 8px', borderRadius: 7, cursor: 'pointer',
           border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)',
           display: 'flex', alignItems: 'center', gap: 4,
-        }}>🕘 Tarixni ko'rish{feed.length > 0 ? ` (${feed.length})` : ''}</button>
+        }}>🕘 Yozishmalarni ko'rish{feed.length > 0 ? ` (${feed.length})` : ''}</button>
       </div>
 
-      <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+      {/* v17: kichiklashtirildi — endi boshqa amallarga (Booking/Taklif
+          tugmalari) xalaqit bermaydi, faqat yozish uchun zarur joy oladi */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '6px 8px' }}>
+        <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
           <button onClick={() => setMode('message')} style={{
-            fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer',
+            fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
             border: mode === 'message' ? 'none' : '1px solid var(--border)',
             background: mode === 'message' ? '#3d7eff' : 'none',
             color: mode === 'message' ? 'white' : 'var(--fg-2)',
           }}>Xabar</button>
           <button onClick={() => setMode('note')} style={{
-            fontSize: 11, padding: '3px 10px', borderRadius: 999, cursor: 'pointer',
+            fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
             border: mode === 'note' ? 'none' : '1px solid var(--border)',
             background: mode === 'note' ? '#3d7eff' : 'none',
             color: mode === 'note' ? 'white' : 'var(--fg-2)',
@@ -721,45 +723,66 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
         </div>
         <textarea
           value={text} onChange={(e) => setText(e.target.value)} style={inp}
-          placeholder={mode === 'note' ? "Ichki izoh yozing... (faqat xodimlar ko'radi)" : (conversation ? 'Mijozga xabar yozing...' : "Mijoz bilan hali suhbat yo'q — bosing va birinchi xabarni yuboring")}
+          placeholder={mode === 'note' ? "Ichki izoh... (faqat xodimlar ko'radi)" : (conversation ? 'Mijozga xabar yozing...' : "Suhbat yo'q — bosing va birinchi xabarni yuboring")}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-          <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>
-            {mode === 'note' ? '🔒 Faqat sizga ko\'rinadi' : '✈️ Mijoz ko\'radi'}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+          <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>
+            {mode === 'note' ? '🔒 Faqat sizga' : '✈️ Mijoz ko\'radi'}
           </span>
-          <button onClick={send} disabled={sending || !text.trim()} style={{ fontSize: 12, padding: '5px 14px', borderRadius: 7, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: sending || !text.trim() ? 0.6 : 1 }}>
+          <button onClick={send} disabled={sending || !text.trim()} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: sending || !text.trim() ? 0.6 : 1 }}>
             {sending ? '...' : mode === 'note' ? 'Saqlash' : 'Yuborish'}
           </button>
         </div>
       </div>
 
-      {/* v16: eng oxirgi xabarning bir qatorlik ko'rinishi — to'liq tarix
-          ko'rishga majbur qilmasdan, so'nggi yozishma nima ekanini eslatib turadi */}
+      {/* eng oxirgi xabarning bir qatorlik ko'rinishi */}
       {chatLoading ? (
-        <div style={{ fontSize: 12, color: 'var(--fg-4)', marginTop: 8 }}>Yuklanmoqda...</div>
+        <div style={{ fontSize: 11, color: 'var(--fg-4)', marginTop: 5 }}>Yuklanmoqda...</div>
       ) : lastMsg ? (
-        <div style={{ fontSize: 12, color: 'var(--fg-4)', marginTop: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: 11, color: 'var(--fg-4)', marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {(lastMsg.direction === 'OUTBOUND' || lastMsg.direction === 'outbound') ? 'Siz: ' : ''}{lastMsg.text || lastMsg.caption || '—'}
         </div>
       ) : null}
 
       {showHistory && (
-        <Modal open onClose={() => setShowHistory(false)} title="🕘 To'liq tarix" maxWidth={560}>
+        <Modal open onClose={() => setShowHistory(false)} title="🕘 Yozishmalar va faoliyat tarixi" maxWidth={600}>
           {feed.length === 0 ? (
             <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13 }}>Hali faoliyat yo'q</div>
           ) : (
-            <div>
-              {feed.map((item) => (
-                <div key={item.id} style={{ display: 'flex', gap: 10, fontSize: 13, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 14, marginTop: 2, flexShrink: 0, opacity: 0.8 }}>{item.isNote ? '🔒' : item.icon}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{item.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--fg-4)', marginTop: 2 }}>
-                      {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* v17: eskidan yangiga qarab ko'rsatiladi — xuddi Inboxdagi
+                  chat kabi, xabarlar chap/o'ng pufakcha shaklida chiqadi;
+                  izoh va bosqich o'zgarishlari esa kichik tizim-qatori sifatida. */}
+              {[...feed].reverse().map((item) => {
+                const isChatMsg = item.id.startsWith('m-');
+                const isOut = item.icon === '↗️';
+                if (isChatMsg) {
+                  return (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: isOut ? 'flex-end' : 'flex-start' }}>
+                      <div style={{
+                        maxWidth: '75%', padding: '8px 12px', borderRadius: 12,
+                        background: isOut ? '#3d7eff' : 'var(--bg-2)',
+                        color: isOut ? 'white' : 'var(--fg)',
+                        fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      }}>
+                        {item.title}
+                        <div style={{ fontSize: 10, marginTop: 4, opacity: 0.7, textAlign: 'right' }}>{timeAgo(item.ts)}</div>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={item.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 0', color: 'var(--fg-3)' }}>
+                    <span style={{ fontSize: 13, flexShrink: 0, opacity: 0.8 }}>{item.isNote ? '🔒' : item.icon}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{item.title}</div>
+                      <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 1 }}>
+                        {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Modal>
