@@ -176,7 +176,7 @@ export default function DashboardPage() {
     ? [
         { id: 'overview', label: t('dash.overall') },
         { id: 'agents', label: t('dash.myRank') },
-        { id: 'calls', label: "Qo'ng'iroqlarim" },
+        { id: 'calls', label: t('dash.myCalls') },
       ]
     : [
         { id: 'overview', label: t('dash.overall') },
@@ -293,11 +293,11 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
     // (masalan 8%) qiymat ishlatilmaydi.
     { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? totalRevenue)}`, color: '#10b981', sub: t('dash.bookingPricesTotal'), icon: <DollarSign size={15} />, series: revSeries },
     { label: t('dash.operatorCost'), value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: t('dash.costTotal'), icon: <Banknote size={15} /> },
-    { label: t('dash.mySalary'), value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} × ${kpiPct}%)` : '') + (agentTier ? ` · ${agentTier}` : ''), icon: <Wallet size={15} />, emphasis: true },
+    { label: t('dash.mySalary'), value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: `${kpiPct}% ${t('dash.ofProfit')}`, icon: <Wallet size={15} />, emphasis: true },
     { label: t('dash.myBookings'), value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `${t('dash.jami')}: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
     { label: t('dash.conversionRate'), value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead`, icon: <Percent size={15} /> },
     { label: t('dash.myLeads'), value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `${t('common.thisMonth')}: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
-    { label: t('dash.toCompany'), value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: t('dash.afterMyShare'), icon: <Briefcase size={15} /> },
+    { label: t('dash.toCompany'), value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: '', icon: <Briefcase size={15} /> },
   ] : [
     // Vizual iyerarxiya: "Sof foyda" — eng muhim metrika, kattaroq (emphasis)
     { label: t('dash.netProfit'), value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: t('dash.revMinusCostSalary'), icon: <TrendUpIc size={16} />, series: profitSeries, emphasis: true },
