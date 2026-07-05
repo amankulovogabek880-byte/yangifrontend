@@ -16,6 +16,7 @@ const TABS = [
   { id: 'whatsapp',    label: '📱 WhatsApp' },
   { id: 'telegram',    label: '📨 Telegram' },
   { id: 'instagram',   label: '📷 Instagram', adminOnly: true },
+  { id: 'facebook',    label: '👥 Facebook Ads', adminOnly: true },   // ← YANGI
   { id: 'templates',   label: '📝 Shablonlar', adminOnly: true },
   { id: 'api',         label: '🔑 API Keys', adminOnly: true },
   { id: 'webhooklogs', label: '📜 Webhook Logs', adminOnly: true },
@@ -83,6 +84,7 @@ export default function SettingsPage() {
         {tab === 'whatsapp' && <WhatsAppTab />}
         {tab === 'telegram' && <TelegramTab isAdmin={isAdmin} />}
         {tab === 'instagram' && <InstagramTab />}
+        {tab === 'facebook' && <FacebookLeadsTab />}   {/* ← YANGI */}
 
         {tab === 'profile' && <ProfileTab />}
 
@@ -3407,6 +3409,160 @@ function InstagramTab() {
 
         <div style={{ marginTop: 14 }}>
           <button onClick={save} disabled={saving} style={{ padding: '10px 24px', borderRadius: 9, border: 'none', background: '#e1306c', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
+            {saving ? 'Saqlanmoqda...' : '💾 Saqlash'}
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FACEBOOK LEAD ADS TAB
+// ═══════════════════════════════════════════════════════════════════
+function FacebookLeadsTab() {
+  const [cfg, setCfg] = useState<any>({
+    accessToken: '', pageId: '', pageName: '',
+    verifyToken: 'omoncrm_fb_verify', assignToAgentId: '',
+  });
+  const [hasToken, setHasToken] = useState(false);
+  const [maskedToken, setMaskedToken] = useState('');
+  const [stats, setStats] = useState<any>(null);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      import('@/services/api').then(m => m.facebookLeadsApi.getConfig()),
+      import('@/services/api').then(m => m.facebookLeadsApi.getStats()),
+      import('@/services/api').then(m => m.usersApi.list()),
+    ]).then(([cfgR, statsR, usersR]: any) => {
+      const d = cfgR.data;
+      setCfg({
+        accessToken: '', // xavfsizlik: to'liq token hech qachon qaytarilmaydi
+        pageId: d.pageId || '',
+        pageName: d.pageName || '',
+        verifyToken: d.verifyToken || 'omoncrm_fb_verify',
+        assignToAgentId: d.assignToAgentId || '',
+      });
+      setHasToken(!!d.hasAccessToken);
+      setMaskedToken(d.maskedAccessToken || '');
+      setStats(statsR.data);
+      const list = Array.isArray(usersR.data) ? usersR.data : (usersR.data?.data || []);
+      setAgents(list.filter((u: any) => u.role === 'AGENT'));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const res: any = await facebookLeadsApi.saveConfig(cfg);
+      setHasToken(!!res.data?.hasAccessToken);
+      setMaskedToken(res.data?.maskedAccessToken || '');
+      setCfg((c: any) => ({ ...c, accessToken: '' }));
+      toast.success('Facebook sozlamalari saqlandi');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 8,
+    border: '1px solid var(--border)', background: 'var(--bg-2)',
+    color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box',
+  };
+  const lbl: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, color: 'var(--fg-2)',
+    display: 'block', marginBottom: 5,
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  const webhookUrl = `${API_BASE}/api/v1/facebook-leads/webhook`;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
+          {[
+            { label: 'Jami Facebook leadlar', value: stats.total ?? 0, color: '#1877f2' },
+            { label: 'Bu oy', value: stats.thisMonth ?? 0, color: '#f97316' },
+          ].map((s, i) => (
+            <Card key={i} style={{ textAlign: 'center', padding: '14px 16px' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>{s.label}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Setup instructions */}
+      <Card>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>📋 Meta Developer sozlash (Lead Ads)</h3>
+        <div style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.9, padding: '10px 14px', background: 'var(--bg-3)', borderRadius: 8 }}>
+          <b>1.</b> <a href="https://developers.facebook.com" target="_blank" style={{ color: '#3d7eff' }}>developers.facebook.com</a> → My Apps → mavjud App (yoki Instagram uchun yaratgan App'ingiz)<br />
+          <b>2.</b> App → Add Product → <b>Webhooks</b><br />
+          <b>3.</b> Object turi: <b>Page</b> ni tanlang → Callback URL'ga quyidagini kiriting:<br />
+          <code style={{ display: 'block', background: 'var(--bg-2)', padding: '6px 10px', borderRadius: 6, margin: '6px 0', fontSize: 11, wordBreak: 'break-all' }}>
+            {webhookUrl}
+          </code>
+          <b>4.</b> Verify Token: serverdagi <code>FACEBOOK_VERIFY_TOKEN</code> env qiymatini kiriting<br />
+          <b>5.</b> Subscribe fields: <code>leadgen</code><br />
+          <b>6.</b> Facebook Page'ingizni App'ga ulang (Page Settings → Advanced Messaging yoki App Dashboard → Facebook Login for Business orqali Page Access Token oling)<br />
+          <b>7.</b> Ads Manager'da "Leads" maqsadli kampaniya + Instant Form yarating<br />
+          <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(24,119,242,0.1)', borderRadius: 6, color: '#1877f2' }}>
+            ⚠️ Bu webhook manzili <b>bitta Meta App uchun umumiy</b> — barcha tenantlar shu bitta URL orqali ishlaydi.
+            Tenant avtomatik ravishda pastda kiritilgan <b>Page ID</b> orqali aniqlanadi, shuning uchun har bir
+            tenant o'z Page ID va Access Tokenini to'g'ri kiritishi shart.
+          </div>
+        </div>
+      </Card>
+
+      {/* Config form */}
+      <Card>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>⚙️ Facebook Page ulanishi</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>
+              Page Access Token {hasToken && <span style={{ color: 'var(--success)', fontWeight: 700 }}>✓ ulangan ({maskedToken})</span>}
+            </label>
+            <input
+              style={inp}
+              value={cfg.accessToken}
+              onChange={e => setCfg({ ...cfg, accessToken: e.target.value })}
+              placeholder={hasToken ? 'Yangilash uchun yangi token kiriting...' : 'EAAG...'}
+              type="password"
+            />
+          </div>
+          <div>
+            <label style={lbl}>Page ID</label>
+            <input style={inp} value={cfg.pageId} onChange={e => setCfg({ ...cfg, pageId: e.target.value })} placeholder="123456789" />
+          </div>
+          <div>
+            <label style={lbl}>Page nomi (ixtiyoriy)</label>
+            <input style={inp} value={cfg.pageName} onChange={e => setCfg({ ...cfg, pageName: e.target.value })} placeholder="Mening Turizm Sahifam" />
+          </div>
+          <div>
+            <label style={lbl}>Verify Token</label>
+            <input style={inp} value={cfg.verifyToken} onChange={e => setCfg({ ...cfg, verifyToken: e.target.value })} placeholder="omoncrm_fb_verify" />
+          </div>
+          <div>
+            <label style={lbl}>Leadni kim qabul qilsin</label>
+            <select style={inp} value={cfg.assignToAgentId} onChange={e => setCfg({ ...cfg, assignToAgentId: e.target.value })}>
+              <option value="">Avtomatik (Round Robin)</option>
+              {agents.map((a: any) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <button onClick={save} disabled={saving} style={{ padding: '10px 24px', borderRadius: 9, border: 'none', background: '#1877f2', color: 'white', cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
             {saving ? 'Saqlanmoqda...' : '💾 Saqlash'}
           </button>
         </div>

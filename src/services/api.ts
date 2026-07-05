@@ -593,3 +593,10 @@ export const instagramApi = {
   saveConfig: (data: any) => api.post('/instagram/config', data),
   getStats: () => api.get('/instagram/stats'),
 };
+
+// ─── Facebook Lead Ads ──────────────────────────────────────────────────────
+export const facebookLeadsApi = {
+  getConfig: () => api.get('/facebook-leads/config'),
+  saveConfig: (data: any) => api.post('/facebook-leads/config', data),
+  getStats: () => api.get('/facebook-leads/stats'),
+};
