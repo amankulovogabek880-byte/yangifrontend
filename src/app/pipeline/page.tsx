@@ -11,6 +11,7 @@ import {
   ChevronRight, CircleDollarSign, CalendarClock, Inbox,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n';
 
 // Pul formati: $12.5K ko'rinishida (kanban ustuni tor bo'lgani uchun)
 function fmtSum(n: number): string {
@@ -29,6 +30,7 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export default function PipelinePage() {
+  const { t } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
   const isAdmin = ['TENANT_ADMIN', 'MANAGER'].includes(user?.role || '');
@@ -74,7 +76,7 @@ export default function PipelinePage() {
     if (toStage === 'LOST') { setLostModal(clientId); return; }
     try {
       await pipelinesApi.move(clientId, { stage: toStage });
-      toast.success('Bosqich o\'zgartirildi');
+      toast.success(t('pl.stageChanged'));
       if (activePl) loadBoard(activePl.id);
     } catch (e: any) { toast.error(errMsg(e)); }
   }
@@ -97,10 +99,10 @@ export default function PipelinePage() {
               {isAdmin && !pl.isDefault && (
                 <button onClick={async (e) => {
                   e.stopPropagation();
-                  if (!confirm(`"${pl.name}" pipelineini o'chirasizmi?`)) return;
+                  if (!confirm(`"${pl.name}" ${t('pl.deleteConfirm')}`)) return;
                   try {
                     await pipelinesApi.delete(pl.id);
-                    toast.success('Pipeline ochirildi');
+                    toast.success(t('pl.deleted'));
                     loadPipelines();
                   } catch (ex: any) { toast.error(errMsg(ex)); }
                 }} style={{
@@ -108,18 +110,18 @@ export default function PipelinePage() {
                   background: activePl?.id === pl.id ? '#ffffff30' : '#ef444420',
                   color: activePl?.id === pl.id ? 'white' : '#ef4444',
                   borderRadius: '0 8px 8px 0', borderLeft: '1px solid rgba(255,255,255,0.2)',
-                }} title="Pipeline ochirish">✕</button>
+                }} title={t('pl.deleteTitle')}>✕</button>
               )}
             </div>
           ))}
           {isAdmin && <button onClick={() => setAddPlModal(true)} style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, border: '1px dashed var(--border)', background: 'none', cursor: 'pointer', color: 'var(--fg-3)' }}>+ Pipeline</button>}
           <div style={{ flex: 1 }} />
-          {isAdmin && activePl && <button onClick={() => setStagesModal(true)} style={{ padding: '6px 14px', fontSize: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', color: 'var(--fg-2)' }}>⚙️ Bosqichlar</button>}
+          {isAdmin && activePl && <button onClick={() => setStagesModal(true)} style={{ padding: '6px 14px', fontSize: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', color: 'var(--fg-2)' }}>{t('pl.stages')}</button>}
 
         </div>
 
         {/* Board */}
-        {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div> : (
+        {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>{t('pl.loading')}</div> : (
           <div style={{ flex: 1, overflowX: 'auto', display: 'flex', gap: 10, padding: '12px', alignItems: 'flex-start' }}>
             {columns.map((col: any) => (
               <KanbanCol key={col.stage?.id} col={col}
@@ -131,8 +133,8 @@ export default function PipelinePage() {
             ))}
             {columns.length === 0 && (
               <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)', fontSize: 14, width: '100%' }}>
-                Pipeline bo'sh yoki bosqichlar yo'q.
-                {isAdmin && <div style={{ marginTop: 10 }}><button onClick={() => setAddPlModal(true)} style={{ padding: '8px 18px', borderRadius: 8, background: '#3d7eff', color: 'white', border: 'none', cursor: 'pointer' }}>Pipeline yaratish</button></div>}
+                {t('pl.empty')}
+                {isAdmin && <div style={{ marginTop: 10 }}><button onClick={() => setAddPlModal(true)} style={{ padding: '8px 18px', borderRadius: 8, background: '#3d7eff', color: 'white', border: 'none', cursor: 'pointer' }}>{t('pl.create')}</button></div>}
               </div>
             )}
           </div>
@@ -141,7 +143,7 @@ export default function PipelinePage() {
 
       {lostModal && <LostModal onClose={() => setLostModal(null)} onConfirm={(reason: string, detail: string) => {
         pipelinesApi.move(lostModal!, { stage: 'LOST', lostReason: reason, lostReasonDetail: detail })
-          .then(() => { toast.success('Yo\'qotildi deb belgilandi'); setLostModal(null); if (activePl) loadBoard(activePl.id); })
+          .then(() => { toast.success(t('pl.markedLost')); setLostModal(null); if (activePl) loadBoard(activePl.id); })
           .catch(e => toast.error(errMsg(e)));
       }} />}
       {callModal && <CallModal client={callModal} onClose={() => setCallModal(null)} onSaved={() => { setCallModal(null); if (activePl) loadBoard(activePl.id); }} />}
@@ -152,6 +154,7 @@ export default function PipelinePage() {
 }
 
 function KanbanCol({ col, onCardClick, onMove, onCall, allStages }: any) {
+  const { t } = useI18n();
   const stage = col.stage || {};
   const clients: any[] = col.clients || [];
   const color = stage.color || STAGE_COLORS[stage.stageKey] || '#6366f1';
@@ -193,6 +196,7 @@ function KanbanCol({ col, onCardClick, onMove, onCall, allStages }: any) {
 }
 
 function ClientCard({ client: c, isNoContact, color, onClick, onMove, onCall, allStages }: any) {
+  const { t } = useI18n();
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -278,6 +282,7 @@ function ClientCard({ client: c, isNoContact, color, onClick, onMove, onCall, al
 }
 
 function LostModal({ onClose, onConfirm }: any) {
+  const { t } = useI18n();
   const [reason, setReason] = useState('PRICE');
   const [detail, setDetail] = useState('');
   const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' };
@@ -286,16 +291,16 @@ function LostModal({ onClose, onConfirm }: any) {
   return (
     <div style={S}>
       <div style={W}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>Yo'qotilish sababi</h2>
+        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>{t('pl.lossReason')}</h2>
         <select value={reason} onChange={e => setReason(e.target.value)} style={{ ...inp, marginBottom: 12 }}>
-          {[['PRICE','Narx qimmat'],['COMPETITOR','Raqobatchi'],['NOT_INTERESTED','Qiziqmadi'],['NO_RESPONSE','Javob bermadi'],['BUDGET_ISSUE','Byudjet'],['TRAVEL_CANCELLED','Bekor qildi'],['OTHER','Boshqa']].map(([v,l]) => (
-            <option key={v} value={v}>{l}</option>
+          {['PRICE','COMPETITOR','NOT_INTERESTED','NO_RESPONSE','BUDGET_ISSUE','TRAVEL_CANCELLED','OTHER'].map((v) => (
+            <option key={v} value={v}>{t('loss.'+v)}</option>
           ))}
         </select>
-        <textarea value={detail} onChange={e => setDetail(e.target.value)} placeholder="Batafsil sabab (majburiy)..." style={{ ...inp, minHeight: 80, resize: 'vertical', marginBottom: 16 }} />
+        <textarea value={detail} onChange={e => setDetail(e.target.value)} placeholder={t('pl.reasonPh')} style={{ ...inp, minHeight: 80, resize: 'vertical', marginBottom: 16 }} />
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>Bekor</button>
-          <button onClick={() => { if (!detail.trim()) { toast.error('Sabab yozing'); return; } onConfirm(reason, detail); }} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 700 }}>Tasdiqlash</button>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>{t('common.cancel')}</button>
+          <button onClick={() => { if (!detail.trim()) { toast.error(t('pl.reasonRequired')); return; } onConfirm(reason, detail); }} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 700 }}>{t('pl.confirm')}</button>
         </div>
       </div>
     </div>
@@ -303,6 +308,7 @@ function LostModal({ onClose, onConfirm }: any) {
 }
 
 function CallModal({ client, onClose, onSaved }: any) {
+  const { t } = useI18n();
   const [outcome, setOutcome] = useState('NO_ANSWER');
   const [note, setNote] = useState('');
   const [nextCallAt, setNextCallAt] = useState(() => new Date(Date.now() + 24 * 3600000).toISOString().slice(0, 16));
@@ -316,7 +322,7 @@ function CallModal({ client, onClose, onSaved }: any) {
     setSaving(true);
     try {
       await pipelinesApi.callAttempt(client.id, { outcome, note, nextCallAt });
-      toast.success('Saqlandi');
+      toast.success(t('common.saved'));
       onSaved();
     } catch (e: any) { toast.error(errMsg(e)); setSaving(false); }
   }
@@ -332,16 +338,16 @@ function CallModal({ client, onClose, onSaved }: any) {
           ))}
         </div>
         <select value={outcome} onChange={e => setOutcome(e.target.value)} style={inp}>
-          <option value="NO_ANSWER">📵 Javob bermadi</option>
-          <option value="BUSY">🔴 Band edi</option>
-          <option value="ANSWERED">✅ Ko'tardi</option>
-          <option value="CALLBACK_SET">⏰ Qayta belgilandi</option>
+          <option value="NO_ANSWER">{t('pl.noAnswer')}</option>
+          <option value="BUSY">{t('pl.busy')}</option>
+          <option value="ANSWERED">{t('pl.answered')}</option>
+          <option value="CALLBACK_SET">{t('pl.callbackSet')}</option>
         </select>
         <input type="datetime-local" value={nextCallAt} onChange={e => setNextCallAt(e.target.value)} style={inp} />
-        <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Izoh..." style={{ ...inp, minHeight: 60, resize: 'vertical' }} />
-        {attempts >= 5 && <div style={{ padding: '8px 12px', background: '#ef444420', borderRadius: 8, fontSize: 12, color: '#ef4444', marginBottom: 12 }}>6-urinish. Javob bo'lmasa yo'qotildi belgilanadi.</div>}
+        <textarea value={note} onChange={e => setNote(e.target.value)} placeholder={t('pl.notePh')} style={{ ...inp, minHeight: 60, resize: 'vertical' }} />
+        {attempts >= 5 && <div style={{ padding: '8px 12px', background: '#ef444420', borderRadius: 8, fontSize: 12, color: '#ef4444', marginBottom: 12 }}>{t('pl.attempt6')}</div>}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>Bekor</button>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>{t('common.cancel')}</button>
           <button onClick={save} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>{saving ? '...' : 'Saqlash'}</button>
         </div>
       </div>
@@ -350,6 +356,7 @@ function CallModal({ client, onClose, onSaved }: any) {
 }
 
 function StagesModal({ pipeline, onClose }: any) {
+  const { t } = useI18n();
   const [stages, setStages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -367,12 +374,12 @@ function StagesModal({ pipeline, onClose }: any) {
       await pipelinesApi.stageCreate({ name: newName, color: newColor, pipelineId: pipeline.id });
       const r = await pipelinesApi.stagesList(pipeline.id);
       setStages(r.data || []); setNewName('');
-      toast.success('Qo\'shildi');
+      toast.success(t('common.added'));
     } catch (e: any) { toast.error(errMsg(e)); }
   }
 
   async function del(id: string) {
-    if (!confirm('O\'chirasizmi?')) return;
+    if (!confirm(t('pl.deleteQ'))) return;
     try { await pipelinesApi.stageDelete(id); setStages(s => s.filter(x => x.id !== id)); }
     catch (e: any) { toast.error(errMsg(e)); }
   }
@@ -381,7 +388,7 @@ function StagesModal({ pipeline, onClose }: any) {
     <div style={S}>
       <div style={W}>
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>⚙️ {pipeline.name} — Bosqichlar</h2>
-        {loading ? <div>Yuklanmoqda...</div> : (
+        {loading ? <div>{t('pl.loading')}</div> : (
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
             {stages.map((s, i) => (
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-3)', borderRadius: 8, borderLeft: `4px solid ${s.color}` }}>
@@ -398,10 +405,10 @@ function StagesModal({ pipeline, onClose }: any) {
         )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} style={{ width: 36, height: 36, border: 'none', borderRadius: 7, cursor: 'pointer' }} />
-          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Yangi bosqich..."
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder={t('pl.newStagePh')}
             onKeyDown={e => e.key === 'Enter' && add()}
             style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13 }} />
-          <button onClick={add} style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>+ Qo'shish</button>
+          <button onClick={add} style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>{t('common.add')}</button>
         </div>
         <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>Yopish</button>
       </div>
@@ -410,6 +417,7 @@ function StagesModal({ pipeline, onClose }: any) {
 }
 
 function AddPipelineModal({ onClose, onSaved }: any) {
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [type, setType] = useState('NEW_SALE');
   const [saving, setSaving] = useState(false);
@@ -418,7 +426,7 @@ function AddPipelineModal({ onClose, onSaved }: any) {
   const inp: any = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', marginBottom: 12 };
 
   async function save() {
-    if (!name.trim()) { toast.error('Nom kerak'); return; }
+    if (!name.trim()) { toast.error(t('pl.nameRequired')); return; }
     setSaving(true);
     try { await pipelinesApi.create({ name, pipelineType: type }); onSaved(); }
     catch (e: any) { toast.error(errMsg(e)); setSaving(false); }
@@ -432,11 +440,11 @@ function AddPipelineModal({ onClose, onSaved }: any) {
           <option value="NEW_SALE">Yangi Sotuvlar</option>
           <option value="POST_SALE">Sayohat Jarayoni</option>
         </select>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom *" style={inp} />
+        <input value={name} onChange={e => setName(e.target.value)} placeholder={t('pl.namePh')} style={inp} />
         <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: '0 0 16px' }}>Default bosqichlar avtomatik qo'shiladi ({type === 'NEW_SALE' ? 11 : 3} ta).</p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>Bekor</button>
-          <button onClick={save} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>{saving ? '...' : 'Yaratish'}</button>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer' }}>{t('common.cancel')}</button>
+          <button onClick={save} disabled={saving} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700 }}>{saving ? '...' : t('common.create')}</button>
         </div>
       </div>
     </div>

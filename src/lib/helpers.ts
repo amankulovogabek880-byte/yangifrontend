@@ -1,15 +1,28 @@
-export const STAGE_LABELS: Record<string, string> = {
-  NEW_LEAD: '🆕 Yangi Lead',
-  CONTACTED: '📞 Bog\'lanildi',
-  INTERESTED: '👍 Qiziqdi',
-  OFFER_SENT: '📨 Taklif yuborildi',
-  NEGOTIATION: '💬 Muzokara',
-  DEPOSIT_PAID: '💰 Avans olindi',
-  CONFIRMED: '✅ Tasdiqlandi',
-  TRAVELING: '✈️ Sayohatda',
-  COMPLETED: '🎉 Yakunlandi',
-  LOST: '❌ Yo\'qotildi',
+// v14: yorliqlar til-sezgir (uz/ru) — joriy tilni localStorage'dan o'qiydi.
+// Proxy tufayli `X_LABELS[key]` va `Object.entries(X_LABELS)` avvalgidek ishlaydi,
+// lekin qiymatlar tanlangan tilга qarab qaytadi. Hech bir ishlatilish joyi o'zgармaydi.
+function _lang(): 'uz' | 'ru' {
+  try { return (localStorage.getItem('lang') as 'uz' | 'ru') || 'uz'; } catch { return 'uz'; }
+}
+function makeLabel(uz: Record<string, string>, ru: Record<string, string>): Record<string, string> {
+  return new Proxy(uz, {
+    get: (_t, k: string) => (_lang() === 'ru' ? ru : uz)[k as string] ?? (uz as any)[k],
+    ownKeys: () => Reflect.ownKeys(uz),
+    getOwnPropertyDescriptor: (_t, k) => ({ enumerable: true, configurable: true, value: (_lang() === 'ru' ? ru : uz)[k as string] ?? (uz as any)[k] }),
+  }) as Record<string, string>;
+}
+
+const STAGE_UZ: Record<string, string> = {
+  NEW_LEAD: '🆕 Yangi Lead', CONTACTED: '📞 Bog\'lanildi', INTERESTED: '👍 Qiziqdi',
+  OFFER_SENT: '📨 Taklif yuborildi', NEGOTIATION: '💬 Muzokara', DEPOSIT_PAID: '💰 Avans olindi',
+  CONFIRMED: '✅ Tasdiqlandi', TRAVELING: '✈️ Sayohatda', COMPLETED: '🎉 Yakunlandi', LOST: '❌ Yo\'qotildi',
 };
+const STAGE_RU: Record<string, string> = {
+  NEW_LEAD: '🆕 Новый лид', CONTACTED: '📞 Связались', INTERESTED: '👍 Заинтересован',
+  OFFER_SENT: '📨 Предложение отправлено', NEGOTIATION: '💬 Переговоры', DEPOSIT_PAID: '💰 Аванс получен',
+  CONFIRMED: '✅ Подтверждён', TRAVELING: '✈️ В поездке', COMPLETED: '🎉 Завершён', LOST: '❌ Потерян',
+};
+export const STAGE_LABELS = makeLabel(STAGE_UZ, STAGE_RU);
 
 export const STAGE_COLORS: Record<string, string> = {
   NEW_LEAD: '#6366f1',
@@ -24,12 +37,9 @@ export const STAGE_COLORS: Record<string, string> = {
   LOST: '#ef4444',
 };
 
-export const TIER_LABELS: Record<string, string> = {
-  REGULAR: '⚪ Oddiy',
-  SILVER: '🥈 Silver',
-  GOLD: '🥇 Gold',
-  VIP: '💎 VIP',
-};
+const TIER_UZ: Record<string, string> = { REGULAR: '⚪ Oddiy', SILVER: '🥈 Silver', GOLD: '🥇 Gold', VIP: '💎 VIP' };
+const TIER_RU: Record<string, string> = { REGULAR: '⚪ Обычный', SILVER: '🥈 Silver', GOLD: '🥇 Gold', VIP: '💎 VIP' };
+export const TIER_LABELS = makeLabel(TIER_UZ, TIER_RU);
 
 export const TIER_COLORS: Record<string, string> = {
   REGULAR: '#64748b',
@@ -38,26 +48,21 @@ export const TIER_COLORS: Record<string, string> = {
   VIP: '#a855f7',
 };
 
-export const SOURCE_LABELS: Record<string, string> = {
-  TELEGRAM: '✈ Telegram',
-  INSTAGRAM: '📷 Instagram',
-  WHATSAPP: '💬 WhatsApp',
-  REFERRAL: '🤝 Tavsiya',
-  WALKIN: '🚶 Ofisga keldi',
-  WEBSITE: '🌐 Sayt',
-  CALL: '📞 Qo\'ng\'iroq',
-  FACEBOOK: '📘 Facebook',
-  GOOGLE_ADS: '🔍 Google',
-  OTHER: '❔ Boshqa',
+const SOURCE_UZ: Record<string, string> = {
+  TELEGRAM: '✈ Telegram', INSTAGRAM: '📷 Instagram', WHATSAPP: '💬 WhatsApp', REFERRAL: '🤝 Tavsiya',
+  WALKIN: '🚶 Ofisga keldi', WEBSITE: '🌐 Sayt', CALL: '📞 Qo\'ng\'iroq', FACEBOOK: '📘 Facebook',
+  GOOGLE_ADS: '🔍 Google', OTHER: '❔ Boshqa',
 };
+const SOURCE_RU: Record<string, string> = {
+  TELEGRAM: '✈ Telegram', INSTAGRAM: '📷 Instagram', WHATSAPP: '💬 WhatsApp', REFERRAL: '🤝 Рекомендация',
+  WALKIN: '🚶 Пришёл в офис', WEBSITE: '🌐 Сайт', CALL: '📞 Звонок', FACEBOOK: '📘 Facebook',
+  GOOGLE_ADS: '🔍 Google', OTHER: '❔ Другое',
+};
+export const SOURCE_LABELS = makeLabel(SOURCE_UZ, SOURCE_RU);
 
-export const BOOKING_STATUS_LABELS: Record<string, string> = {
-  DRAFT: '📝 Qoralama',
-  CONFIRMED: '✅ Tasdiqlangan',
-  IN_PROGRESS: '⏳ Jarayonda',
-  COMPLETED: '🎉 Yakunlangan',
-  CANCELLED: '❌ Bekor qilingan',
-};
+const BST_UZ: Record<string, string> = { DRAFT: '📝 Qoralama', CONFIRMED: '✅ Tasdiqlangan', IN_PROGRESS: '⏳ Jarayonda', COMPLETED: '🎉 Yakunlangan', CANCELLED: '❌ Bekor qilingan' };
+const BST_RU: Record<string, string> = { DRAFT: '📝 Черновик', CONFIRMED: '✅ Подтверждён', IN_PROGRESS: '⏳ В процессе', COMPLETED: '🎉 Завершён', CANCELLED: '❌ Отменён' };
+export const BOOKING_STATUS_LABELS = makeLabel(BST_UZ, BST_RU);
 
 export const BOOKING_STATUS_COLORS: Record<string, string> = {
   DRAFT: '#64748b',
@@ -67,16 +72,9 @@ export const BOOKING_STATUS_COLORS: Record<string, string> = {
   CANCELLED: '#ef4444',
 };
 
-export const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: '💵 Naqd',
-  BANK_TRANSFER: '🏦 Bank',
-  CARD: '💳 Karta',
-  PAYME: 'Payme',
-  CLICK: 'Click',
-  UZUM: 'Uzum',
-  CRYPTO: '₿ Crypto',
-  OTHER: 'Boshqa',
-};
+const PM_UZ: Record<string, string> = { CASH: '💵 Naqd', BANK_TRANSFER: '🏦 Bank', CARD: '💳 Karta', PAYME: 'Payme', CLICK: 'Click', UZUM: 'Uzum', CRYPTO: '₿ Crypto', OTHER: 'Boshqa' };
+const PM_RU: Record<string, string> = { CASH: '💵 Наличные', BANK_TRANSFER: '🏦 Банк', CARD: '💳 Карта', PAYME: 'Payme', CLICK: 'Click', UZUM: 'Uzum', CRYPTO: '₿ Crypto', OTHER: 'Другое' };
+export const PAYMENT_METHOD_LABELS = makeLabel(PM_UZ, PM_RU);
 
 export function fmt(n: number | undefined | null, dollar = true): string {
   if (n === undefined || n === null) return dollar ? '$0' : '0';

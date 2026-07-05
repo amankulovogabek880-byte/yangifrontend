@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '@/lib/i18n';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { clientsApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
@@ -9,6 +10,7 @@ const SL: Record<string,string> = { NEW_LEAD:'Yangi', CONTACTED:'Aloqa', NO_CONT
 const SI: Record<string,string> = { TELEGRAM:'📨', INSTAGRAM:'📷', WHATSAPP:'💚', WEBSITE:'🌐', REFERRAL:'🤝', OTHER:'📋' };
 
 export default function LeadsPage() {
+  const { t } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
   const [leads, setLeads] = useState<any[]>([]);
@@ -26,23 +28,23 @@ export default function LeadsPage() {
     <CrmLayout>
       <div style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>🎯 Leadlar ({total})</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{t('leads.title')} ({total})</h1>
           <button onClick={() => router.push('/clients/new')} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>+ Yangi</button>
         </div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Qidirish..." style={{ flex: 1, minWidth: 180, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13 }} />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder={t('leads.searchPh')} style={{ flex: 1, minWidth: 180, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13 }} />
           <select value={source} onChange={e => { setSource(e.target.value); setPage(1); }} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13 }}>
-            <option value="">Barcha manba</option>
+            <option value="">{t('clients.allSources')}</option>
             {['TELEGRAM','INSTAGRAM','WHATSAPP','WEBSITE','REFERRAL','OTHER'].map(s => <option key={s} value={s}>{SI[s]} {s}</option>)}
           </select>
           <select value={stage} onChange={e => { setStage(e.target.value); setPage(1); }} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13 }}>
-            <option value="">Barcha bosqich</option>
+            <option value="">{t('clients.allStages')}</option>
             {Object.entries(SL).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
-        {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div> : (
+        {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {leads.length === 0 && <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Lead topilmadi</div>}
+            {leads.length === 0 && <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('leads.notFound')}</div>}
             {leads.map((c: any) => (
               <div key={c.id} onClick={() => router.push(`/clients/${c.id}`)} style={{ padding: '12px 16px', background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{SI[c.source]||'📋'}</div>

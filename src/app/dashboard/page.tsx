@@ -25,6 +25,7 @@ function money(n: any) {
 }
 
 function ExportButton() {
+  const { t } = useI18n();
   const [exporting, setExporting] = React.useState(false);
 
   async function doExport(type: string) {
@@ -35,7 +36,7 @@ function ExportButton() {
       const res = await fetch(`${API_URL}/api/v1/reports/export?type=${type}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) { toast.error('Export xatosi'); return; }
+      if (!res.ok) { toast.error(t('dash.exportError')); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -43,7 +44,7 @@ function ExportButton() {
       a.download = `${type}-${new Date().toISOString().slice(0,10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch { toast.error('Export xatosi'); }
+    } catch { toast.error(t('dash.exportError')); }
     finally { setExporting(false); }
   }
 
@@ -56,16 +57,17 @@ function ExportButton() {
         style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, cursor: 'pointer' }}
       >
         <option value="" disabled>{exporting ? 'Yuklanmoqda...' : 'Export CSV'}</option>
-        <option value="bookings">Bookinglar</option>
-        <option value="clients">Klientlar</option>
-        <option value="payments">Payments</option>
-        <option value="calls">Calls</option>
+        <option value="bookings">{t('dash.bookings')}</option>
+        <option value="clients">{t('dash.clients')}</option>
+        <option value="payments">{t('dash.payments')}</option>
+        <option value="calls">{t('dash.calls')}</option>
       </select>
     </div>
   );
 }
 
 export default function DashboardPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const { user } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -173,17 +175,17 @@ export default function DashboardPage() {
 
   const tabs = isAgent
     ? [
-        { id: 'overview', label: 'Umumiy' },
-        { id: 'agents', label: 'Mening reytingim' },
+        { id: 'overview', label: t('dash.overall') },
+        { id: 'agents', label: t('dash.myRank') },
         { id: 'calls', label: "Qo'ng'iroqlarim" },
       ]
     : [
-        { id: 'overview', label: 'Umumiy' },
-        { id: 'revenue', label: 'Moliya' },
-        { id: 'agents', label: 'Agentlar' },
+        { id: 'overview', label: t('dash.overall') },
+        { id: 'revenue', label: t('dash.finance') },
+        { id: 'agents', label: t('dash.agents') },
         { id: 'calls', label: "Qo'ng'iroqlar" },
-        { id: 'leads', label: 'Lead Manbalar' },
-      { id: 'calendar', label: 'Kalendar' },
+        { id: 'leads', label: t('dash.leadSources') },
+      { id: 'calendar', label: t('dash.calendar') },
       ];
 
   return (
@@ -253,6 +255,7 @@ export default function DashboardPage() {
 }
 
 function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, router }: any) {
+  const { t } = useI18n();
   // Agent salary loaded separately
   const [mySalary, setMySalary] = useState<any>(null);
   useEffect(() => {
@@ -289,21 +292,21 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
     // hisoblangan "Mening oyligim". Foiz har doim admin Sozlamalarda
     // qo'ygan komissiya foizidan (kpiPct) olinadi — qattiq kodlangan
     // (masalan 8%) qiymat ishlatilmaydi.
-    { label: 'Jami daromad', value: `$${money(stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
-    { label: 'Operator narxi', value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
-    { label: 'Mening oyligim', value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} × ${kpiPct}%)` : '') + (agentTier ? ` · ${agentTier}` : ''), icon: <Wallet size={15} />, emphasis: true },
-    { label: 'Bookinglarim', value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
-    { label: 'Conversion rate', value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead`, icon: <Percent size={15} /> },
-    { label: 'Leadlarim', value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
-    { label: 'Kompaniyaga', value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: 'Mening ulushim chiqarilgandan', icon: <Briefcase size={15} /> },
+    { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
+    { label: t('dash.mySalary'), value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} × ${kpiPct}%)` : '') + (agentTier ? ` · ${agentTier}` : ''), icon: <Wallet size={15} />, emphasis: true },
+    { label: t('dash.myBookings'), value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
+    { label: t('dash.conversionRate'), value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead`, icon: <Percent size={15} /> },
+    { label: t('dash.myLeads'), value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
+    { label: t('dash.toCompany'), value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: 'Mening ulushim chiqarilgandan', icon: <Briefcase size={15} /> },
   ] : [
     // Vizual iyerarxiya: "Sof foyda" — eng muhim metrika, kattaroq (emphasis)
-    { label: 'Sof foyda', value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Daromad - Xarajat - Maosh', icon: <TrendUpIc size={16} />, series: profitSeries, emphasis: true },
-    { label: 'Jami daromad', value: `$${money(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
-    { label: 'Operator narxi', value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
-    { label: 'Klientlar', value: stats?.clients?.total ?? 0, color: '#3d7eff', icon: <UsersIc size={15} /> },
-    { label: 'Yangi leadlar', value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `Bugun: +${stats?.clients?.newToday ?? 0}`, icon: <UserPlusIc size={15} /> },
-    { label: 'Bookinglar (oy)', value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
+    { label: t('dash.netProfit'), value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Daromad - Xarajat - Maosh', icon: <TrendUpIc size={16} />, series: profitSeries, emphasis: true },
+    { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
+    { label: t('dash.clients'), value: stats?.clients?.total ?? 0, color: '#3d7eff', icon: <UsersIc size={15} /> },
+    { label: t('dash.newLeads'), value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `Bugun: +${stats?.clients?.newToday ?? 0}`, icon: <UserPlusIc size={15} /> },
+    { label: t('dash.bookingsMonth'), value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
   ];
 
   return (
@@ -324,16 +327,16 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
             <div>
               <EmptyState
                 icon={<ClipboardCheck size={22} />}
-                title="Bugun eslatma yo'q"
+                title={t('dash.noReminderToday')}
                 description="Hammasi nazoratda. Tezkor amallardan foydalaning:"
               />
               {/* Tezkor amallar — bo'sh joy o'rniga */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
                 {[
-                  { label: 'Yangi lead', icon: <UserPlusIc size={14} />, href: '/clients' },
-                  { label: 'Yangi booking', icon: <Plus size={14} />, href: '/bookings' },
+                  { label: t('dash.newLead'), icon: <UserPlusIc size={14} />, href: '/clients' },
+                  { label: t('dash.newBooking'), icon: <Plus size={14} />, href: '/bookings' },
                   { label: "Qo'ng'iroqlar", icon: <PhoneCall size={14} />, href: '/calls' },
-                  { label: 'Inbox', icon: <UsersIc size={14} />, href: '/inbox' },
+                  { label: t('dash.inbox'), icon: <UsersIc size={14} />, href: '/inbox' },
                 ].map((qa) => (
                   <button key={qa.label} onClick={() => router.push(qa.href)} style={{
                     display: 'flex', alignItems: 'center', gap: 7, padding: '9px 12px',
@@ -366,12 +369,13 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
 }
 
 function RevenueTab({ stats, revenueChart }: any) {
+  const { t } = useI18n();
   const items = [
-    { label: 'Jami daromad', value: `$${money(stats?.revenue?.thisMonth || stats?.cost?.totalSales || 0)}`, color: '#10b981' },
-    { label: 'Operator narxi', value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami' },
+    { label: t('dash.totalRevenue'), value: `$${money(stats?.revenue?.thisMonth || stats?.cost?.totalSales || 0)}`, color: '#10b981' },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami' },
 
-    { label: 'Sof foyda', value: `$${money(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Foyda - Agent maosh' },
-    { label: 'Konversiya', value: `${stats?.conversion?.rate ?? 0}%`, color: '#06b6d4', sub: 'Lead → Booking' },
+    { label: t('dash.netProfit'), value: `$${money(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Foyda - Agent maosh' },
+    { label: t('dash.conversion'), value: `${stats?.conversion?.rate ?? 0}%`, color: '#06b6d4', sub: 'Lead → Booking' },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -406,6 +410,7 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 function AgentsTab({ agents, isAgent }: any) {
+  const { t } = useI18n();
   // v10: Agent bo'lsa — faqat o'zining reyting/oylik kartochkasi ko'rsatiladi,
   // boshqa agentlarning ismi yoki summasi umuman chiqmaydi.
   if (isAgent) return <MySalaryCard />;
@@ -446,12 +451,12 @@ function AgentsTab({ agents, isAgent }: any) {
         note: ps.note,
       });
       toast.success(isPaid ? 'Tolov belgilandi ✓' : 'Tolov bekor qilindi');
-    } catch { toast.error('Saqlab bolmadi'); }
+    } catch { toast.error(t('dash.saveFailed')); }
     finally { setPayStatus((prev: any) => ({ ...prev, [agentId]: { ...prev[agentId], saving: false } })); }
   }
 
   if (!agents || agents.length === 0) return (
-    <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Agent malumoti yoq</div>
+    <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('dash.noAgentInfo')}</div>
   );
 
   // v10: Reyting (leaderboard) — sal.grossSalary bo'yicha kamayish tartibida
@@ -511,7 +516,7 @@ function AgentsTab({ agents, isAgent }: any) {
                   </td>
                   <td style={{ padding: '10px 12px', color: '#f59e0b', fontWeight: 600 }}>
                     {sal.myCommissionPercent != null ? sal.myCommissionPercent + '%' : '-'}
-                    {sal.appliedTier && <div style={{ fontSize: 9, color: 'var(--fg-3)' }}>KPI tier</div>}
+                    {sal.appliedTier && <div style={{ fontSize: 9, color: 'var(--fg-3)' }}>{t('dash.kpiTier')}</div>}
                   </td>
                   <td style={{ padding: '10px 12px', fontWeight: 700, color: '#8b5cf6' }}>
                     {sal.grossSalary != null ? ('$' + money(sal.grossSalary)) : '-'}
@@ -527,7 +532,7 @@ function AgentsTab({ agents, isAgent }: any) {
                           color: 'var(--fg)', fontSize: 11, outline: 'none',
                         }}
                         value={ps.note}
-                        placeholder="Izoh..."
+                        placeholder={t('pl.notePh')}
                         onChange={e => setPayStatus((prev: any) => ({
                           ...prev,
                           [agentId]: { ...ps, note: e.target.value },
@@ -552,6 +557,7 @@ function AgentsTab({ agents, isAgent }: any) {
 // v10: AGENT roli uchun — faqat o'zining reyting/oylik kartochkasi.
 // Boshqa agentlarning ismi yoki aniq summasi bu yerda umuman ko'rinmaydi.
 function MySalaryCard() {
+  const { t } = useI18n();
   const [sal, setSal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -562,8 +568,8 @@ function MySalaryCard() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
-  if (!sal) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Ma'lumot topilmadi</div>;
+  if (loading) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
+  if (!sal) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('dash.notFound')}</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 680 }}>
@@ -579,7 +585,7 @@ function MySalaryCard() {
             <div style={{ fontSize: 15, fontWeight: 700 }}>
               Siz jamoada #{sal.myRank}/{sal.totalAgents} o'rindasiz
             </div>
-            <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>Shu oy natijalaringiz bo'yicha</div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('dash.thisMonthResults')}</div>
           </div>
         </div>
       )}
@@ -592,9 +598,9 @@ function MySalaryCard() {
       </div>
 
       <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Bookinglar bo'yicha komissiya</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>{t('dash.commissionByBookings')}</h3>
         {!sal.breakdown?.length ? (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Shu oy booking yo'q</div>
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>{t('dash.noBookingThisMonth')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {sal.breakdown.map((b: any) => (
@@ -632,15 +638,16 @@ function SalaryStatCard({ icon, label, value, color, sub }: any) {
   );
 }
 function CallsTab({ data, isAgent }: any) {
-  if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
+  const { t } = useI18n();
+  if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
   const { summary = {}, byDay = [] } = data;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         {[
-          { label: 'Jami', value: summary.total || 0, color: '#3d7eff' },
-          { label: 'Javob berildi', value: summary.answered || 0, color: '#10b981' },
-          { label: 'Javob yo\'q', value: summary.noAnswer || 0, color: '#ef4444' },
+          { label: t('dash.jami'), value: summary.total || 0, color: '#3d7eff' },
+          { label: t('dash.answered'), value: summary.answered || 0, color: '#10b981' },
+          { label: t('dash.noAnswer'), value: summary.noAnswer || 0, color: '#ef4444' },
           { label: 'Conversion', value: `${summary.conversionRate || 0}%`, color: '#f59e0b' },
         ].map((s, i) => (
           <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
@@ -651,7 +658,7 @@ function CallsTab({ data, isAgent }: any) {
       </div>
       {byDay.length > 0 && (
         <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Kunlik</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>{t('dash.daily')}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={byDay}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -671,7 +678,7 @@ function CallsTab({ data, isAgent }: any) {
 
 function LeadsTab({ data, from, to }: any) {
   const [activeSource, setActiveSource] = useState<string>('ALL');
-  if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
+  if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
   const { summary = {}, bySource = [] } = data;
 
   const SRC: Record<string, { icon: string; color: string }> = {
@@ -701,10 +708,10 @@ function LeadsTab({ data, from, to }: any) {
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         {[
-          { label: 'Jami leadlar', value: summary.totalLeads || 0, color: '#3d7eff', sub: "barcha manba" },
+          { label: t('dash.totalLeads'), value: summary.totalLeads || 0, color: '#3d7eff', sub: "barcha manba" },
           { label: 'Bookinglar', value: summary.totalBookings || 0, color: '#10b981', sub: "muvaffaqiyatli" },
-          { label: 'Avg conversion', value: `${(summary.avgConversionRate || 0).toFixed(1)}%`, color: '#f59e0b', sub: "o'rtacha" },
-          { label: 'Jami daromad', value: `$${money(totalRevenue)}`, color: '#8b5cf6', sub: "barcha manbadan" },
+          { label: t('dash.avgConversion'), value: `${(summary.avgConversionRate || 0).toFixed(1)}%`, color: '#f59e0b', sub: "o'rtacha" },
+          { label: t('dash.totalRevenue'), value: `$${money(totalRevenue)}`, color: '#8b5cf6', sub: "barcha manbadan" },
         ].map((s, i) => (
           <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{s.label}</div>
@@ -798,7 +805,7 @@ function LeadsTab({ data, from, to }: any) {
       ) : (
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-4)', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🎯</div>
-          <div>Ma'lumot yo'q</div>
+          <div>{t('dash.noData')}</div>
         </div>
       )}
     </div>
@@ -1113,7 +1120,7 @@ function AgentMonthlyHistory({ isAgent, agents }: { isAgent: boolean; agents: an
             padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)',
             background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, outline: 'none', cursor: 'pointer',
           }}>
-            <option value="">Barcha agentlar</option>
+            <option value="">{t('dash.allAgents')}</option>
             {agents.map((a: any) => (
               <option key={a.agent?.id || a.id} value={a.agent?.id || a.id}>{a.agent?.name || a.name}</option>
             ))}
@@ -1134,7 +1141,7 @@ function AgentMonthlyHistory({ isAgent, agents }: { isAgent: boolean; agents: an
       {loading ? (
         <Skeleton height={160} />
       ) : !data || list.length === 0 ? (
-        <div style={{ padding: 24, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Ma'lumot yo'q</div>
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>{t('dash.noData')}</div>
       ) : single ? (
         /* ── BITTA AGENT: oyma-oy qatorlar ── */
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
@@ -1163,7 +1170,7 @@ function AgentMonthlyHistory({ isAgent, agents }: { isAgent: boolean; agents: an
               </tr>
             ))}
             <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-3)' }}>
-              <td style={{ padding: '9px 12px', fontWeight: 800 }}>JAMI</td>
+              <td style={{ padding: '9px 12px', fontWeight: 800 }}>{t('dash.totalCaps')}</td>
               <td style={{ padding: '9px 12px', fontWeight: 700 }}>{single.totals.leads}</td>
               <td style={{ padding: '9px 12px', fontWeight: 700 }}>{single.totals.bookings}</td>
               <td style={{ padding: '9px 12px' }} />
@@ -1187,7 +1194,7 @@ function AgentMonthlyHistory({ isAgent, agents }: { isAgent: boolean; agents: an
           <tbody>
             {[...list].sort((a, b) => (b.totals?.salary || 0) - (a.totals?.salary || 0)).map((row: any) => (
               <tr key={row.agent.id} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
-                onClick={() => setAgentId(row.agent.id)} title="Oyma-oy ko'rish uchun bosing">
+                onClick={() => setAgentId(row.agent.id)} title={t('dash.clickMonthly')}>
                 <td style={{ padding: '9px 12px', fontWeight: 700 }}>
                   {row.agent.name}
                   <div style={{ fontSize: 10, color: 'var(--fg-3)', fontWeight: 400 }}>{row.agent.role} · oyma-oy uchun bosing</div>

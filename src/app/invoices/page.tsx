@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '@/lib/i18n';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { invoicesApi, bookingsApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
@@ -26,6 +27,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function InvoicesPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const { user } = useAuth();
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -53,7 +55,7 @@ export default function InvoicesPage() {
       <div style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>📄 Invoicelar</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{t('inv.title')}</h1>
             <p style={{ color: 'var(--fg-3)', fontSize: 13, margin: 0 }}>
               Mijozlarga yuborilgan hisob-fakturalar
             </p>
@@ -64,7 +66,7 @@ export default function InvoicesPage() {
         <Card style={{ marginBottom: 16, padding: 14 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Input
-              placeholder="🔍 Invoice raqami yoki klient nomi"
+              placeholder={t('inv.searchPh')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && load()}
@@ -75,18 +77,18 @@ export default function InvoicesPage() {
               onChange={(e) => setFilter(e.target.value)}
               style={{ maxWidth: 200 }}
             >
-              <option value="">Barchasi</option>
+              <option value="">{t('common.all')}</option>
               {Object.entries(STATUS_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
               ))}
             </Select>
-            <Btn variant="secondary" onClick={load}>Qidirish</Btn>
+            <Btn variant="secondary" onClick={load}>{t('common.search')}</Btn>
           </div>
         </Card>
 
         {loading && <Skeleton height={60} count={4} />}
         {!loading && invoices.length === 0 && (
-          <Empty title="Invoice yo'q" description="+ Yangi invoice tugmasini bosing" />
+          <Empty title={t('pay.noInvoice')} description={t('inv.emptyDesc')} />
         )}
 
         {!loading && invoices.length > 0 && (
@@ -96,14 +98,14 @@ export default function InvoicesPage() {
                 <thead>
                   <tr style={{ background: 'var(--bg-3)', textTransform: 'uppercase', fontSize: 10, color: 'var(--fg-3)' }}>
                     <th style={{ padding: 12, textAlign: 'left' }}>№</th>
-                    <th style={{ padding: 12, textAlign: 'left' }}>Klient</th>
+                    <th style={{ padding: 12, textAlign: 'left' }}>{t('pay.client')}</th>
                     <th style={{ padding: 12, textAlign: 'left' }}>Booking</th>
-                    <th style={{ padding: 12, textAlign: 'right' }}>Sale Price</th>
-                    {showAdmin && <th style={{ padding: 12, textAlign: 'right' }}>Provider</th>}
-                    {showAdmin && <th style={{ padding: 12, textAlign: 'right' }}>Profit</th>}
-                    <th style={{ padding: 12, textAlign: 'right' }}>To'langan</th>
-                    <th style={{ padding: 12, textAlign: 'center' }}>Holat</th>
-                    <th style={{ padding: 12, textAlign: 'right' }}>Sana</th>
+                    <th style={{ padding: 12, textAlign: 'right' }}>{t('inv.salePrice')}</th>
+                    {showAdmin && <th style={{ padding: 12, textAlign: 'right' }}>{t('inv.provider')}</th>}
+                    {showAdmin && <th style={{ padding: 12, textAlign: 'right' }}>{t('inv.profit')}</th>}
+                    <th style={{ padding: 12, textAlign: 'right' }}>{t('inbox.paid')}</th>
+                    <th style={{ padding: 12, textAlign: 'center' }}>{t('inv.statusCol')}</th>
+                    <th style={{ padding: 12, textAlign: 'right' }}>{t('common.date')}</th>
                     <th style={{ padding: 12 }}></th>
                   </tr>
                 </thead>
@@ -176,6 +178,7 @@ export default function InvoicesPage() {
 }
 
 function CreateInvoiceModal({ onClose, onDone }: any) {
+  const { t } = useI18n();
   const [bookings, setBookings] = useState<any[]>([]);
   const [form, setForm] = useState({
     bookingId: '',
@@ -219,7 +222,7 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.bookingId) return toast.error('Booking tanlang');
+    if (!form.bookingId) return toast.error(t('inbox.selectBooking'));
     setLoading(true);
     try {
       const res = await invoicesApi.create({
@@ -237,13 +240,13 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
   }
 
   return (
-    <Modal open onClose={onClose} title="📄 Yangi invoice" maxWidth={560}>
+    <Modal open onClose={onClose} title={t('inv.newTitle')} maxWidth={560}>
       <form onSubmit={submit}>
         <div style={{ marginBottom: 12 }}>
-          <Label>Booking *</Label>
+          <Label>{t('inv.bookingReq')}</Label>
           {loadingBookings ? <Skeleton height={40} /> : (
             <Select required value={form.bookingId} onChange={(e) => setForm({ ...form, bookingId: e.target.value })}>
-              <option value="">— Tanlang —</option>
+              <option value="">{t('inbox.selectDash')}</option>
               {bookings.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.bookingRef} • {b.client?.fullName} • {b.tourName}
@@ -255,29 +258,29 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
-            <Label>Sale Price * (mijoz to'laydi)</Label>
+            <Label>{t('inv.salePriceReq')}</Label>
             <Input type="number" required value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
           </div>
           <div>
-            <Label>Provider Cost (faqat admin)</Label>
+            <Label>{t('inv.providerCost')}</Label>
             <Input type="number" value={form.providerCost} onChange={(e) => setForm({ ...form, providerCost: e.target.value })} />
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
-            <Label>Chegirma</Label>
+            <Label>{t('inbox.discount')}</Label>
             <Input type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
           </div>
           <div>
-            <Label>Soliq</Label>
+            <Label>{t('inv.tax')}</Label>
             <Input type="number" value={form.taxAmount} onChange={(e) => setForm({ ...form, taxAmount: e.target.value })} />
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
-            <Label>Valyuta</Label>
+            <Label>{t('common.currency')}</Label>
             <Select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
               <option value="USD">USD</option>
               <option value="UZS">UZS</option>
@@ -286,7 +289,7 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
             </Select>
           </div>
           <div>
-            <Label>To'lash muddati</Label>
+            <Label>{t('inv.dueDate')}</Label>
             <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
           </div>
         </div>
@@ -311,18 +314,18 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <Label>Izoh (mijozga ko'rinadi)</Label>
+          <Label>{t('inbox.noteVisible')}</Label>
           <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <Label>Ichki izoh (faqat admin/agent ko'radi)</Label>
+          <Label>{t('inv.internalNote')}</Label>
           <Textarea value={form.internalNotes} onChange={(e) => setForm({ ...form, internalNotes: e.target.value })} rows={2} />
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <Btn type="button" variant="secondary" onClick={onClose} style={{ flex: 1 }}>Bekor</Btn>
-          <Btn type="submit" loading={loading} style={{ flex: 1 }}>Yaratish</Btn>
+          <Btn type="button" variant="secondary" onClick={onClose} style={{ flex: 1 }}>{t('common.cancel')}</Btn>
+          <Btn type="submit" loading={loading} style={{ flex: 1 }}>{t('common.create')}</Btn>
         </div>
       </form>
     </Modal>

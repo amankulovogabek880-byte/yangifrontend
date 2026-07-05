@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '@/lib/i18n';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { callsApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
@@ -27,6 +28,7 @@ function fmtDuration(sec: number) {
 }
 
 export default function CallsPage() {
+  const { t } = useI18n();
   const { user } = useAuth();
   const { callNumber } = useDialer();
   const router = useRouter();
@@ -81,7 +83,7 @@ export default function CallsPage() {
     <CrmLayout>
       <div style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>📞 Qo'ng'iroqlar tarixi</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{t('calls.title')}</h1>
         </div>
 
         {/* Stats */}
@@ -106,12 +108,12 @@ export default function CallsPage() {
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
           <select value={filter.status} onChange={e => setFilter(f => ({...f, status: e.target.value}))}
             style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13 }}>
-            <option value="">Barcha status</option>
+            <option value="">{t('bk.allStatus')}</option>
             {Object.entries(STATUS_LABELS).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
           </select>
           <select value={filter.direction} onChange={e => setFilter(f => ({...f, direction: e.target.value}))}
             style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13 }}>
-            <option value="">Ikkala yo'nalish</option>
+            <option value="">{t('calls.bothDir')}</option>
             <option value="OUTBOUND">📤 Chiquvchi</option>
             <option value="INBOUND">📥 Kiruvchi</option>
           </select>
@@ -129,7 +131,7 @@ export default function CallsPage() {
             {calls.length === 0 && (
               <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>
                 <div style={{ fontSize: 40, marginBottom: 10 }}>📞</div>
-                <div>Qo'ng'iroqlar yo'q</div>
+                <div>{t('calls.empty')}</div>
                 <div style={{ fontSize: 12, marginTop: 8, color: 'var(--fg-3)' }}>
                   Sozlamalar → Telefon → OnlinePBX konfiguratsiyasi kerak
                 </div>

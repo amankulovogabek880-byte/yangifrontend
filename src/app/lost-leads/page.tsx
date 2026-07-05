@@ -9,6 +9,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '@/lib/i18n';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { clientsApi } from '@/services/api';
 
@@ -28,6 +29,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 export default function LostLeadsPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [items, setItems] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -66,7 +68,7 @@ export default function LostLeadsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ism yoki telefon…"
+            placeholder={t('clients.lostSearchPh')}
             style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input, var(--bg-3))', color: 'var(--fg)', fontSize: 13, minWidth: 220 }}
           />
         </div>
@@ -124,7 +126,7 @@ export default function LostLeadsPage() {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--fg-3)', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
                   <span>Yo&apos;qotilgan: {fmtDate(c.pipelineStageAt)}</span>
-                  <span style={{ color: 'var(--accent, #3d7eff)' }}>Ochish →</span>
+                  <span style={{ color: 'var(--accent, #3d7eff)' }}>{t('clients.open')} →</span>
                 </div>
               </div>
             ))}

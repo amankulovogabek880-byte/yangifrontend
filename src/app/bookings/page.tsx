@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '@/lib/i18n';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { bookingsApi, clientsApi, api } from '@/services/api';
 import { Btn, Card, Input, Select, Empty, Skeleton, Badge, Modal, Label, Textarea } from '@/components/ui';
@@ -8,6 +9,7 @@ import { BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS, fmt, fmtDate, errMsg } fr
 import toast from 'react-hot-toast';
 
 export default function BookingsPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,7 @@ export default function BookingsPage() {
     <CrmLayout>
       <div style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>✈ Bookinglar</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700 }}>{t('bk.title')}</h1>
           <Btn onClick={() => setShowAdd(true)}>+ Yangi Booking</Btn>
         </div>
 
@@ -36,7 +38,7 @@ export default function BookingsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 10 }}>
             <Input placeholder="Qidirish (ref, tur, destinatsiya...)" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
             <Select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
-              <option value="">Barcha status</option>
+              <option value="">{t('bk.allStatus')}</option>
               {Object.entries(BOOKING_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
           </div>
@@ -53,12 +55,12 @@ export default function BookingsPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead style={{ background: 'var(--bg)' }}>
                     <tr style={{ color: 'var(--fg-3)', fontSize: 11, textTransform: 'uppercase' }}>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Ref</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Klient</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Tur</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Sana</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Narx</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Status</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('bk.ref')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('pay.client')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('bk.tour')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('common.date')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('bk.price')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('common.status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -103,6 +105,7 @@ export default function BookingsPage() {
 }
 
 function AddBookingModal({ onClose, onSaved }: any) {
+  const { t } = useI18n();
   // v11: agent va admin bir xil to'liq formadan foydalanadi — tannarx/foyda
   // maydonlari yashirilmaydi, chunki agent komissiyasi shu foydadan hisoblanadi.
   const [clients, setClients] = useState<any[]>([]);
@@ -159,39 +162,39 @@ function AddBookingModal({ onClose, onSaved }: any) {
         adults: Number(form.adults),
         children: Number(form.children),
       });
-      toast.success('Booking yaratildi');
+      toast.success(t('bk.created'));
       onSaved();
     } catch (e: any) { toast.error(errMsg(e)); }
     finally { setLoading(false); }
   }
 
   return (
-    <Modal open onClose={onClose} title="Yangi booking" maxWidth={520}>
+    <Modal open onClose={onClose} title={t('bk.newTitle')} maxWidth={520}>
       <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ gridColumn: '1/-1' }}>
-          <Label>Klient *</Label>
+          <Label>{t('bk.clientReq')}</Label>
           <Select required value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
-            <option value="">— Tanlang —</option>
+            <option value="">{t('inbox.selectDash')}</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.fullName} • {c.phone}</option>)}
           </Select>
         </div>
         <div style={{ gridColumn: '1/-1' }}>
-          <Label>Tur nomi *</Label>
+          <Label>{t('bk.tourNameReq')}</Label>
           <Input required value={form.tourName} onChange={(e) => setForm({ ...form, tourName: e.target.value })} placeholder="Dubay 7 kunlik" />
         </div>
         <div>
-          <Label>Yo&apos;nalish *</Label>
+          <Label>{t('bk.destReq')}</Label>
           <Input required value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} placeholder="Dubay" />
         </div>
         <div>
-          <Label>Turi</Label>
+          <Label>{t('bk.type')}</Label>
           <Select value={form.tourType} onChange={(e) => setForm({ ...form, tourType: e.target.value })}>
-            <option value="PACKAGE">Paket</option>
-            <option value="INDIVIDUAL">Individual</option>
-            <option value="GROUP">Guruh</option>
-            <option value="VISA_SUPPORT">Viza</option>
-            <option value="HOTEL_ONLY">Faqat mehmonxona</option>
-            <option value="FLIGHT_ONLY">Faqat aviabilet</option>
+            <option value="PACKAGE">{t('bk.tPackage')}</option>
+            <option value="INDIVIDUAL">{t('bk.tIndividual')}</option>
+            <option value="GROUP">{t('bk.tGroup')}</option>
+            <option value="VISA_SUPPORT">{t('bk.tVisa')}</option>
+            <option value="HOTEL_ONLY">{t('bk.tHotel')}</option>
+            <option value="FLIGHT_ONLY">{t('bk.tFlight')}</option>
           </Select>
         </div>
         <div><Label>Kattalar</Label><Input type="number" value={form.adults} onChange={(e) => setForm({ ...form, adults: e.target.value })} /></div>
@@ -222,7 +225,7 @@ function AddBookingModal({ onClose, onSaved }: any) {
               />
             </div>
             <div>
-              <Label>Valyuta</Label>
+              <Label>{t('common.currency')}</Label>
               <Select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
                 <option value="USD">USD</option>
                 <option value="UZS">UZS</option>
@@ -311,12 +314,12 @@ function AddBookingModal({ onClose, onSaved }: any) {
         <div><Label>Ketish</Label><Input type="date" value={form.departureDate} onChange={(e) => setForm({ ...form, departureDate: e.target.value })} /></div>
         <div><Label>Qaytish</Label><Input type="date" value={form.returnDate} onChange={(e) => setForm({ ...form, returnDate: e.target.value })} /></div>
         <div style={{ gridColumn: '1/-1' }}>
-          <Label>Izoh</Label>
+          <Label>{t('clients.notes')}</Label>
           <Textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </div>
         <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10, marginTop: 8 }}>
-          <Btn variant="secondary" type="button" onClick={onClose} style={{ flex: 1 }}>Bekor</Btn>
-          <Btn type="submit" loading={loading} style={{ flex: 1 }}>Yaratish</Btn>
+          <Btn variant="secondary" type="button" onClick={onClose} style={{ flex: 1 }}>{t('common.cancel')}</Btn>
+          <Btn type="submit" loading={loading} style={{ flex: 1 }}>{t('common.create')}</Btn>
         </div>
       </form>
     </Modal>

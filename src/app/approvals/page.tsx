@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useI18n } from '@/lib/i18n';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { approvalsApi } from '@/services/api';
 import { Card, Btn, Badge, Skeleton, Avatar, Modal, Textarea, Label, Empty } from '@/components/ui';
@@ -33,6 +34,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function ApprovalsPageInner() {
+  const { t } = useI18n();
   const { user } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ function ApprovalsPageInner() {
       <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>✅ Tasdiq so'rovlari</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{t('apr.title')}</h1>
             <p style={{ color: 'var(--fg-3)', fontSize: 13, margin: '4px 0 0' }}>
               Chegirma, refund va muhim o'zgarishlar uchun tasdiq jarayoni
             </p>
@@ -93,7 +95,7 @@ function ApprovalsPageInner() {
         </div>
 
         {loading ? <Skeleton height={300} /> : data.length === 0 ? (
-          <Empty title="Hech qanday tasdiq so'rovi yo'q" icon="✅" />
+          <Empty title={t('apr.empty')} icon="✅" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {data.map((r) => (
@@ -154,6 +156,7 @@ function ApprovalsPageInner() {
 }
 
 function ActionModal({ id, action, onClose, onDone }: any) {
+  const { t } = useI18n();
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -162,10 +165,10 @@ function ActionModal({ id, action, onClose, onDone }: any) {
     try {
       if (action === 'approve') {
         await approvalsApi.approve(id, note);
-        toast.success('✅ Tasdiqlandi');
+        toast.success(t('apr.approved'));
       } else {
         await approvalsApi.reject(id, note);
-        toast.success('❌ Rad etildi');
+        toast.success(t('apr.rejected'));
       }
       onDone();
     } catch (e: any) { toast.error(errMsg(e)); }
@@ -175,14 +178,14 @@ function ActionModal({ id, action, onClose, onDone }: any) {
   return (
     <Modal open onClose={onClose} title={action === 'approve' ? '✅ Tasdiqlash' : '❌ Rad etish'} footer={
       <>
-        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+        <Btn variant="secondary" onClick={onClose}>{t('common.cancel')}</Btn>
         <Btn variant={action === 'approve' ? 'gradient' : 'primary'} onClick={submit} loading={loading}>
           {action === 'approve' ? 'Tasdiqlash' : 'Rad etish'}
         </Btn>
       </>
     }>
-      <Label>Izoh (ixtiyoriy)</Label>
-      <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Izohingizni yozing..." />
+      <Label>{t('apr.noteOpt')}</Label>
+      <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder={t('apr.notePh')} />
     </Modal>
   );
 }

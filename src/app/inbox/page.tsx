@@ -44,6 +44,7 @@ const CHANNEL_COLORS: Record<string, string> = {
 };
 
 function InboxPageInner() {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useSearchParams();
   const { user } = useAuth();
@@ -425,7 +426,7 @@ function InboxPageInner() {
         }}>
           <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <Input placeholder="🔍 Suhbat qidirish" value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
+              <Input placeholder={t('inbox.searchConv')} value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
             </div>
             <button
               onClick={() => {
@@ -435,7 +436,7 @@ function InboxPageInner() {
                 }
                 setShowNewPersonal(true);
               }}
-              title="Birinchi xabar yuborish (yangi suhbat)"
+              title={t('inbox.firstMsgTitle')}
               style={{
                 width: 40, height: 40, borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: hasPersonalAccount ? '#3d7eff' : 'var(--bg-3)',
@@ -447,7 +448,7 @@ function InboxPageInner() {
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 14 }}><Skeleton height={60} count={5} /></div>}
-            {!loading && convs.length === 0 && <Empty title="Suhbat yo'q" icon="💬" />}
+            {!loading && convs.length === 0 && <Empty title={t('inbox.noConv')} icon="💬" />}
             {(() => {
               const q = searchQuery.trim().toLowerCase().replace(/^@/, '');
               const filtered = !q ? convs : convs.filter((c: any) => {
@@ -458,7 +459,7 @@ function InboxPageInner() {
                 return name.includes(q) || username.includes(q) || phone.includes(q) || lastMsg.includes(q);
               });
               if (!loading && convs.length > 0 && filtered.length === 0) {
-                return <Empty title="Hech narsa topilmadi" icon="🔍" />;
+                return <Empty title={t('inbox.nothingFound')} icon="🔍" />;
               }
               return filtered.map((c) => {
               const isActive = active?.id === c.id;
@@ -583,7 +584,7 @@ function InboxPageInner() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {!active ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <Empty title="Suhbat tanlang" description="Chap tomondan suhbatni tanlang" icon="💬" />
+              <Empty title={t('inbox.selectConv')} description="Chap tomondan suhbatni tanlang" icon="💬" />
             </div>
           ) : (
             <>
@@ -655,7 +656,7 @@ function InboxPageInner() {
               <div style={{ flex: 1, overflowY: 'auto', padding: 20, background: 'var(--bg)' }}>
                 {loadingMessages && <Skeleton height={40} count={4} />}
                 {!loadingMessages && messages.length === 0 && (
-                  <Empty title="Hozircha xabar yo'q" icon="💬" />
+                  <Empty title={t('inbox.noMsgYet')} icon="💬" />
                 )}
                 {!loadingMessages && messages.map((m) => {
                   const isOut = m.direction === 'OUTBOUND' || m.direction === 'outbound' || m.isOutbound === true;
@@ -705,7 +706,7 @@ function InboxPageInner() {
                             display: 'flex', gap: 8, padding: 8,
                             background: 'rgba(255,255,255,0.1)', borderRadius: 6,
                             color: 'inherit', marginBottom: m.caption ? 6 : 0,
-                          }}>📎 Fayl</a>
+                          }}>{t('inbox.file')}</a>
                         )}
                         <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13 }}>
                           {m.text || m.caption}
@@ -748,7 +749,7 @@ function InboxPageInner() {
                     <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700 }}>
                       ● {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:{String(recordSeconds % 60).padStart(2, '0')}
                     </span>
-                    <Btn size="sm" variant="secondary" onClick={cancelRecording}>Bekor qilish</Btn>
+                    <Btn size="sm" variant="secondary" onClick={cancelRecording}>{t('inbox.cancel')}</Btn>
                     <Btn size="sm" variant="primary" icon="✅" onClick={stopAndSendRecording}>Yuborish</Btn>
                   </div>
                 )}
@@ -802,7 +803,7 @@ function InboxPageInner() {
           />
         )}
         {active?.clientId && !showContext && (
-          <button onClick={() => setShowContext(true)} title="Mijoz panelini ochish" style={{
+          <button onClick={() => setShowContext(true)} title={t('inbox.openClientPanel')} style={{
             width: 34, borderLeft: '1px solid var(--border)', background: 'var(--bg-2)',
             border: 'none', cursor: 'pointer', color: 'var(--fg-3)',
             display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 16,
@@ -845,7 +846,7 @@ function InboxPageInner() {
         <SendInvoiceModal
           conversation={active}
           onClose={() => setShowInvoice(false)}
-          onSent={() => { setShowInvoice(false); toast.success('Invoice yuborildi!'); }}
+          onSent={() => { setShowInvoice(false); toast.success(t('inbox.invoiceSent')); }}
         />
       )}
       {showNewPersonal && (
@@ -870,6 +871,7 @@ function InboxPageInner() {
 }
 
 function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) {
+  const { t } = useI18n();
   const [templates, setTemplates] = useState<any[]>([]);
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
@@ -886,7 +888,7 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
     setSending(tplId);
     try {
       const r: any = await telegramV6.sendTemplate(conversationId, tplId);
-      toast.success('Shablon yuborildi');
+      toast.success(t('inbox.templateSent'));
       // Backend qaytargan real xabarlarni chatga qo'shamiz
       onSent(r.data?.messages || []);
     } catch (e: any) { toast.error(errMsg(e)); }
@@ -896,7 +898,7 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
   const categories = ['hotel', 'greeting', 'booking', 'payment', 'reminder', 'visa', 'feedback'];
 
   return (
-    <Modal open onClose={onClose} title="📋 Shablon tanlang" maxWidth={620}>
+    <Modal open onClose={onClose} title={t('inbox.selectTemplate')} maxWidth={620}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
         <Btn size="sm" variant={!category ? 'primary' : 'secondary'} onClick={() => setCategory('')}>
           Barchasi
@@ -910,7 +912,7 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
 
       {loading ? <Skeleton height={80} count={3} /> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {templates.length === 0 && <Empty title="Shablon yo'q" icon="📋" />}
+          {templates.length === 0 && <Empty title={t('inbox.noTemplate')} icon="📋" />}
           {templates.map((tpl) => (
             <div key={tpl.id} style={{
               padding: 14, borderRadius: 10,
@@ -934,7 +936,7 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
                   {tpl.text}
                 </div>
                 {tpl.mediaUrl && (
-                  <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 4 }}>📎 Rasm bor</div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 4 }}>{t('inbox.hasImage')}</div>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -943,7 +945,7 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
                     if (text && text.trim()) {
                       telegramApi.sendMessage(conversationId, text, false)
                         .then((r: any) => {
-                          toast.success('Yuborildi');
+                          toast.success(t('inbox.sent'));
                           // MUAMMO FIX: avval onSent() argumentsiz chaqirilardi,
                           // shu sabab yuborilgan xabar chatga qo'shilmasdi va
                           // faqat sahifa qayta yuklanganda (restart) ko'rinardi.
@@ -951,7 +953,7 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
                         })
                         .catch((e: any) => toast.error(errMsg(e)));
                     }
-                  }}>✏️ Tahrir</Btn>
+                  }}>{t('inbox.editShort')}</Btn>
                   <Btn size="sm" variant="gradient" onClick={() => send(tpl.id)} loading={sending === tpl.id} disabled={!!sending}>Yuborish</Btn>
                 </div>
             </div>
@@ -963,13 +965,13 @@ function TemplatesPanel({ conversationId, conversation, onClose, onSent }: any) 
 }
 
 // v9-SECURITY: Create Client from Telegram Modal
-function CreateClientModal({ 
-  conv, 
+function CreateClientModal({   conv, 
   onClose, 
   onConfirm, 
   formData, 
   setFormData 
 }: any) {
+  const { t } = useI18n();
   const fullName = [conv?.firstName, conv?.lastName].filter(Boolean).join(' ')
     || conv?.username
     || conv?.externalUsername
@@ -978,11 +980,11 @@ function CreateClientModal({
   if (!conv) return null;
 
   return (
-    <Modal open={!!conv} onClose={onClose} title="👤 Yanyi klient yaratish" maxWidth={500}>
+    <Modal open={!!conv} onClose={onClose} title={t('inbox.newClientTitle')} maxWidth={500}>
       <div style={{ padding: '0 20px 20px' }}>
         {/* Client name (read-only) */}
         <div style={{ marginBottom: 16 }}>
-          <Label>To'liq ismi</Label>
+          <Label>{t('inbox.fullName')}</Label>
           <Input 
             value={fullName} 
             disabled 
@@ -995,9 +997,9 @@ function CreateClientModal({
 
         {/* Phone number (optional) */}
         <div style={{ marginBottom: 16 }}>
-          <Label>📱 Telefon raqami <span style={{ color: 'var(--fg-3)' }}>(ixtiyoriy)</span></Label>
+          <Label>{t('inbox.phoneLabel')}<span style={{ color: 'var(--fg-3)' }}>{t('inbox.optional')}</span></Label>
           <Input 
-            placeholder="Masalan: +998901234567"
+            placeholder={t('inbox.phonePh')}
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             style={{ fontSize: 13 }}
@@ -1009,9 +1011,9 @@ function CreateClientModal({
 
         {/* Notes */}
         <div style={{ marginBottom: 16 }}>
-          <Label>Izohlar</Label>
+          <Label>{t('inbox.notes')}</Label>
           <Textarea 
-            placeholder="Qandaydir izoh..."
+            placeholder={t('inbox.notePh')}
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
             rows={2}
@@ -1034,7 +1036,7 @@ function CreateClientModal({
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8 }}>
-          <Btn onClick={onConfirm} style={{ flex: 1 }}>✅ Yaratish</Btn>
+          <Btn onClick={onConfirm} style={{ flex: 1 }}>{t('inbox.createBtn')}</Btn>
           <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>Bekor</Btn>
         </div>
       </div>
@@ -1043,6 +1045,7 @@ function CreateClientModal({
 }
 
 function SendInvoiceModal({ conversation, onClose, onSent }: any) {
+  const { t } = useI18n();
   const [bookings, setBookings] = useState<any[]>([]);
   const [form, setForm] = useState({
     bookingId: '', salePrice: '', providerCost: '', discount: '0',
@@ -1081,7 +1084,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
   const isAdmin = user?.role !== 'AGENT';
 
   async function submit() {
-    if (!form.bookingId) return toast.error('Booking tanlang');
+    if (!form.bookingId) return toast.error(t('inbox.selectBooking'));
     setSending(true);
     try {
       await telegramV6.sendInvoice(conversation.id, {
@@ -1100,12 +1103,12 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
   return (
     <Modal
       open onClose={onClose}
-      title="🧾 Invoice yuborish (Telegram orqali)"
+      title={t('inbox.invoiceTitle')}
       maxWidth={520}
       footer={
         <>
           <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
-          <Btn variant="gradient" onClick={submit} loading={sending}>📨 Yuborish</Btn>
+          <Btn variant="gradient" onClick={submit} loading={sending}>{t('inbox.send2')}</Btn>
         </>
       }
     >
@@ -1119,7 +1122,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
               <p style={{ color: 'var(--fg-3)', fontSize: 12 }}>Bu klient uchun booking yo'q. Avval booking yarating.</p>
             ) : (
               <Select value={form.bookingId} onChange={(e) => setForm({ ...form, bookingId: e.target.value })}>
-                <option value="">— Tanlang —</option>
+                <option value="">{t('inbox.selectDash')}</option>
                 {bookings.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.bookingRef} • {b.tourName} • {b.currency} {b.totalPrice}
@@ -1136,7 +1139,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
             </div>
             {isAdmin && (
               <div>
-                <Label>Provider Cost</Label>
+                <Label>{t('inbox.providerCost')}</Label>
                 <Input type="number" value={form.providerCost} onChange={(e) => setForm({ ...form, providerCost: e.target.value })} />
               </div>
             )}
@@ -1144,11 +1147,11 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
-              <Label>Chegirma</Label>
+              <Label>{t('inbox.discount')}</Label>
               <Input type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
             </div>
             <div>
-              <Label>To'lov muddati</Label>
+              <Label>{t('inbox.dueDate')}</Label>
               <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </div>
           </div>
@@ -1159,7 +1162,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
             gap: 12, marginBottom: 12,
           }}>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Klient to'laydi</div>
+              <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('inbox.clientPays')}</div>
               <div style={{ fontSize: 18, fontWeight: 800 }}>${(sale - discount).toFixed(0)}</div>
             </div>
             {isAdmin && (
@@ -1169,7 +1172,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
                   <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--fg-2)' }}>${cost.toFixed(0)}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Sizning foydangiz</div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('inbox.yourProfit')}</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)' }}>${profit.toFixed(0)}</div>
                 </div>
               </>
@@ -1177,7 +1180,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
           </div>
 
           <div>
-            <Label>Izoh (mijozga ko'rinadi)</Label>
+            <Label>{t('inbox.noteVisible')}</Label>
             <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
           </div>
         </>
@@ -1188,6 +1191,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
 
 // ─── Personal Message Modal (birinchi xabar - MTProto orqali) ────────────────
 function PersonalMessageModal({ onClose, onSent }: any) {
+  const { t } = useI18n();
   const [phone, setPhone] = useState('');
   const [username, setUsername] = useState('');
   const [text, setText] = useState('');
@@ -1195,9 +1199,9 @@ function PersonalMessageModal({ onClose, onSent }: any) {
   const [loading, setLoading] = useState(false);
 
   async function send() {
-    if (!text.trim()) { toast.error('Xabar matni kerak'); return; }
-    if (method === 'phone' && !phone.trim()) { toast.error('Telefon raqami kerak'); return; }
-    if (method === 'username' && !username.trim()) { toast.error('Username kerak'); return; }
+    if (!text.trim()) { toast.error(t('inbox.msgRequired')); return; }
+    if (method === 'phone' && !phone.trim()) { toast.error(t('inbox.phoneRequired')); return; }
+    if (method === 'username' && !username.trim()) { toast.error(t('inbox.usernameRequired')); return; }
 
     setLoading(true);
     try {
@@ -1207,7 +1211,7 @@ function PersonalMessageModal({ onClose, onSent }: any) {
         text: text.trim(),
       });
       const convId = (res.data as any).conversationId;
-      toast.success('✅ Xabar yuborildi!');
+      toast.success(t('inbox.msgSent'));
       onSent(convId);
     } catch (e: any) {
       toast.error(errMsg(e));
@@ -1230,7 +1234,7 @@ function PersonalMessageModal({ onClose, onSent }: any) {
         {/* v14: yopish tugmasi — yuqori chap burchakda, doim ko'rinadi */}
         <button
           onClick={onClose}
-          title="Yopish"
+          title={t('common.close')}
           style={{
             position: 'absolute', top: 10, left: 10, zIndex: 2,
             width: 30, height: 30, borderRadius: '50%', border: 'none',
@@ -1239,7 +1243,7 @@ function PersonalMessageModal({ onClose, onSent }: any) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >✕</button>
-        <h2 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700, paddingLeft: 38 }}>📱 Birinchi xabar yuborish</h2>
+        <h2 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700, paddingLeft: 38 }}>{t('inbox.firstMsg')}</h2>
         <p style={{ margin: '0 0 18px', fontSize: 12, color: 'var(--fg-3)' }}>
           Shaxsiy Telegram accountingiz orqali — klient /start yozmagan bo'lsa ham ishlaydi
         </p>
@@ -1260,14 +1264,14 @@ function PersonalMessageModal({ onClose, onSent }: any) {
         {method === 'phone' ? (
           <input style={inp} value={phone} onChange={e => setPhone(e.target.value)} placeholder="+998901234567" />
         ) : (
-          <input style={inp} value={username} onChange={e => setUsername(e.target.value)} placeholder="@username yoki username" />
+          <input style={inp} value={username} onChange={e => setUsername(e.target.value)} placeholder={t('inbox.usernamePh')} />
         )}
 
         <textarea
           style={{ ...inp, minHeight: 100, resize: 'vertical' }}
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder="Xabar matni..."
+          placeholder={t('inbox.msgPh')}
           onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) send(); }}
         />
         <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 14 }}>Ctrl+Enter — yuborish</div>
@@ -1297,6 +1301,7 @@ function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
   onCall: (name: string, phone: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [client, setClient] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1330,8 +1335,8 @@ function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
       display: 'flex', flexDirection: 'column', overflowY: 'auto',
     }}>
       <div style={{ ...sect, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--fg-3)' }}>Mijoz kartasi</span>
-        <button onClick={onClose} title="Panelni yopish" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', display: 'inline-flex' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--fg-3)' }}>{t('inbox.clientCard')}</span>
+        <button onClick={onClose} title={t('inbox.closePanel')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', display: 'inline-flex' }}>
           <PanelRightClose size={15} />
         </button>
       </div>
@@ -1339,7 +1344,7 @@ function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
       {loading ? (
         <div style={{ padding: 14 }}><Skeleton height={54} count={4} /></div>
       ) : !client ? (
-        <div style={{ padding: 20, fontSize: 12, color: 'var(--fg-3)', textAlign: 'center' }}>Mijoz topilmadi</div>
+        <div style={{ padding: 20, fontSize: 12, color: 'var(--fg-3)', textAlign: 'center' }}>{t('inbox.clientNotFound')}</div>
       ) : (
         <>
           {/* Kim */}
@@ -1355,7 +1360,7 @@ function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
           <div style={sect}>
             <div style={{ ...row, marginBottom: 6 }}>
               <GitBranch size={13} style={{ color: 'var(--fg-3)' }} />
-              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--fg-3)' }}>Bosqich</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--fg-3)' }}>{t('inbox.stage')}</span>
             </div>
             <span style={{ fontSize: 11.5, fontWeight: 800, padding: '3px 10px', borderRadius: 8, background: stageColor + '20', color: stageColor }}>
               {(STAGE_LABELS as any)?.[stage] || stage || '—'}
@@ -1365,11 +1370,11 @@ function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
           {/* Pul */}
           <div style={{ ...sect, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 3 }}>To'langan</div>
+              <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 3 }}>{t('inbox.paid')}</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#10b981' }}>${paidTotal.toLocaleString()}</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 3 }}>Qarzi</div>
+              <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 3 }}>{t('inbox.debt')}</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: debtTotal > 0 ? '#ef4444' : 'var(--fg-3)' }}>${debtTotal.toLocaleString()}</div>
             </div>
           </div>
@@ -1381,7 +1386,7 @@ function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
               <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--fg-3)' }}>Bookinglar ({bookings.length})</span>
             </div>
             {bookings.length === 0 ? (
-              <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>Hali booking yo'q</div>
+              <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('inbox.noBooking')}</div>
             ) : bookings.map((b: any) => (
               <div key={b.id} style={{ padding: '7px 9px', background: 'var(--bg-3)', borderRadius: 8, marginBottom: 6 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.tourName || b.destination || b.bookingRef}</div>
@@ -1397,7 +1402,7 @@ function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
           <div style={sect}>
             <div style={{ ...row, marginBottom: 4 }}>
               <ClipboardList size={13} style={{ color: 'var(--fg-3)' }} />
-              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--fg-3)' }}>Ma'lumot</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: 'var(--fg-3)' }}>{t('inbox.infoLabel')}</span>
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--fg-2)', lineHeight: 1.5 }}>
               Manba: <b>{client.source || '—'}</b><br />

@@ -5,8 +5,10 @@ import { paymentsApi, invoicesApi } from '@/services/api';
 import { Card, Empty, Skeleton, Badge, Btn } from '@/components/ui';
 import { PAYMENT_METHOD_LABELS, fmt, fmtDateTime, errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n';
 
 export default function PaymentsPage() {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'payments'|'invoices'>('payments');
   const [invoices, setInvoices] = useState<any[]>([]);
   const [data, setData] = useState<any>(null);
@@ -25,7 +27,7 @@ export default function PaymentsPage() {
     if (!confirm("To'lov qaytarilsinmi?")) return;
     try {
       await paymentsApi.refund(id);
-      toast.success('Qaytarildi');
+      toast.success(t('pay.refunded'));
       load();
     } catch (e: any) { toast.error(errMsg(e)); }
   }
@@ -33,7 +35,7 @@ export default function PaymentsPage() {
   return (
     <CrmLayout>
       <div style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>💳 To'lovlar & Invoicelar</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>{t('pay.title')}</h1>
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
           {[{id:"payments",l:"💳 To'lovlar"},{id:"invoices",l:"🧾 Invoicelar"}].map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id as any)} style={{ padding: '8px 18px', fontSize: 13, fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer', borderBottom: activeTab === t.id ? '2px solid #3d7eff' : '2px solid transparent', color: activeTab === t.id ? '#3d7eff' : 'var(--fg-2)' }}>{t.l}</button>
@@ -41,7 +43,7 @@ export default function PaymentsPage() {
         </div>
         {activeTab === 'invoices' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {invoices.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>Invoice yo'q</div>}
+            {invoices.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>{t('pay.noInvoice')}</div>}
             {invoices.map((inv: any) => (
               <div key={inv.id} style={{ padding: '14px 16px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ flex: 1 }}>
@@ -62,7 +64,7 @@ export default function PaymentsPage() {
         {!loading && stats && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12, marginBottom: 16 }}>
             <Card>
-              <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase' }}>Bu oy</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase' }}>{t('common.thisMonth')}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)', marginTop: 4 }}>{fmt(stats.total?._sum?.amount || 0)}</div>
               <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{stats.total?._count?.id || 0} to&apos;lov</div>
             </Card>
@@ -80,12 +82,12 @@ export default function PaymentsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead style={{ background: 'var(--bg)' }}>
                 <tr style={{ color: 'var(--fg-3)', fontSize: 11, textTransform: 'uppercase' }}>
-                  <th style={{ padding: 12, textAlign: 'left' }}>Sana</th>
-                  <th style={{ padding: 12, textAlign: 'left' }}>Klient</th>
+                  <th style={{ padding: 12, textAlign: 'left' }}>{t('common.date')}</th>
+                  <th style={{ padding: 12, textAlign: 'left' }}>{t('pay.client')}</th>
                   <th style={{ padding: 12, textAlign: 'left' }}>Booking</th>
-                  <th style={{ padding: 12, textAlign: 'left' }}>Summa</th>
-                  <th style={{ padding: 12, textAlign: 'left' }}>Usul</th>
-                  <th style={{ padding: 12, textAlign: 'left' }}>Status</th>
+                  <th style={{ padding: 12, textAlign: 'left' }}>{t('pay.amount')}</th>
+                  <th style={{ padding: 12, textAlign: 'left' }}>{t('pay.method')}</th>
+                  <th style={{ padding: 12, textAlign: 'left' }}>{t('common.status')}</th>
                   <th style={{ padding: 12 }}></th>
                 </tr>
               </thead>
@@ -101,11 +103,11 @@ export default function PaymentsPage() {
                       <Badge color={p.status === 'COMPLETED' ? 'var(--success)' : p.status === 'REFUNDED' ? 'var(--danger)' : 'var(--warning)'}>{p.status}</Badge>
                     </td>
                     <td style={{ padding: 12 }}>
-                      {p.status === 'COMPLETED' && <Btn size="sm" variant="ghost" onClick={() => refund(p.id)}>↩ Qaytarish</Btn>}
+                      {p.status === 'COMPLETED' && <Btn size="sm" variant="ghost" onClick={() => refund(p.id)}>{t('pay.refund')}</Btn>}
                     </td>
                   </tr>
                 ))}
-                {data.data.length === 0 && <tr><td colSpan={7}><Empty title="To'lov yo'q" /></td></tr>}
+                {data.data.length === 0 && <tr><td colSpan={7}><Empty title={t('pay.noPayment')} /></td></tr>}
               </tbody>
             </table>
           </Card>

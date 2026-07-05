@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaWhatsapp, FaFacebook } from 'react-icons/fa';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Manba indikatori: har bir manba uchun mos brand ikoni + rangi ──────────────
 const SOURCE_META: Record<string, { label: string; color: string; Icon: any }> = {
@@ -47,6 +48,7 @@ function SourceBadge({ source }: { source?: string }) {
 
 export default function ClientsPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', source: '', stage: '', sortBy: 'recent' });
@@ -147,18 +149,18 @@ export default function ClientsPage() {
       <div style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Users size={22} style={{ color: 'var(--primary)' }} /> Klientlar
+            <Users size={22} style={{ color: 'var(--primary)' }} /> {t('clients.title')}
             {data?.meta?.total != null && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-3)' }}>({data.meta.total})</span>}
           </h1>
           <div style={{ display: 'flex', gap: 8 }}>
             {/* Tanlash rejimi: bosilganda checkboxlar chiqadi */}
             <Btn variant={selectMode ? 'primary' : 'secondary'} icon={<CheckSquare size={14} />}
               onClick={() => { setSelectMode(!selectMode); if (selectMode) setSelected(new Set()); }}>
-              {selectMode ? 'Tanlashni yopish' : 'Tanlash'}
+              {selectMode ? t('clients.selectClose') : t('clients.select')}
             </Btn>
             <Btn variant="secondary" icon={<Download size={14} />} onClick={exportCsv}>CSV</Btn>
-            <Btn variant="secondary" icon={<UserX size={14} />} onClick={() => setShowLostLeads(true)}>Yo'qotilgan mijozlar</Btn>
-            <Btn icon={<UserPlus size={14} />} onClick={() => setShowAdd(true)}>Yangi Klient</Btn>
+            <Btn variant="secondary" icon={<UserX size={14} />} onClick={() => setShowLostLeads(true)}>{t('clients.lost')}</Btn>
+            <Btn icon={<UserPlus size={14} />} onClick={() => setShowAdd(true)}>{t('clients.newClient')}</Btn>
           </div>
         </div>
 
@@ -167,14 +169,14 @@ export default function ClientsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
             <div style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', pointerEvents: 'none' }} />
-              <Input style={{ paddingLeft: 32 }} placeholder="Qidirish (ism, telefon, email...)" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
+              <Input style={{ paddingLeft: 32 }} placeholder={t('clients.searchPh')} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
             </div>
             <Select value={filters.source} onChange={(e) => setFilters({ ...filters, source: e.target.value })}>
-              <option value="">Barcha manba</option>
+              <option value="">{t('clients.allSources')}</option>
               {Object.entries(SOURCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
             <Select value={filters.stage} onChange={(e) => setFilters({ ...filters, stage: e.target.value })}>
-              <option value="">Barcha bosqich</option>
+              <option value="">{t('clients.allStages')}</option>
               {Object.entries(STAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
             {/* 3-chi "Yangi" (saralash) filtri olib tashlandi — ro'yxat sukut bo'yicha
@@ -191,14 +193,14 @@ export default function ClientsPage() {
             border: '1px solid var(--primary)', borderRadius: 10,
           }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>
-              {selected.size} ta tanlandi
+              {selected.size} {t('clients.selected')}
             </span>
             <span style={{ width: 1, height: 18, background: 'var(--border)' }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <GitBranch size={13} style={{ color: 'var(--fg-3)' }} />
               <Select disabled={bulkBusy} style={{ minWidth: 150, padding: '5px 10px', fontSize: 12 }} value=""
                 onChange={(e) => { if (e.target.value) bulkApply({ pipelineStage: e.target.value }, 'yangi bosqich'); }}>
-                <option value="">Bosqich o'zgartirish...</option>
+                <option value="">{t('clients.changeStage')}</option>
                 {Object.entries(STAGE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </Select>
             </div>
@@ -206,14 +208,14 @@ export default function ClientsPage() {
               <UserCheck size={13} style={{ color: 'var(--fg-3)' }} />
               <Select disabled={bulkBusy || agents.length === 0} style={{ minWidth: 150, padding: '5px 10px', fontSize: 12 }} value=""
                 onChange={(e) => { if (e.target.value) bulkApply({ assignedAgentId: e.target.value }, 'agent'); }}>
-                <option value="">Agent biriktirish...</option>
+                <option value="">{t('clients.assignAgent')}</option>
                 {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </Select>
             </div>
             <Btn size="sm" variant="secondary" icon={<Download size={13} />} disabled={bulkBusy} onClick={exportCsv}>CSV</Btn>
             {bulkBusy && <Loader2 size={15} className="spin" style={{ color: 'var(--primary)', animation: 'spin 1s linear infinite' }} />}
             <button onClick={() => setSelected(new Set())} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-              <X size={13} /> Bekor qilish
+              <X size={13} /> {t('clients.cancel2')}
             </button>
           </div>
         )}
@@ -226,9 +228,9 @@ export default function ClientsPage() {
               <Card>
                 <EmptyState
                   icon={<Users size={28} />}
-                  title="Hali klient yo'q"
-                  description="Birinchi klientingizni qo'shing yoki Telegram/Instagram'dan kelgan leadlar shu yerda paydo bo'ladi."
-                  actionLabel="+ Birinchi klientni qo'shish"
+                  title={t('clients.emptyTitle')}
+                  description={t('clients.emptyDesc')}
+                  actionLabel={t('clients.emptyAction')}
                   onAction={() => setShowAdd(true)}
                 />
               </Card>
@@ -242,12 +244,12 @@ export default function ClientsPage() {
                           <Checkbox checked={allSelected} indeterminate={!allSelected && someSelected} onChange={toggleAll} />
                         </th>
                       )}
-                      <th style={{ padding: 12, textAlign: 'left' }}>F.I.SH.</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Nomer</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Bosqich</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Manba</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Takliflar</th>
-                      <th style={{ padding: 12, textAlign: 'left' }}>Oxirgi aloqa</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('clients.colName')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('clients.colPhone')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('clients.colStage')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('clients.colSource')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('clients.colOffers')}</th>
+                      <th style={{ padding: 12, textAlign: 'left' }}>{t('clients.colLastContact')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -309,6 +311,7 @@ export default function ClientsPage() {
 }
 
 function AddClientModal({ onClose, onSaved }: any) {
+  const { t } = useI18n();
   const [form, setForm] = useState<any>({
     fullName: '', phone: '', email: '', source: 'TELEGRAM', language: 'UZ',
     tier: 'REGULAR', notes: '',
@@ -320,7 +323,7 @@ function AddClientModal({ onClose, onSaved }: any) {
     setLoading(true);
     try {
       await clientsApi.create(form);
-      toast.success('Klient qo\'shildi');
+      toast.success(t('clients.added'));
       onSaved();
     } catch (e: any) {
       toast.error(errMsg(e));
@@ -328,10 +331,10 @@ function AddClientModal({ onClose, onSaved }: any) {
   }
 
   return (
-    <Modal open onClose={onClose} title="Yangi klient" maxWidth={500}>
+    <Modal open onClose={onClose} title={t('clients.addTitle')} maxWidth={500}>
       <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ gridColumn: '1/-1' }}>
-          <Label>F.I.SH. *</Label>
+          <Label>{t('clients.fish')}</Label>
           <Input required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
         </div>
         <div>
@@ -339,7 +342,7 @@ function AddClientModal({ onClose, onSaved }: any) {
           <Input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+998901234567" />
         </div>
         <div>
-          <Label>Email</Label>
+          <Label>{t('common.email')}</Label>
           <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
         <div>
@@ -349,13 +352,13 @@ function AddClientModal({ onClose, onSaved }: any) {
           </Select>
         </div>
         <div>
-          <Label>Tier</Label>
+          <Label>{t('clients.tier')}</Label>
           <Select value={form.tier} onChange={(e) => setForm({ ...form, tier: e.target.value })}>
             {Object.entries(TIER_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
         </div>
         <div style={{ gridColumn: '1/-1' }}>
-          <Label>Izoh</Label>
+          <Label>{t('clients.notes')}</Label>
           <Textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </div>
         <div style={{ gridColumn: '1/-1', display: 'flex', gap: 10, marginTop: 8 }}>
@@ -385,6 +388,7 @@ const LOST_SOURCE_LABEL: Record<string, string> = {
 };
 
 function LostLeadsModal({ onClose, router }: any) {
+  const { t } = useI18n();
   const [items, setItems] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
@@ -409,7 +413,7 @@ function LostLeadsModal({ onClose, router }: any) {
   }, [search]);
 
   return (
-    <Modal open onClose={onClose} title="🗂️ Yo'qotilgan mijozlar" maxWidth={860}>
+    <Modal open onClose={onClose} title={t('clients.lostTitle')} maxWidth={860}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>
@@ -418,7 +422,7 @@ function LostLeadsModal({ onClose, router }: any) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ism yoki telefon…"
+            placeholder={t('clients.lostSearchPh')}
             style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, minWidth: 200 }}
           />
         </div>
@@ -427,7 +431,7 @@ function LostLeadsModal({ onClose, router }: any) {
           <div style={{ textAlign: 'center', color: 'var(--fg-3)', fontSize: 13, padding: 30 }}>Yuklanmoqda…</div>
         ) : items.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--fg-3)', fontSize: 14, padding: 40 }}>
-            Yo'qotilgan lead yo'q 👍
+            {t('clients.lostEmpty')}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, maxHeight: '60vh', overflowY: 'auto' }}>
@@ -476,7 +480,7 @@ function LostLeadsModal({ onClose, router }: any) {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--fg-3)', borderTop: '1px solid var(--border)', paddingTop: 8 }}>
                   <span>Yo'qotilgan: {fmtLostDate(c.pipelineStageAt)}</span>
-                  <span style={{ color: 'var(--accent, #3d7eff)' }}>Ochish →</span>
+                  <span style={{ color: 'var(--accent, #3d7eff)' }}>{t('clients.open')} →</span>
                 </div>
               </div>
             ))}
