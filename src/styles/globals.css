@@ -761,3 +761,36 @@ tbody td { padding: 10px 13px; vertical-align: middle; }
     min-height: 36px;
   }
 }
+
+/* v14 FIX: sana/vaqt input kalendar ikoni ILOVA temasiga mos bo'lsin (OS emas).
+   Ilgari colorScheme:'light dark' OS sozlamasiga qarardi — OS qorong'i bo'lsa,
+   oq (light) modalда oq ikon oq fonда ko'rinmasdi. !important inline stilni
+   ham yengadi, shuning uchun hamma sana input hamma joyда to'g'ri ishlaydi:
+   yorug' temada qora ikon, qorong'i temada oq ikon. */
+[data-theme="light"] input[type="date"],
+[data-theme="light"] input[type="time"],
+[data-theme="light"] input[type="datetime-local"],
+[data-theme="light"] input[type="month"],
+[data-theme="light"] input[type="week"] { color-scheme: light !important; }
+
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="datetime-local"],
+[data-theme="dark"] input[type="month"],
+[data-theme="dark"] input[type="week"] { color-scheme: dark !important; }
+
+/* WebKit kalendar ikonini yorug' temada aniq ko'rinadigan qilamiz (qora) */
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="time"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.75;
+  cursor: pointer;
+}
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.85;
+  cursor: pointer;
+}

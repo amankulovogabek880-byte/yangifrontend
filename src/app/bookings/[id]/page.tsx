@@ -22,6 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TABS = [
   { id: 'overview',    label: '📋 Umumiy' },
+  { id: 'chat',        label: '💬 Chat' },
   { id: 'passengers',  label: '✈️ Yo\'lovchilar' },
   { id: 'documents',   label: '📎 Hujjatlar' },
   { id: 'payments',    label: '💰 To\'lovlar' },
@@ -360,6 +361,7 @@ export default function BookingDetailPage() {
 
         {tab === 'documents' && <DocumentsTab bookingId={id} booking={b} />}
         {tab === 'passengers' && <PassengersTab bookingId={id} />}
+        {tab === 'chat' && <BookingChat clientId={b.clientId} clientName={b.client?.fullName} />}
 
 
         {tab === 'payments' && (
@@ -1578,4 +1580,91 @@ function printVoucher(b: any, tenantName?: string) {
   if (!w) { alert('Popup bloklangan — brauzerda ruxsat bering'); return; }
   w.document.write(html);
   w.document.close();
+}
+// v14: Booking kartasiga CHAT — mijozning Telegram suhbati shu yerda ochiladi.
+// Xabar shaxsiy (MTProto) yoki bot orqali ketadi (backend avtomatik yo'naltiradi).
+function BookingChat({ clientId, clientName }: any) {
+  const [conv, setConv] = useState<any>(null);
+  const [msgs, setMsgs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const loadMsgs = async (convId: string) => {
+    try {
+      const r: any = await telegramApi.messages(convId);
+      const list = r.data?.messages || r.data?.items || (Array.isArray(r.data) ? r.data : []);
+      if (Array.isArray(list)) setMsgs(list);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!clientId) { setLoading(false); return; }
+    v8Api.getClient360(clientId).then(async (r: any) => {
+      const c = r.data?.activeConversation;
+      setConv(c || null);
+      if (c?.id) await loadMsgs(c.id);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [clientId]);
+
+  async function send() {
+    const val = text.trim();
+    if (!val || !conv?.id) return;
+    setSending(true);
+    const optimistic = { id: 'tmp-' + Date.now(), direction: 'OUTBOUND', text: val, createdAt: new Date().toISOString() };
+    setMsgs((m) => [...m, optimistic]);
+    setText('');
+    try {
+      if (conv.isPersonal) {
+        const { userTelegramApi } = await import('@/services/api');
+        await userTelegramApi.sendMessage({ userId: conv.externalChatId, text: val, clientId });
+      } else {
+        await telegramApi.sendMessage(conv.id, val);
+      }
+      await loadMsgs(conv.id);
+    } catch (e: any) {
+      toast.error(errMsg(e));
+      await loadMsgs(conv.id);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (loading) return <Card><div style={{ padding: 20, color: 'var(--fg-3)', textAlign: 'center' }}>Yuklanmoqda...</div></Card>;
+  if (!conv) return <Card><div style={{ padding: 24, textAlign: 'center', color: 'var(--fg-3)' }}>Mijoz bilan Telegram suhbati yo'q</div></Card>;
+
+  return (
+    <Card>
+      <div style={{ maxHeight: 400, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, padding: 4, marginBottom: 12 }}>
+        {msgs.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--fg-4)', padding: 20, fontSize: 13 }}>Hozircha xabar yo'q</div>
+        ) : msgs.map((m: any) => {
+          const out = m.direction === 'OUTBOUND' || m.direction === 'outbound';
+          return (
+            <div key={m.id} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
+              <div style={{
+                maxWidth: '75%', padding: '8px 12px', borderRadius: 12, fontSize: 13,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                background: out ? 'var(--primary)' : 'var(--bg-2)', color: out ? 'white' : 'var(--fg)',
+              }}>
+                {m.messageType === 'VOICE' && m.fileUrl ? <audio src={m.fileUrl} controls style={{ maxWidth: 220 }} />
+                  : m.messageType === 'PHOTO' && m.fileUrl ? <img src={m.fileUrl} alt="" style={{ maxWidth: 220, borderRadius: 8 }} />
+                  : (m.text || m.caption || '')}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Xabar yozing..."
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          style={{ flex: 1, minHeight: 44, maxHeight: 120, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 14, resize: 'vertical' }}
+        />
+        <Btn variant="gradient" onClick={send} loading={sending} disabled={!text.trim()}>Yuborish</Btn>
+      </div>
+    </Card>
+  );
 }

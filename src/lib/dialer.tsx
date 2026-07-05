@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { callsApi, clientsApi } from '@/services/api';
+import { callsApi, clientsApi, pipelinesApi } from '@/services/api';
 import { getSocket } from '@/hooks/useSocket';
 import toast from 'react-hot-toast';
 
@@ -24,6 +24,7 @@ interface DialerContextType {
   hangup: () => Promise<void>;
   close: () => void;
   addNote: (note: string) => Promise<void>;
+  saveCallback: (note: string, nextCallAt: string) => Promise<void>;
 }
 
 const INITIAL: CallState = {
@@ -43,6 +44,7 @@ const DialerContext = createContext<DialerContextType>({
   hangup: async () => {},
   close: () => {},
   addNote: async () => {},
+  saveCallback: async () => {},
 });
 
 export function DialerProvider({ children }: { children: React.ReactNode }) {
@@ -188,17 +190,37 @@ export function DialerProvider({ children }: { children: React.ReactNode }) {
   const close = () => setState(INITIAL);
 
   const addNote = async (note: string) => {
-    if (!state.callId || state.callId === 'pending') return;
     try {
-      await callsApi.addNote(state.callId, note);
+      // Qo'ng'iroq yozuviga saqlaymiz
+      if (state.callId && state.callId !== 'pending') {
+        await callsApi.addNote(state.callId, note);
+      }
+      // v14: mijoz kartasida ham ko'rinishi uchun mijoz izohiga ham yozamiz
+      if (state.clientId) {
+        await clientsApi.addNote(state.clientId, `📞 Qo'ng'iroq: ${note}`).catch(() => {});
+      }
       toast.success('Izoh saqlandi');
     } catch (e: any) {
       toast.error(e.response?.data?.message || 'Xato');
     }
   };
 
+  // v14: javob bo'lmaganda — keyingi qo'ng'iroq vaqtini belgilash + izoh
+  const saveCallback = async (note: string, nextCallAt: string) => {
+    if (!state.clientId) { toast.error('Mijoz aniqlanmadi'); return; }
+    try {
+      await pipelinesApi.callAttempt(state.clientId, { outcome: 'NO_ANSWER', note, nextCallAt });
+      if (state.callId && state.callId !== 'pending' && note) {
+        await callsApi.addNote(state.callId, note).catch(() => {});
+      }
+      toast.success('Keyingi qo\'ng\'iroq belgilandi');
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Xato');
+    }
+  };
+
   return (
-    <DialerContext.Provider value={{ state, callClient, callNumber, hangup, close, addNote }}>
+    <DialerContext.Provider value={{ state, callClient, callNumber, hangup, close, addNote, saveCallback }}>
       {children}
     </DialerContext.Provider>
   );

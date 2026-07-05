@@ -29,13 +29,17 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function DialerWidget() {
-  const { state, hangup, close, addNote } = useDialer();
+  const { state, hangup, close, addNote, saveCallback } = useDialer();
   const [note, setNote] = useState('');
+  // v14: javob bo'lmaganda keyingi qo'ng'iroq vaqti (default +1 kun)
+  const [nextCallAt, setNextCallAt] = useState(() => new Date(Date.now() + 24 * 3600000).toISOString().slice(0, 16));
   const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
-    if (state.status === 'COMPLETED' || state.status === 'NO_ANSWER' || state.status === 'FAILED') {
-      // Auto-close after 6 seconds
+    // v14: javob bo'lgan (COMPLETED) qo'ng'iroqда 6 soniyadan keyin avto-yopiladi.
+    // Javob BO'LMAGANda (NO_ANSWER/FAILED) yopilmaydi — agent callback vaqtini
+    // belgilashi kerak.
+    if (state.status === 'COMPLETED') {
       const t = setTimeout(() => {
         if (!note) close();
       }, 6000);
@@ -49,9 +53,16 @@ export default function DialerWidget() {
   const isWaitingAgent = state.status === 'QUEUED' || state.status === 'INITIATED';
   const isEnded = ['COMPLETED', 'NO_ANSWER', 'FAILED'].includes(state.status);
 
+  const isNoAnswer = state.status === 'NO_ANSWER' || state.status === 'FAILED';
+
   async function saveNote() {
-    if (!note.trim()) return;
-    await addNote(note);
+    // v14: javob bo'lmasa — callback vaqti + izoh; javob bo'lsa — faqat izoh
+    if (isNoAnswer) {
+      await saveCallback(note, nextCallAt);
+    } else {
+      if (!note.trim()) return;
+      await addNote(note);
+    }
     setNote('');
     close();
   }
@@ -220,6 +231,25 @@ export default function DialerWidget() {
       {/* Note input — after call ends */}
       {isEnded && (
         <div style={{ padding: '0 20px 16px' }}>
+          {/* v14: javob bo'lmasa — keyingi qo'ng'iroq vaqti (avtomatik kalendar) */}
+          {isNoAnswer && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-2)', marginBottom: 4 }}>
+                📅 Keyingi qo'ng'iroq vaqti
+              </div>
+              <input
+                type="datetime-local"
+                value={nextCallAt}
+                onChange={(e) => setNextCallAt(e.target.value)}
+                style={{
+                  width: '100%', background: 'var(--bg-input)',
+                  border: '1px solid var(--border)', borderRadius: 8,
+                  padding: 10, fontSize: 13, color: 'var(--fg)', outline: 'none',
+                  colorScheme: 'dark',
+                }}
+              />
+            </div>
+          )}
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -250,16 +280,16 @@ export default function DialerWidget() {
             </button>
             <button
               onClick={saveNote}
-              disabled={!note.trim()}
+              disabled={!isNoAnswer && !note.trim()}
               style={{
                 flex: 1,
                 background: 'var(--primary)',
                 border: 'none',
                 color: 'white',
                 borderRadius: 8, padding: '8px 12px',
-                cursor: note.trim() ? 'pointer' : 'not-allowed',
+                cursor: (isNoAnswer || note.trim()) ? 'pointer' : 'not-allowed',
                 fontSize: 12, fontWeight: 600,
-                opacity: note.trim() ? 1 : 0.5,
+                opacity: (isNoAnswer || note.trim()) ? 1 : 0.5,
               }}
             >
               Saqlash
