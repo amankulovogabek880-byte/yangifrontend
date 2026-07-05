@@ -291,21 +291,21 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
     // hisoblangan "Mening oyligim". Foiz har doim admin Sozlamalarda
     // qo'ygan komissiya foizidan (kpiPct) olinadi — qattiq kodlangan
     // (masalan 8%) qiymat ishlatilmaydi.
-    { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? totalRevenue)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
-    { label: t('dash.operatorCost'), value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
+    { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? totalRevenue)}`, color: '#10b981', sub: t('dash.bookingPricesTotal'), icon: <DollarSign size={15} />, series: revSeries },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: t('dash.costTotal'), icon: <Banknote size={15} /> },
     { label: t('dash.mySalary'), value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: kpiPct + '% foydadan' + (myProfit > 0 ? ` ($${money(myProfit)} × ${kpiPct}%)` : '') + (agentTier ? ` · ${agentTier}` : ''), icon: <Wallet size={15} />, emphasis: true },
-    { label: t('dash.myBookings'), value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
+    { label: t('dash.myBookings'), value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `${t('dash.jami')}: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
     { label: t('dash.conversionRate'), value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead`, icon: <Percent size={15} /> },
-    { label: t('dash.myLeads'), value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `Bu oy: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
-    { label: t('dash.toCompany'), value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: 'Mening ulushim chiqarilgandan', icon: <Briefcase size={15} /> },
+    { label: t('dash.myLeads'), value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `${t('common.thisMonth')}: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
+    { label: t('dash.toCompany'), value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: t('dash.afterMyShare'), icon: <Briefcase size={15} /> },
   ] : [
     // Vizual iyerarxiya: "Sof foyda" — eng muhim metrika, kattaroq (emphasis)
-    { label: t('dash.netProfit'), value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Daromad - Xarajat - Maosh', icon: <TrendUpIc size={16} />, series: profitSeries, emphasis: true },
-    { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0)}`, color: '#10b981', sub: 'Booking narxlari jami', icon: <DollarSign size={15} />, series: revSeries },
-    { label: t('dash.operatorCost'), value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami', icon: <Banknote size={15} /> },
+    { label: t('dash.netProfit'), value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: t('dash.revMinusCostSalary'), icon: <TrendUpIc size={16} />, series: profitSeries, emphasis: true },
+    { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0)}`, color: '#10b981', sub: t('dash.bookingPricesTotal'), icon: <DollarSign size={15} />, series: revSeries },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: t('dash.costTotal'), icon: <Banknote size={15} /> },
     { label: t('dash.clients'), value: stats?.clients?.total ?? 0, color: '#3d7eff', icon: <UsersIc size={15} /> },
-    { label: t('dash.newLeads'), value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `Bugun: +${stats?.clients?.newToday ?? 0}`, icon: <UserPlusIc size={15} /> },
-    { label: t('dash.bookingsMonth'), value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `Jami: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
+    { label: t('dash.newLeads'), value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `${t('common.today')}: +${stats?.clients?.newToday ?? 0}`, icon: <UserPlusIc size={15} /> },
+    { label: t('dash.bookingsMonth'), value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `${t('dash.jami')}: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
   ];
 
   return (
@@ -321,7 +321,7 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
         <RevenueChart data={revenueChart} />
 
         <div style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Bugungi eslatmalar ({todayTasks.length})</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>{t('dash.todayReminders')} ({todayTasks.length})</h3>
           {todayTasks.length === 0 ? (
             <div>
               <EmptyState
@@ -371,10 +371,10 @@ function RevenueTab({ stats, revenueChart }: any) {
   const { t } = useI18n();
   const items = [
     { label: t('dash.totalRevenue'), value: `$${money(stats?.revenue?.thisMonth || stats?.cost?.totalSales || 0)}`, color: '#10b981' },
-    { label: t('dash.operatorCost'), value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: 'Tannarx jami' },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: t('dash.costTotal') },
 
-    { label: t('dash.netProfit'), value: `$${money(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: 'Foyda - Agent maosh' },
-    { label: t('dash.conversion'), value: `${stats?.conversion?.rate ?? 0}%`, color: '#06b6d4', sub: 'Lead → Booking' },
+    { label: t('dash.netProfit'), value: `$${money(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: t('dash.profitMinusSalary') },
+    { label: t('dash.conversion'), value: `${stats?.conversion?.rate ?? 0}%`, color: '#06b6d4', sub: t('dash.leadToBooking') },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -497,11 +497,11 @@ function AgentsTab({ agents, isAgent }: any) {
                   </td>
                   <td style={{ padding: '10px 12px' }}>
                     {a.leadsInPeriod ?? 0}
-                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Jami: {a.clients ?? 0}</div>
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('dash.jami')}: {a.clients ?? 0}</div>
                   </td>
                   <td style={{ padding: '10px 12px' }}>
                     {a.bookingsInPeriod ?? 0}
-                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>Jami: {a.bookings ?? 0}</div>
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('dash.jami')}: {a.bookings ?? 0}</div>
                   </td>
                   <td style={{ padding: '10px 12px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
@@ -708,8 +708,8 @@ function LeadsTab({ data, from, to }: any) {
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         {[
-          { label: t('dash.totalLeads'), value: summary.totalLeads || 0, color: '#3d7eff', sub: "barcha manba" },
-          { label: 'Bookinglar', value: summary.totalBookings || 0, color: '#10b981', sub: "muvaffaqiyatli" },
+          { label: t('dash.totalLeads'), value: summary.totalLeads || 0, color: '#3d7eff', sub: t('dash.allSourcesSub') },
+          { label: t('dash.bookings'), value: summary.totalBookings || 0, color: '#10b981', sub: t('dash.successful') },
           { label: t('dash.avgConversion'), value: `${(summary.avgConversionRate || 0).toFixed(1)}%`, color: '#f59e0b', sub: "o'rtacha" },
           { label: t('dash.totalRevenue'), value: `$${money(totalRevenue)}`, color: '#8b5cf6', sub: "barcha manbadan" },
         ].map((s, i) => (
@@ -911,6 +911,7 @@ function DateRangePicker({ from, to, onChange }: {
 
 // ─── PREMIUM REVENUE CHART ──────────────────────────────────────────
 function RevenueChart({ data }: { data: any[] }) {
+  const { t } = useI18n();
   const [view, setView] = useState<'year' | 'quarter'>('year');
   const months = ['','Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
 
@@ -950,9 +951,9 @@ function RevenueChart({ data }: { data: any[] }) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', letterSpacing: -0.3 }}>Revenue & Profit</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', letterSpacing: -0.3 }}>{t('dash.revenueProfit')}</div>
           <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 3, fontWeight: 500 }}>
-            Monthly performance · {currentYear}
+            {t('dash.monthlyPerf')} · {currentYear}
           </div>
         </div>
 
@@ -961,11 +962,11 @@ function RevenueChart({ data }: { data: any[] }) {
           <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#5b8def', display: 'inline-block' }}/>
-              <span style={{ fontSize: 11.5, color: 'var(--fg-2)', fontWeight: 500 }}>Revenue</span>
+              <span style={{ fontSize: 11.5, color: 'var(--fg-2)', fontWeight: 500 }}>{t('dash.revenue')}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7', display: 'inline-block' }}/>
-              <span style={{ fontSize: 11.5, color: 'var(--fg-2)', fontWeight: 500 }}>Profit</span>
+              <span style={{ fontSize: 11.5, color: 'var(--fg-2)', fontWeight: 500 }}>{t('dash.profit')}</span>
             </div>
           </div>
 
@@ -980,7 +981,7 @@ function RevenueChart({ data }: { data: any[] }) {
                 transition: 'all 0.14s',
                 boxShadow: view === v ? 'var(--shadow-xs)' : 'none',
               }}>
-                {v === 'year' ? 'Year' : 'Quarter'}
+                {v === 'year' ? t('dash.year') : t('dash.quarter')}
               </button>
             ))}
           </div>

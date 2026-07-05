@@ -2,8 +2,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { searchApi } from '@/services/api';
+import { useI18n } from '@/lib/i18n';
 
 export default function GlobalSearch() {
+  const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -52,7 +54,7 @@ export default function GlobalSearch() {
     <>
       <button
         onClick={() => setOpen(true)}
-        title="Qidirish (Ctrl+K)"
+        title={t('search.title')}
         style={{
           background: 'var(--bg-3)', border: ' 1px solid var(--border)',
           borderRadius: 8, padding: '8px 12px',
@@ -62,7 +64,7 @@ export default function GlobalSearch() {
         }}
       >
         <span>🔍</span>
-        <span style={{ flex: 1, textAlign: 'left' }}>Qidirish...</span>
+        <span style={{ flex: 1, textAlign: 'left' }}>{t('search.btn')}</span>
         <span style={{
           background: 'var(--border)', padding: '1px 6px', borderRadius: 4,
           fontSize: 10, fontFamily: 'monospace',
@@ -86,7 +88,7 @@ export default function GlobalSearch() {
                 ref={inputRef}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Klient, booking, suhbat, paket qidiring..."
+                placeholder={t('search.placeholder')}
                 style={{
                   width: '100%', background: 'transparent', border: 'none',
                   padding: '14px 12px', color: 'var(--fg)', fontSize: 15,
