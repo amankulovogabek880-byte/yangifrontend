@@ -1117,13 +1117,14 @@ function LeadAssignmentTab() {
                   // v14: endi haqiqiy API chaqiriladi (avval faqat console.log edi —
                   // shu sabab pauza umuman ishlamasdi). Pauza qilingan agent
                   // round-robin orqali yangi lead OLMAYDI.
+                  // FIX: bu metodlar leadAssignmentApi'da emas, usersApi'da joylashgan.
                   try {
-                    const { leadAssignmentApi } = await import('@/services/api');
+                    const { usersApi } = await import('@/services/api');
                     if (agent.isPausedFromAssignment) {
-                      await leadAssignmentApi.unpauseAgent(agent.id);
+                      await usersApi.unpauseAgent(agent.id);
                       toast.success(`${agent.fullName || agent.email} — endi lead oladi`);
                     } else {
-                      await leadAssignmentApi.pauseAgent(agent.id, 'Vaqtincha to\'xtatildi');
+                      await usersApi.pauseAgent(agent.id, 'Vaqtincha to\'xtatildi');
                       toast.success(`${agent.fullName || agent.email} — lead berish to'xtatildi`);
                     }
                     setAgents((prev: any[]) => prev.map((a: any) => a.id === agent.id ? { ...a, isPausedFromAssignment: !agent.isPausedFromAssignment } : a));
