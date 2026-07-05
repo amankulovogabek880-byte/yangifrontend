@@ -676,6 +676,7 @@ function CallsTab({ data, isAgent }: any) {
 }
 
 function LeadsTab({ data, from, to }: any) {
+  const { t } = useI18n();
   const [activeSource, setActiveSource] = useState<string>('ALL');
   if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
   const { summary = {}, bySource = [] } = data;
@@ -1082,6 +1083,7 @@ function RevenueChart({ data }: { data: any[] }) {
 // Agent: faqat o'zining tarixini ko'radi (backend cheklaydi).
 // ═════════════════════════════════════════════════════════════
 function AgentMonthlyHistory({ isAgent, agents }: { isAgent: boolean; agents: any[] }) {
+  const { t } = useI18n();
   const [months, setMonths] = useState(6);
   const [agentId, setAgentId] = useState<string>('');
   const [data, setData] = useState<any>(null);
