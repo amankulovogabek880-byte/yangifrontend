@@ -32,10 +32,10 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
 
   // Navigation
   'nav.dashboard': { uz: 'Bosh sahifa', ru: 'Главная' },
-  'nav.pipeline': { uz: 'Pipeline', ru: 'Воронка' },
-  'nav.inbox': { uz: 'Inbox', ru: 'Входящие' },
+  'nav.pipeline': { uz: 'Sotuvlar', ru: 'Воронка' },
+  'nav.inbox': { uz: 'Chat', ru: 'Входящие' },
   'nav.clients': { uz: 'Mijozlar', ru: 'Клиенты' },
-  'nav.bookings': { uz: 'Bookinglar', ru: 'Брони' },
+  'nav.bookings': { uz: 'Bronlar', ru: 'Брони' },
   'nav.invoices': { uz: 'Hisob-fakturalar', ru: 'Счета' },
   'nav.payments': { uz: "To'lovlar", ru: 'Платежи' },
   'nav.followups': { uz: 'Eslatmalar', ru: 'Напоминания' },
@@ -51,7 +51,7 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   // Dashboard
   'dashboard.title': { uz: 'Bosh sahifa', ru: 'Главная' },
   'dashboard.revenue': { uz: 'Daromad', ru: 'Выручка' },
-  'dashboard.bookings': { uz: 'Bookinglar', ru: 'Брони' },
+  'dashboard.bookings': { uz: 'Bronlar', ru: 'Брони' },
   'dashboard.clients': { uz: 'Yangi mijozlar', ru: 'Новые клиенты' },
   'dashboard.conversion': { uz: 'Konversiya', ru: 'Конверсия' },
   'dashboard.calls': { uz: "Qo'ng'iroqlar", ru: 'Звонки' },
@@ -237,7 +237,7 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'pay.noPayment': { uz: "To'lov yo'q", ru: 'Нет платежей' },
   // BCI (auto)
   // Bookings / Calls / Invoices
-  'bk.title': { uz: '✈ Bookinglar', ru: '✈ Брони' },
+  'bk.title': { uz: '✈ Bronlar', ru: '✈ Брони' },
   'bk.allStatus': { uz: 'Barcha status', ru: 'Все статусы' },
   'bk.ref': { uz: 'Ref', ru: 'Ref' },
   'bk.tour': { uz: 'Tur', ru: 'Тур' },

@@ -1,0 +1,32 @@
+<!-- HTML Web Form -->
+<form id="leadForm">
+  <input name="fullName" placeholder="Ism *" required />
+  <input name="phone" placeholder="+998..." required />
+  <input name="email" placeholder="Email" />
+  <textarea name="message" placeholder="Xabaringiz"></textarea>
+  <button type="submit">Yuborish</button>
+</form>
+
+<script>
+document.getElementById('leadForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  data.source = 'WEB';
+  
+  const res = await fetch(
+    'POST http://localhost:3000/api/v1/public/leads/cmqyulkup0003c2ngji4bkktv?key=lk_cIJTDHasc759cZiUVTTakDcVtSoDJCzc',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }
+  );
+  const json = await res.json();
+  if (json.ok) {
+    alert("Rahmat! Tez orada bog'lanamiz.");
+    e.target.reset();
+  } else {
+    alert("Xato: " + json.message);
+  }
+};
+</script>
