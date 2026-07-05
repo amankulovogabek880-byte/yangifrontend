@@ -48,7 +48,6 @@ function InboxPageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const { user } = useAuth();
-  const { t } = useI18n();
   const { callClient } = useDialer();
 
   const [convs, setConvs] = useState<any[]>([]);

@@ -67,7 +67,6 @@ function ExportButton() {
 }
 
 export default function DashboardPage() {
-  const { t } = useI18n();
   const router = useRouter();
   const { user } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
