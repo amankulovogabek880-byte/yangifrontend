@@ -13,7 +13,7 @@ import { useSocket, getSocket } from '@/hooks/useSocket';
 import {
   User, Bot, Users2, Wallet, CalendarCheck, PhoneCall,
   ClipboardList, ExternalLink, PanelRightClose, PanelRightOpen,
-  GitBranch, Clock, Plane,
+  GitBranch, Clock, Plane, Search, Plus,
 } from 'lucide-react';
 import { FaTelegramPlane, FaWhatsapp, FaInstagram } from 'react-icons/fa';
 import { Globe as GlobeIc } from 'lucide-react';
@@ -424,8 +424,20 @@ function InboxPageInner() {
           display: 'flex', flexDirection: 'column',
         }}>
           <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <Input placeholder={t('inbox.searchConv')} value={searchQuery} onChange={(e: any) => setSearchQuery(e.target.value)} />
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search
+                size={16}
+                style={{
+                  position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+                  color: 'var(--fg-3)', pointerEvents: 'none',
+                }}
+              />
+              <Input
+                placeholder={t('inbox.searchConv')}
+                value={searchQuery}
+                onChange={(e: any) => setSearchQuery(e.target.value)}
+                style={{ paddingLeft: 34 }}
+              />
             </div>
             <button
               onClick={() => {
@@ -440,10 +452,10 @@ function InboxPageInner() {
                 width: 40, height: 40, borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: hasPersonalAccount ? '#3d7eff' : 'var(--bg-3)',
                 color: hasPersonalAccount ? 'white' : 'var(--fg-3)',
-                fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
               }}
-            >✎</button>
+            ><Plus size={20} /></button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 14 }}><Skeleton height={60} count={5} /></div>}

@@ -168,7 +168,7 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'loss.OTHER': { uz: 'Boshqa', ru: 'Другое' },
   // Inbox (auto2)
   // Inbox (auto)
-  'inbox.searchConv': { uz: '🔍 Suhbat qidirish', ru: '🔍 Поиск чата' },
+  'inbox.searchConv': { uz: 'Suhbat qidirish', ru: 'Поиск чата' },
   'inbox.firstMsgTitle': { uz: 'Birinchi xabar yuborish (yangi suhbat)', ru: 'Отправить первое сообщение (новый чат)' },
   'inbox.noConv': { uz: "Suhbat yo'q", ru: 'Нет чатов' },
   'inbox.nothingFound': { uz: 'Hech narsa topilmadi', ru: 'Ничего не найдено' },

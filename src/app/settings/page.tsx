@@ -949,6 +949,23 @@ function LeadAssignmentTab() {
     finally { setAssigning(false); }
   }
 
+  // v9 FIX: Agentni round-robin taqsimlashdan to'xtatish / qaytarish.
+  // Ilgari tugma faqat console.log qilardi — endi haqiqiy API chaqiriladi.
+  async function togglePauseAgent(agent: any) {
+    const name = agent.name || agent.fullName || agent.email;
+    try {
+      const { usersApi } = await import('@/services/api');
+      if (agent.isPausedFromAssignment) {
+        await usersApi.unpauseAgent(agent.id);
+        toast.success(`▶️ ${name} — taqsimlashga qaytarildi`);
+      } else {
+        await usersApi.pauseAgent(agent.id);
+        toast.success(`⏸ ${name} — taqsimlashdan to'xtatildi`);
+      }
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
   async function saveSourceRouting() {
     setSourceRoutingSaving(true);
     try {
@@ -1116,17 +1133,14 @@ function LeadAssignmentTab() {
               background: 'var(--bg-3)', borderRadius: 8, justifyContent: 'space-between',
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{agent.fullName || agent.email}</div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{agent.name || agent.fullName || agent.email}</div>
                 <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>
                   {agent.isPausedFromAssignment ? '⏸ Ta\'til' : '✅ Faol'}
                   {agent.dailyLeadLimit > 0 && ` • Limit: ${agent.dailyLeadLimit}/kun`}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <Btn size="sm" variant={agent.isPausedFromAssignment ? 'secondary' : 'primary'} onClick={() => {
-                  // Toggle pause — API call kerak
-                  console.log('Pause toggle:', agent.id);
-                }}>
+                <Btn size="sm" variant={agent.isPausedFromAssignment ? 'secondary' : 'primary'} onClick={() => togglePauseAgent(agent)}>
                   {agent.isPausedFromAssignment ? '▶️' : '⏸'}
                 </Btn>
               </div>
