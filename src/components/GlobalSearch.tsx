@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { Search } from 'lucide-react';
 import { searchApi } from '@/services/api';
 import { useI18n } from '@/lib/i18n';
 
@@ -63,7 +64,7 @@ export default function GlobalSearch() {
           minWidth: 220,
         }}
       >
-        <span>🔍</span>
+        <Search size={15} style={{ flexShrink: 0 }} />
         <span style={{ flex: 1, textAlign: 'left' }}>{t('search.btn')}</span>
         <span style={{
           background: 'var(--border)', padding: '1px 6px', borderRadius: 4,
@@ -83,7 +84,8 @@ export default function GlobalSearch() {
             borderRadius: 14, overflow: 'hidden',
             boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
           }}>
-            <div style={{ borderBottom: '1px solid var(--border)', padding: '4px 8px' }}>
+            <div style={{ borderBottom: '1px solid var(--border)', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Search size={18} style={{ color: 'var(--fg-3)', flexShrink: 0, marginLeft: 6 }} />
               <input
                 ref={inputRef}
                 value={q}

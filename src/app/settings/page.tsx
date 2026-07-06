@@ -9,24 +9,30 @@ import { useTheme } from '@/lib/theme';
 import { useI18n } from '@/lib/i18n';
 import toast from 'react-hot-toast';
 import { errMsg } from '@/lib/helpers';
+import {
+  Settings, PhoneCall, FileText, Key, List, User, Users,
+  Target, Bot, ClipboardList, DollarSign, Lock,
+} from 'lucide-react';
+import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-icons/fa';
 
+const ICON = 15;
 const TABS = [
-  { id: 'general',     label: '⚙ Umumiy' },
-  { id: 'phone',       label: '📞 Telefon' },
-  { id: 'whatsapp',    label: '📱 WhatsApp' },
-  { id: 'telegram',    label: '📨 Telegram' },
-  { id: 'instagram',   label: '📷 Instagram', adminOnly: true },
-  { id: 'facebook',    label: '👥 Facebook Ads', adminOnly: true },   // ← YANGI
-  { id: 'templates',   label: '📝 Shablonlar', adminOnly: true },
-  { id: 'api',         label: '🔑 API Keys', adminOnly: true },
-  { id: 'webhooklogs', label: '📜 Webhook Logs', adminOnly: true },
-  { id: 'profile',     label: '👤 Profil' },
-  { id: 'team',        label: '👥 Jamoa', adminOnly: true },
-  { id: 'leads',       label: '🎯 Lead taqsimlash', adminOnly: true },
-  { id: 'autoreply',   label: '🤖 Auto-Reply', adminOnly: true },
-  { id: 'forms',       label: '📝 Web Forms', adminOnly: true },
-  { id: 'kpi',         label: '💰 Commission Tiers', adminOnly: true },
-  { id: 'security',    label: '🔐 Xavfsizlik' },
+  { id: 'general',     label: 'Umumiy',            icon: <Settings size={ICON} /> },
+  { id: 'phone',       label: 'Telefon',           icon: <PhoneCall size={ICON} /> },
+  { id: 'whatsapp',    label: 'WhatsApp',          icon: <FaWhatsapp size={ICON} /> },
+  { id: 'telegram',    label: 'Telegram',          icon: <FaTelegramPlane size={ICON} /> },
+  { id: 'instagram',   label: 'Instagram',         icon: <FaInstagram size={ICON} />, adminOnly: true },
+  { id: 'facebook',    label: 'Facebook Ads',      icon: <FaFacebookF size={ICON} />, adminOnly: true },
+  { id: 'templates',   label: 'Shablonlar',        icon: <FileText size={ICON} />, adminOnly: true },
+  { id: 'api',         label: 'API Keys',          icon: <Key size={ICON} />, adminOnly: true },
+  { id: 'webhooklogs', label: 'Webhook Logs',      icon: <List size={ICON} />, adminOnly: true },
+  { id: 'profile',     label: 'Profil',            icon: <User size={ICON} /> },
+  { id: 'team',        label: 'Jamoa',             icon: <Users size={ICON} />, adminOnly: true },
+  { id: 'leads',       label: 'Lead taqsimlash',   icon: <Target size={ICON} />, adminOnly: true },
+  { id: 'autoreply',   label: 'Auto-Reply',        icon: <Bot size={ICON} />, adminOnly: true },
+  { id: 'forms',       label: 'Web Forms',         icon: <ClipboardList size={ICON} />, adminOnly: true },
+  { id: 'kpi',         label: 'Commission Tiers',  icon: <DollarSign size={ICON} />, adminOnly: true },
+  { id: 'security',    label: 'Xavfsizlik',        icon: <Lock size={ICON} /> },
 ];
 
 export default function SettingsPage() {
@@ -62,7 +68,9 @@ export default function SettingsPage() {
               fontWeight: tab === t.id ? 600 : 500,
               borderBottom: '2px solid ' + (tab === t.id ? 'var(--primary)' : 'transparent'),
               marginBottom: -1, whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 7,
             }}>
+              {t.icon}
               {t.label}
             </button>
           ))}

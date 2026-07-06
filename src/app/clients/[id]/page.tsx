@@ -640,60 +640,111 @@ function StagePill({ clientId, stage, onChanged }: any) {
   );
 }
 
-// ─── Activity Feed (chat + izohlar + vazifalar + bosqich o'zgarishlari) ────────
+// ─── Mijoz qo'shimcha ma'lumotlari (chiroyli ko'rinish + tahrirlash) ──────────
 function CustomFields({ client }: any) {
-  const [fields, setFields] = useState<{ key: string; value: string }[]>(
-    () => (Array.isArray(client?.preferences?.customFields) ? client.preferences.customFields : []),
-  );
+  const initial = Array.isArray(client?.preferences?.customFields) ? client.preferences.customFields : [];
+  const [fields, setFields] = useState<{ key: string; value: string }[]>(initial);
+  const [baseline, setBaseline] = useState<{ key: string; value: string }[]>(initial);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
 
-  const upd = (i: number, k: 'key' | 'value', v: string) => {
+  const upd = (i: number, k: 'key' | 'value', v: string) =>
     setFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, [k]: v } : f)));
-    setDirty(true);
-  };
-  const add = () => { setFields((prev) => [...prev, { key: '', value: '' }]); setDirty(true); };
-  const remove = (i: number) => { setFields((prev) => prev.filter((_, idx) => idx !== i)); setDirty(true); };
+  const add = () => setFields((prev) => [...prev, { key: '', value: '' }]);
+  const remove = (i: number) => setFields((prev) => prev.filter((_, idx) => idx !== i));
 
+  function startEdit() {
+    setFields(baseline.length ? baseline : [{ key: '', value: '' }]);
+    setEditing(true);
+  }
+  function cancel() {
+    setFields(baseline);
+    setEditing(false);
+  }
   async function save() {
     setSaving(true);
     try {
       const clean = fields.filter((f) => f.key.trim() || f.value.trim());
       await clientsApi.setCustomFields(client.id, clean);
       setFields(clean);
-      setDirty(false);
+      setBaseline(clean);
+      setEditing(false);
       toast.success('Ma\'lumot saqlandi');
     } catch (e: any) { toast.error(errMsg(e)); }
     finally { setSaving(false); }
   }
 
-  const inp: any = { flex: 1, minWidth: 0, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 12, boxSizing: 'border-box' };
+  const inp: any = { flex: 1, minWidth: 0, padding: '7px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 12.5, boxSizing: 'border-box' };
+  const saved = baseline.filter((f) => f.key.trim() || f.value.trim());
 
   return (
     <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-      <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 6 }}>Qo'shimcha ma'lumot</div>
-      {fields.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 6 }}>
-          {fields.map((f, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <input style={inp} placeholder="Nomi (masalan: Qayerga)" value={f.key} onChange={(e) => upd(i, 'key', e.target.value)} />
-              <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>=</span>
-              <input style={inp} placeholder="Qiymati (masalan: Istanbul)" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} />
-              <button onClick={() => remove(i)} title="O'chirish" style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}>×</button>
-            </div>
-          ))}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ color: 'var(--fg-4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          Qo'shimcha ma'lumot
         </div>
-      )}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button onClick={add} style={{ fontSize: 12, padding: '4px 0', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-          + Ma'lumot qo'shish
-        </button>
-        {dirty && (
-          <button onClick={save} disabled={saving} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
-            {saving ? '...' : 'Saqlash'}
+        {!editing && (
+          <button onClick={startEdit} title="Tahrirlash" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11,
+            padding: '4px 9px', borderRadius: 6, border: '1px solid var(--border)',
+            background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer', fontWeight: 600,
+          }}>
+            <FaPen size={9} /> Tahrirlash
           </button>
         )}
       </div>
+
+      {/* KO'RISH REJIMI — chiroyli "yorliq: qiymat" ro'yxati */}
+      {!editing && (
+        saved.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {saved.map((f, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12,
+                padding: '9px 11px', background: 'var(--bg-3)', borderRadius: 8,
+              }}>
+                <span style={{ fontSize: 12, color: 'var(--fg-3)', fontWeight: 500, flexShrink: 0 }}>{f.key || '—'}</span>
+                <span style={{ fontSize: 12.5, color: 'var(--fg)', fontWeight: 600, textAlign: 'right', wordBreak: 'break-word' }}>{f.value || '—'}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic', padding: '4px 0' }}>
+            Hozircha ma'lumot yo'q — qo'shish uchun "Tahrirlash"ni bosing
+          </div>
+        )
+      )}
+
+      {/* TAHRIRLASH REJIMI */}
+      {editing && (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+            {fields.map((f, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input style={inp} placeholder="Nomi (masalan: Qayerga)" value={f.key} onChange={(e) => upd(i, 'key', e.target.value)} />
+                <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
+                <input style={inp} placeholder="Qiymati (masalan: Istanbul)" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} />
+                <button onClick={() => remove(i)} title="O'chirish" style={{
+                  border: 'none', background: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer',
+                  padding: '4px 6px', display: 'flex', alignItems: 'center',
+                }}><FaTrash size={11} /></button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={add} style={{ fontSize: 12, padding: '5px 0', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+              + Ma'lumot qo'shish
+            </button>
+            <div style={{ flex: 1 }} />
+            <button onClick={cancel} disabled={saving} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer' }}>
+              Bekor
+            </button>
+            <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '6px 16px', borderRadius: 7, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: saving ? 0.6 : 1, fontWeight: 600 }}>
+              {saving ? '...' : 'Saqlash'}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
