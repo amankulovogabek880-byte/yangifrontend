@@ -599,4 +599,8 @@ export const facebookLeadsApi = {
   getConfig: () => api.get('/facebook-leads/config'),
   saveConfig: (data: any) => api.post('/facebook-leads/config', data),
   getStats: () => api.get('/facebook-leads/stats'),
+  // "Facebook orqali ulash" tugmasi (OAuth) — token/ID qo'lda kiritilmaydi
+  getOAuthStartUrl: () => api.get('/facebook-leads/oauth/start-url'),
+  getPendingPages: () => api.get('/facebook-leads/oauth/pending-pages'),
+  selectPage: (pageId: string) => api.post('/facebook-leads/oauth/select-page', { pageId }),
 };

@@ -35,6 +35,14 @@ export default function SettingsPage() {
   const { lang, setLang } = useI18n();
   const [tab, setTab] = useState('general');
 
+  // Facebook OAuth redirect qaytganda (?tab=facebook&fb=success kabi)
+  // to'g'ri tab'ni ochib qo'yish uchun
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('tab');
+    if (t) setTab(t);
+  }, []);
+
   const isAdmin = user?.role === 'TENANT_ADMIN';
 
   return (
@@ -3421,6 +3429,7 @@ function InstagramTab() {
 // FACEBOOK LEAD ADS TAB
 // ═══════════════════════════════════════════════════════════════════
 function FacebookLeadsTab() {
+  const router = useRouter();
   const [cfg, setCfg] = useState<any>({
     accessToken: '', pageId: '', pageName: '',
     verifyToken: 'omoncrm_fb_verify', assignToAgentId: '',
@@ -3431,13 +3440,16 @@ function FacebookLeadsTab() {
   const [agents, setAgents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [pendingPages, setPendingPages] = useState<any[]>([]);
 
-  useEffect(() => {
-    Promise.all([
-      import('@/services/api').then(m => m.facebookLeadsApi.getConfig()),
-      import('@/services/api').then(m => m.facebookLeadsApi.getStats()),
-      import('@/services/api').then(m => m.usersApi.list()),
-    ]).then(([cfgR, statsR, usersR]: any) => {
+  async function loadAll() {
+    try {
+      const [cfgR, statsR, usersR]: any = await Promise.all([
+        import('@/services/api').then(m => m.facebookLeadsApi.getConfig()),
+        import('@/services/api').then(m => m.facebookLeadsApi.getStats()),
+        import('@/services/api').then(m => m.usersApi.list()),
+      ]);
       const d = cfgR.data;
       setCfg({
         accessToken: '', // xavfsizlik: to'liq token hech qachon qaytarilmaydi
@@ -3451,8 +3463,75 @@ function FacebookLeadsTab() {
       setStats(statsR.data);
       const list = Array.isArray(usersR.data) ? usersR.data : (usersR.data?.data || []);
       setAgents(list.filter((u: any) => u.role === 'AGENT'));
-    }).catch(() => {}).finally(() => setLoading(false));
+    } catch {
+      /* jim */
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAll();
   }, []);
+
+  // Facebook Login orqali qaytgandan keyingi natijani ko'rsatish
+  // (?tab=facebook&fb=success|choose|denied|nopages|error)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fb = params.get('fb');
+    if (!fb) return;
+
+    if (fb === 'success') {
+      toast.success('✅ Facebook Page muvaffaqiyatli ulandi!');
+      loadAll();
+    } else if (fb === 'choose') {
+      toast('Bir nechta Page topildi — birini tanlang 👇');
+      import('@/services/api').then(m => m.facebookLeadsApi.getPendingPages())
+        .then((r: any) => setPendingPages(r.data?.pages || []))
+        .catch(() => {});
+    } else if (fb === 'denied') {
+      toast.error("Facebook ulanishi bekor qilindi");
+    } else if (fb === 'nopages') {
+      toast.error("Bu Facebook akkauntida siz boshqaradigan Page topilmadi");
+    } else if (fb === 'error') {
+      toast.error("Facebook ulanishida xatolik yuz berdi");
+    }
+
+    // URL'ni tozalab qo'yamiz — sahifa qayta yuklanganda qayta ishlanmasin
+    router.replace('/settings?tab=facebook');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function connectWithFacebook() {
+    setConnecting(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const res: any = await facebookLeadsApi.getOAuthStartUrl();
+      if (res.data?.url) {
+        window.location.href = res.data.url; // Facebook login oynasiga o'tadi
+      } else {
+        toast.error("Facebook Login URL olinmadi");
+        setConnecting(false);
+      }
+    } catch (e: any) {
+      toast.error(errMsg(e));
+      setConnecting(false);
+    }
+  }
+
+  async function choosePage(pageId: string) {
+    setSaving(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const res: any = await facebookLeadsApi.selectPage(pageId);
+      setHasToken(!!res.data?.hasAccessToken);
+      setMaskedToken(res.data?.maskedAccessToken || '');
+      setCfg((c: any) => ({ ...c, pageId: res.data?.pageId || '', pageName: res.data?.pageName || '' }));
+      setPendingPages([]);
+      toast.success(`✅ "${res.data?.pageName || 'Page'}" ulandi`);
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
 
   async function save() {
     setSaving(true);
@@ -3519,12 +3598,65 @@ function FacebookLeadsTab() {
             Tenant avtomatik ravishda pastda kiritilgan <b>Page ID</b> orqali aniqlanadi, shuning uchun har bir
             tenant o'z Page ID va Access Tokenini to'g'ri kiritishi shart.
           </div>
+          <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(34,197,94,0.1)', borderRadius: 6, color: '#16a34a' }}>
+            ✅ 6-qadamni qo'lda bajarish shart emas — pastdagi <b>"Facebook orqali ulash"</b> tugmasi orqali
+            Page ID va Access Token avtomatik olinadi.
+          </div>
         </div>
       </Card>
 
-      {/* Config form */}
+      {/* Bitta tugma bilan ulash (OAuth) — token/ID qo'lda kiritish shart emas */}
+      <Card style={{ border: '1px solid #1877f2', background: 'rgba(24,119,242,0.06)' }}>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>🚀 Tezkor ulanish (tavsiya etiladi)</h3>
+        <p style={{ fontSize: 12.5, color: 'var(--fg-2)', lineHeight: 1.7, marginTop: 0 }}>
+          Tugmani bosing, Facebook'da o'z akkauntingiz bilan kiring va ruxsat bering —
+          Page ID va Access Token avtomatik olinadi va saqlanadi. Login/parolingiz
+          hech qachon CRM serveriga tushmaydi, buni Facebook'ning o'zi boshqaradi.
+        </p>
+        <button
+          onClick={connectWithFacebook}
+          disabled={connecting}
+          style={{
+            padding: '11px 22px', borderRadius: 9, border: 'none',
+            background: '#1877f2', color: 'white', cursor: 'pointer',
+            fontSize: 14, fontWeight: 700, display: 'inline-flex',
+            alignItems: 'center', gap: 8,
+          }}
+        >
+          {connecting ? 'Yo\'naltirilmoqda...' : <> {hasToken ? '🔄 Boshqa Page bilan ulash' : '📘 Facebook orqali ulash'}</>}
+        </button>
+      </Card>
+
+      {/* Bir nechta Page topilganda tanlash */}
+      {pendingPages.length > 0 && (
+        <Card style={{ border: '1px solid #f97316' }}>
+          <h3 style={{ marginTop: 0, fontSize: 15 }}>👇 Qaysi Page'ni ulaymiz?</h3>
+          <p style={{ fontSize: 12.5, color: 'var(--fg-2)', marginTop: 0 }}>
+            Akkauntingizda bir nechta Page topildi. Lead qabul qiladigan Page'ni tanlang.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pendingPages.map((p: any) => (
+              <button
+                key={p.id}
+                onClick={() => choosePage(p.id)}
+                disabled={saving}
+                style={{
+                  textAlign: 'left', padding: '10px 14px', borderRadius: 8,
+                  border: '1px solid var(--border)', background: 'var(--bg-2)',
+                  color: 'var(--fg)', cursor: 'pointer', fontSize: 13,
+                }}
+              >
+                <b>{p.name}</b>{' '}
+                <span style={{ color: 'var(--fg-3)', fontSize: 11.5 }}>(ID: {p.id})</span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Qo'lda kiritish (ixtiyoriy — masalan boshqa server orqali oldindan olingan token bo'lsa) */}
       <Card>
-        <h3 style={{ marginTop: 0, fontSize: 15 }}>⚙️ Facebook Page ulanishi</h3>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>⚙️ Qo'lda ulash (ixtiyoriy)</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>
