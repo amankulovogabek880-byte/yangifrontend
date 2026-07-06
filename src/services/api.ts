@@ -605,3 +605,16 @@ export const facebookLeadsApi = {
   getPendingPages: () => api.get('/facebook-leads/oauth/pending-pages'),
   selectPage: (pageId: string) => api.post('/facebook-leads/oauth/select-page', { pageId }),
 };
+
+export const leadAssignmentApi = {
+  getStrategy: () => api.get('/lead-assignment/strategy'),
+  setStrategy: (strategy: 'MANUAL' | 'ROUND_ROBIN' | 'LEAST_BUSY') =>
+    api.patch('/lead-assignment/strategy', { strategy }),
+  queue: () => api.get('/lead-assignment/queue'),
+  assignOne: (clientId: string) => api.post(`/lead-assignment/assign/${clientId}`),
+  assignUnassigned: () => api.post('/lead-assignment/assign-unassigned'),
+  pauseAgent: (agentId: string, reason?: string, until?: string) =>
+    api.patch(`/lead-assignment/agents/${agentId}/pause`, { reason, until }),   // ← YANGI
+  unpauseAgent: (agentId: string) =>
+    api.patch(`/lead-assignment/agents/${agentId}/unpause`),                    // ← YANGI
+};
