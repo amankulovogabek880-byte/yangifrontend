@@ -276,9 +276,10 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
   const companyProfit = Math.max(0, myProfit - myCommissionAmount);
   const agentTier = mySalary?.appliedTier ?? null;
 
-  // Conversion yorlig'i rate bilan bir xil manbadan (jami booking / jami lead)
-  const wonCount = stats?.bookings?.total ?? stats?.conversion?.won ?? 0;
-  const totalLeads = stats?.leads?.total ?? stats?.conversion?.total ?? 0;
+  // Conversion yorlig'i rate bilan AYNAN bir xil manbadan:
+  // booking qilgan mijozlar (conversion.won) / jami mijozlar (conversion.total).
+  const wonCount = stats?.conversion?.won ?? stats?.bookings?.total ?? 0;
+  const totalLeads = stats?.conversion?.total ?? stats?.leads?.total ?? 0;
 
   // v10.2: sparkline seriyalari — oylik revenue-chart ma'lumotidan
   const revSeries: number[] = (revenueChart || []).map((d: any) => Number(d.revenue ?? d.total ?? 0));
@@ -295,7 +296,7 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
     { label: t('dash.operatorCost'), value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: t('dash.costTotal'), icon: <Banknote size={15} /> },
     { label: t('dash.mySalary'), value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: `${kpiPct}% ${t('dash.ofProfit')}`, icon: <Wallet size={15} />, emphasis: true },
     { label: t('dash.myBookings'), value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `${t('dash.jami')}: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
-    { label: t('dash.conversionRate'), value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} ta booking / ${totalLeads} ta lead`, icon: <Percent size={15} /> },
+    { label: t('dash.conversionRate'), value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} / ${totalLeads} mijoz booking qildi`, icon: <Percent size={15} /> },
     { label: t('dash.myLeads'), value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `${t('common.thisMonth')}: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
     { label: t('dash.toCompany'), value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: '', icon: <Briefcase size={15} /> },
   ] : [
