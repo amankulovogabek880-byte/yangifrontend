@@ -3464,6 +3464,28 @@ function FacebookLeadsTab() {
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [pendingPages, setPendingPages] = useState<any[]>([]);
+  // Lead formalar + webhook obuna holati (ko'rinadigan tasdiq + self-heal)
+  const [formsInfo, setFormsInfo] = useState<any>(null);
+  const [formsLoading, setFormsLoading] = useState(false);
+
+  async function checkForms() {
+    setFormsLoading(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const r: any = await facebookLeadsApi.listForms();
+      setFormsInfo(r.data);
+      if (r.data?.connected) {
+        toast.success(
+          r.data.leadgenSubscribed
+            ? `✅ Webhook ulangan · ${r.data.forms?.length || 0} ta forma topildi`
+            : "⚠️ Formalar topildi, lekin webhook obunasi tasdiqlanmadi",
+        );
+      } else {
+        toast.error("Avval Page'ni ulang");
+      }
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setFormsLoading(false); }
+  }
 
   async function loadAll() {
     try {
@@ -3495,6 +3517,12 @@ function FacebookLeadsTab() {
   useEffect(() => {
     loadAll();
   }, []);
+
+  // Page ulangan bo'lsa — formalar va webhook holatini avtomatik bir marta tekshiramiz
+  useEffect(() => {
+    if (hasToken) checkForms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasToken]);
 
   // Facebook Login orqali qaytgandan keyingi natijani ko'rsatish
   // (?tab=facebook&fb=success|choose|denied|nopages|error)
@@ -3648,6 +3676,64 @@ function FacebookLeadsTab() {
           {connecting ? 'Yo\'naltirilmoqda...' : <> {hasToken ? '🔄 Boshqa Page bilan ulash' : '📘 Facebook orqali ulash'}</>}
         </button>
       </Card>
+
+      {/* Lead formalar + webhook holati — ko'rinadigan tasdiq va self-heal */}
+      {hasToken && (
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15 }}>📋 Lead formalar va webhook</h3>
+              <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '4px 0 0', maxWidth: 480, lineHeight: 1.5 }}>
+                Reklamadagi <b>har qanday forma</b> shu ulangan Page orqali CRM'ga tushadi —
+                formani alohida ulash shart emas. Quyida Page'dagi formalar va webhook holati ko'rinadi.
+              </p>
+            </div>
+            <button onClick={checkForms} disabled={formsLoading} style={{
+              padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff',
+              color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: formsLoading ? 0.6 : 1, flexShrink: 0,
+            }}>
+              {formsLoading ? 'Tekshirilmoqda...' : '🔄 Tekshirish / Yangilash'}
+            </button>
+          </div>
+
+          {formsInfo && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+                background: formsInfo.leadgenSubscribed ? 'rgba(34,197,94,.12)' : 'rgba(245,158,11,.12)',
+                color: formsInfo.leadgenSubscribed ? '#16a34a' : '#d97706',
+              }}>
+                {formsInfo.leadgenSubscribed ? '✅ Webhook ulangan (leadgen)' : '⚠️ Webhook obunasi tasdiqlanmadi — "Tekshirish"ni qayta bosing'}
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                {(!formsInfo.forms || formsInfo.forms.length === 0) ? (
+                  <div style={{ fontSize: 12.5, color: 'var(--fg-3)', lineHeight: 1.6 }}>
+                    Bu Page'da hali lead forma topilmadi. Facebook Ads Manager'da <b>Instant Form</b> yarating
+                    (Ism + Telefon so'rang) — u avtomatik shu yerda ko'rinadi va leadlari CRM'ga tushadi.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {formsInfo.forms.map((f: any) => (
+                      <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '9px 11px', background: 'var(--bg-3)', borderRadius: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name || 'Nomsiz forma'}</div>
+                          <div style={{ fontSize: 10.5, color: 'var(--fg-4)', marginTop: 1 }}>ID: {f.id}{f.leadsCount != null && ` · ${f.leadsCount} lead`}</div>
+                        </div>
+                        <span style={{
+                          fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                          background: f.status === 'ACTIVE' ? 'rgba(34,197,94,.15)' : 'var(--bg-2)',
+                          color: f.status === 'ACTIVE' ? '#16a34a' : 'var(--fg-3)',
+                        }}>{f.status || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Bir nechta Page topilganda tanlash */}
       {pendingPages.length > 0 && (
