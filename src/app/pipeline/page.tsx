@@ -74,11 +74,33 @@ export default function PipelinePage() {
 
   async function moveClient(clientId: string, toStage: string) {
     if (toStage === 'LOST') { setLostModal(clientId); return; }
+
+    // v15: ilgari har ko'chirishda BUTUN taxta qayta yuklanardi (loadBoard) va
+    // "sakrardi". Endi kartani LOKAL ravishda yangi ustunga ko'chiramiz — refresh yo'q.
+    const prevColumns = columns;
+    let moved: any = null;
+    const without = columns.map((col: any) => {
+      const found = (col.clients || []).find((c: any) => c.id === clientId);
+      if (found) moved = found;
+      return { ...col, clients: (col.clients || []).filter((c: any) => c.id !== clientId) };
+    });
+
+    if (moved) {
+      const next = without.map((col: any) =>
+        col.stage?.stageKey === toStage
+          ? { ...col, clients: [{ ...moved, pipelineStage: toStage }, ...(col.clients || [])] }
+          : col,
+      );
+      setColumns(next);
+    }
+
     try {
       await pipelinesApi.move(clientId, { stage: toStage });
       toast.success(t('pl.stageChanged'));
-      if (activePl) loadBoard(activePl.id);
-    } catch (e: any) { toast.error(errMsg(e)); }
+    } catch (e: any) {
+      setColumns(prevColumns); // xato bo'lsa qaytaramiz
+      toast.error(errMsg(e));
+    }
   }
 
   return (

@@ -9,6 +9,10 @@ import { Card, Btn, Skeleton, Badge, Label, Input, Select, Modal, Avatar, Textar
 import { fmtDate, fmtDateTime, errMsg, BOOKING_STATUS_LABELS } from '@/lib/helpers';
 import { EditBookingModal } from '@/components/EditBookingModal';
 import toast from 'react-hot-toast';
+import {
+  FileText, MessageCircle, Plane, Paperclip, DollarSign,
+  User, Calendar, Users, ClipboardCheck,
+} from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'var(--fg-3)',
@@ -21,11 +25,11 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const TABS = [
-  { id: 'overview',    label: '📋 Umumiy' },
-  { id: 'chat',        label: '💬 Chat' },
-  { id: 'passengers',  label: '✈️ Yo\'lovchilar' },
-  { id: 'documents',   label: '📎 Hujjatlar' },
-  { id: 'payments',    label: '💰 To\'lovlar' },
+  { id: 'overview',    label: 'Umumiy',       icon: <FileText size={15} /> },
+  { id: 'chat',        label: 'Chat',         icon: <MessageCircle size={15} /> },
+  { id: 'passengers',  label: 'Yo\'lovchilar', icon: <Plane size={15} /> },
+  { id: 'documents',   label: 'Hujjatlar',    icon: <Paperclip size={15} /> },
+  { id: 'payments',    label: 'To\'lovlar',   icon: <DollarSign size={15} /> },
 ];
 
 function Info({ label, value, mono }: { label: string; value: any; mono?: boolean }) {
@@ -164,7 +168,9 @@ export default function BookingDetailPage() {
               fontWeight: tab === t.id ? 600 : 500,
               borderBottom: '2px solid ' + (tab === t.id ? 'var(--primary)' : 'transparent'),
               marginBottom: -1, whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 7,
             }}>
+              {(t as any).icon}
               {t.label}
             </button>
           ))}
@@ -173,7 +179,7 @@ export default function BookingDetailPage() {
         {tab === 'overview' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
             <Card>
-              <Label>👤 Mijoz</Label>
+              <Label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><User size={13} /> Mijoz</Label>
               <div style={{ fontSize: 15, fontWeight: 600 }}>{b.client?.fullName}</div>
               <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 4 }}>{b.client?.phone}</div>
               <Btn size="sm" variant="ghost" onClick={() => router.push(`/clients/${b.clientId}`)} style={{ marginTop: 8 }}>
@@ -182,7 +188,7 @@ export default function BookingDetailPage() {
             </Card>
 
             <Card>
-              <Label>📅 Sayohat sanasi</Label>
+              <Label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Calendar size={13} /> Sayohat sanasi</Label>
               <div style={{ fontSize: 14 }}>
                 {b.departureDate ? fmtDate(b.departureDate) : '—'}
                 {b.returnDate && <> → {fmtDate(b.returnDate)}</>}
@@ -193,7 +199,7 @@ export default function BookingDetailPage() {
             </Card>
 
             <Card>
-              <Label>👥 Yo'lovchilar</Label>
+              <Label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Users size={13} /> Yo'lovchilar</Label>
               <div style={{ fontSize: 14 }}>
                 {b.adults} kattalar
                 {b.children > 0 && ` + ${b.children} bola`}
@@ -202,9 +208,9 @@ export default function BookingDetailPage() {
             </Card>
 
             <Card>
-              <Label>✅ Xizmatlar</Label>
+              <Label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ClipboardCheck size={13} /> Xizmatlar</Label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                {b.includesFlights && <Badge color="var(--info)">✈ Reys</Badge>}
+                {b.includesFlights && <Badge color="var(--info)"><Plane size={11} style={{ verticalAlign: '-1px', marginRight: 3 }} />Reys</Badge>}
                 {b.includesHotel && <Badge color="var(--primary)">🏨 Hotel</Badge>}
                 {b.includesMeals && <Badge color="var(--success)">🍽 Ovqat</Badge>}
                 {b.includesVisa && <Badge color="var(--warning)">🛂 Viza</Badge>}

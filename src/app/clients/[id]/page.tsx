@@ -147,7 +147,7 @@ export default function Client360Page() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{c.fullName}</h1>
-                <StagePill clientId={c.id} stage={c.pipelineStage} onChanged={load} />
+                <StagePill clientId={c.id} stage={c.pipelineStage} />
               </div>
               <div style={{ fontSize: 12, color: 'var(--fg-4)', marginTop: 3 }}>
                 {[c.phone, c.telegramUsername && '@' + c.telegramUsername, c.source].filter(Boolean).join(' · ')}
@@ -595,20 +595,27 @@ function FollowUpModal({ clientId, onClose, onSaved }: any) {
 function StagePill({ clientId, stage, onChanged }: any) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  // v15: bosqich o'zgarganda BUTUN sahifa refresh bo'lardi (onChanged→load).
+  // Endi lokal holatда optimistik yangilanadi — sahifa qayta yuklanmaydi.
+  const [localStage, setLocalStage] = useState(stage);
+  useEffect(() => { setLocalStage(stage); }, [stage]);
 
   async function change(newStage: string) {
-    if (newStage === stage) { setOpen(false); return; }
+    if (newStage === localStage) { setOpen(false); return; }
+    const prev = localStage;
+    setLocalStage(newStage);   // optimistik — darhol ko'rinadi
+    setOpen(false);
     setSaving(true);
     try {
       const { pipelineApi } = await import('@/services/api');
       await pipelineApi.move(clientId, newStage);
       toast.success('Bosqich yangilandi');
-      onChanged?.();
+      onChanged?.(newStage);   // ixtiyoriy: reload EMAS, faqat xabar
     } catch (e: any) {
+      setLocalStage(prev);     // xato bo'lsa qaytaramiz
       toast.error(errMsg(e));
     } finally {
       setSaving(false);
-      setOpen(false);
     }
   }
 
@@ -616,10 +623,10 @@ function StagePill({ clientId, stage, onChanged }: any) {
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen((v) => !v)} disabled={saving} style={{
         display: 'flex', alignItems: 'center', gap: 3, padding: '2px 10px', borderRadius: 999,
-        background: (STAGE_COLORS[stage] || 'var(--fg-3)') + '20', color: STAGE_COLORS[stage] || 'var(--fg-3)',
+        background: (STAGE_COLORS[localStage] || 'var(--fg-3)') + '20', color: STAGE_COLORS[localStage] || 'var(--fg-3)',
         border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer',
       }}>
-        {STAGE_LABELS[stage] || stage} <span style={{ fontSize: 9 }}>▾</span>
+        {STAGE_LABELS[localStage] || localStage} <span style={{ fontSize: 9 }}>▾</span>
       </button>
       {open && (
         <>
@@ -629,8 +636,8 @@ function StagePill({ clientId, stage, onChanged }: any) {
               <button key={s} onClick={() => change(s)} style={{
                 display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
                 padding: '8px 12px', fontSize: 12, border: 'none', cursor: 'pointer',
-                background: s === stage ? 'var(--bg-3)' : 'none', color: STAGE_COLORS[s] || 'var(--fg)',
-                fontWeight: s === stage ? 700 : 500,
+                background: s === localStage ? 'var(--bg-3)' : 'none', color: STAGE_COLORS[s] || 'var(--fg)',
+                fontWeight: s === localStage ? 700 : 500,
               }}>{STAGE_LABELS[s]}</button>
             ))}
           </div>
@@ -750,13 +757,16 @@ function CustomFields({ client }: any) {
 }
 
 function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat, onRefresh, filter, onFilterChange }: any) {
-  const [mode, setMode] = useState<'message' | 'note'>('message');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   // v14: filter endi PARENT'da (controlled) — "Takliflar" bosilganda pastdagi
   // haqiqiy taklif kartalari ko'rinadi, "Chat"da esa ular yashiriladi.
   const feedFilter = filter || 'all';
   const setFeedFilter = (v: any) => onFilterChange?.(v);
+  // v15: yozish qutisi endi FAQAT "Chat" va "Izohlar" tablarida ko'rinadi.
+  // Rejim tab'ga bog'liq: Chat → mijozga xabar, Izohlar → ichki izoh.
+  const composerMode: 'message' | 'note' = feedFilter === 'note' ? 'note' : 'message';
+  const showComposer = feedFilter === 'chat' || feedFilter === 'note';
   // v14 FIX: har xabar yuborilganda BUTUN sahifa refresh bo'lardi (onRefresh→load)
   // va yozishmalar "sakrab" ketardi. Endi xabarlar LOKAL holatda saqlanadi:
   // yuborilgani darhol ko'rinadi (optimistik), so'ng jimgina qayta o'qiladi —
@@ -787,7 +797,7 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
     if (!val) return;
     setSending(true);
     try {
-      if (mode === 'note') {
+      if (composerMode === 'note') {
         await clientsApi.addNote(client.id, val);
         toast.success('Izoh saqlandi');
         setText('');
@@ -859,43 +869,13 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
           bo'lganda ham ko'rinib turadi, shu bilan yozishmalarni o'qib turib
           bemalol yozib boraverasiz. */}
       <div style={{ position: 'sticky', top: 8, zIndex: 5, background: 'var(--bg)', paddingBottom: 6 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Faoliyat</span>
           {chatLoading && <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>Yuklanmoqda...</span>}
         </div>
 
-        <div style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '6px 8px' }}>
-          <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
-            <button onClick={() => setMode('message')} style={{
-              fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
-              border: mode === 'message' ? 'none' : '1px solid var(--border)',
-              background: mode === 'message' ? '#3d7eff' : 'none',
-              color: mode === 'message' ? 'white' : 'var(--fg-2)',
-            }}>Xabar</button>
-            <button onClick={() => setMode('note')} style={{
-              fontSize: 10, padding: '2px 8px', borderRadius: 999, cursor: 'pointer',
-              border: mode === 'note' ? 'none' : '1px solid var(--border)',
-              background: mode === 'note' ? '#3d7eff' : 'none',
-              color: mode === 'note' ? 'white' : 'var(--fg-2)',
-            }}>Izoh</button>
-          </div>
-          <textarea
-            value={text} onChange={(e) => setText(e.target.value)} style={inp}
-            placeholder={mode === 'note' ? "Ichki izoh... (faqat xodimlar ko'radi)" : (conversation ? 'Mijozga xabar yozing...' : "Suhbat yo'q — bosing va birinchi xabarni yuboring")}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-            <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>
-              {mode === 'note' ? '🔒 Faqat sizga' : '✈️ Mijoz ko\'radi'}
-            </span>
-            <button onClick={send} disabled={sending || !text.trim()} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: sending || !text.trim() ? 0.6 : 1 }}>
-              {sending ? '...' : mode === 'note' ? 'Saqlash' : 'Yuborish'}
-            </button>
-          </div>
-        </div>
-
-        {/* v14: filter — modal EMAS, aynan yozish maydonining tagida. Tanlanganini
-            pastdagi oynada ochadi. */}
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
+        {/* v15: Filter tablari DOIM tepada. Tanlangan tur pastda ochiladi. */}
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {([
             ['all', `Hammasi (${feed.length})`],
             ['chat', '💬 Chat'],
@@ -913,6 +893,25 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
             );
           })}
         </div>
+
+        {/* v15: Yozish qutisi FAQAT "Chat" (mijozga xabar) va "Izohlar" (ichki izoh)
+            tablarida. "Hammasi" va "Takliflar"da ko'rinmaydi — faqat kontent chiqadi. */}
+        {showComposer && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 7, padding: '6px 8px', marginTop: 8 }}>
+            <textarea
+              value={text} onChange={(e) => setText(e.target.value)} style={inp}
+              placeholder={composerMode === 'note' ? "Ichki izoh... (faqat xodimlar ko'radi)" : (conversation ? 'Mijozga xabar yozing...' : "Suhbat yo'q — bosing va birinchi xabarni yuboring")}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>
+                {composerMode === 'note' ? '🔒 Faqat sizga' : '✈️ Mijoz ko\'radi'}
+              </span>
+              <button onClick={send} disabled={sending || !text.trim()} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: sending || !text.trim() ? 0.6 : 1 }}>
+                {sending ? '...' : composerMode === 'note' ? 'Saqlash' : 'Yuborish'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Inline yozishmalar oynasi — ichida scroll bo'ladi (yangi xabar tepada,
@@ -935,8 +934,10 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
             </div>
           );
         }
+        const bigView = feedFilter === 'note' || feedFilter === 'all';
+        const collapseThis = feedFilter === 'chat' && collapsed;
         return (
-          <div style={{ marginTop: 8, maxHeight: collapsed ? 0 : 300, opacity: collapsed ? 0 : 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4, transition: 'max-height .25s ease, opacity .2s ease' }}>
+          <div style={{ marginTop: 8, maxHeight: collapseThis ? 0 : (bigView ? 640 : 300), opacity: collapseThis ? 0 : 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4, transition: 'max-height .25s ease, opacity .2s ease' }}>
             {filtered.map((item: any) => {
               const isChatMsg = item.id.startsWith('m-');
               const isOut = item.icon === '↗️';
