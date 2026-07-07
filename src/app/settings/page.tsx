@@ -3450,6 +3450,38 @@ function InstagramTab() {
 // ═══════════════════════════════════════════════════════════════════
 // FACEBOOK LEAD ADS TAB
 // ═══════════════════════════════════════════════════════════════════
+// Backend qaytaradigan errorType'ni foydalanuvchiga tushunarli, harakatga
+// undovchi matnga aylantiradi — "Nega ko'rinmayapti?" savoliga javob.
+function facebookErrorLabel(errorType: string, message?: string): { title: string; hint: string } {
+  switch (errorType) {
+    case 'NO_ADMIN_ACCESS':
+      return {
+        title: '🔒 Sizda bu Page uchun yetarli huquq yo\'q',
+        hint: 'Business Manager → Page Settings → Page Roles orqali "Manage Page" yoki "Advertise" vazifasini oling, so\'ng qayta tekshiring.',
+      };
+    case 'MISSING_PERMISSIONS':
+      return {
+        title: '⚠️ Facebook ruxsatlari to\'liq berilmagan',
+        hint: '"Boshqa Page bilan ulash" tugmasi orqali qaytadan ulaning va Facebook so\'ragan barcha ruxsatlarga rozilik bering.',
+      };
+    case 'INVALID_TOKEN':
+      return {
+        title: '⏰ Token muddati tugagan',
+        hint: '"Boshqa Page bilan ulash" tugmasini bosib, qaytadan ulaning — yangi token avtomatik olinadi.',
+      };
+    case 'NO_PAGES':
+      return {
+        title: '📭 Boshqariladigan Page topilmadi',
+        hint: 'Facebook akkauntingizda kamida bitta Page administratori ekaningizga ishonch hosil qiling.',
+      };
+    default:
+      return {
+        title: '❓ Noma\'lum xato yuz berdi',
+        hint: message || 'Iltimos, "Nega ishlamayapti?" tashxis tugmasidan foydalaning yoki qayta urinib ko\'ring.',
+      };
+  }
+}
+
 function FacebookLeadsTab() {
   const router = useRouter();
   const [cfg, setCfg] = useState<any>({
@@ -3504,6 +3536,16 @@ function FacebookLeadsTab() {
       });
       setHasToken(!!d.hasAccessToken);
       setMaskedToken(d.maskedAccessToken || '');
+      // Backend fon jarayoni (har 10 daqiqada) yozib qo'ygan oxirgi natijani
+      // darhol ko'rsatamiz — checkForms() natijasi kelguncha kutish shart emas.
+      if (d.lastCheck) {
+        setFormsInfo((prev: any) => prev ?? {
+          connected: d.lastCheck.connected,
+          leadgenSubscribed: d.lastCheck.leadgenSubscribed,
+          forms: new Array(d.lastCheck.formsCount || 0).fill(null),
+          error: d.lastCheck.error,
+        });
+      }
       setStats(statsR.data);
       const list = Array.isArray(usersR.data) ? usersR.data : (usersR.data?.data || []);
       setAgents(list.filter((u: any) => u.role === 'AGENT'));
@@ -3705,6 +3747,25 @@ function FacebookLeadsTab() {
               }}>
                 {formsInfo.leadgenSubscribed ? '✅ Webhook ulangan (leadgen)' : '⚠️ Webhook obunasi tasdiqlanmadi — "Tekshirish"ni qayta bosing'}
               </div>
+
+              {/* Aniq xato sababi — backend allaqachon errorType qaytaradi,
+                  shu yerda foydalanuvchiga tushunarli qilib ko'rsatamiz. */}
+              {formsInfo.error && (
+                <div style={{
+                  marginTop: 10, padding: '10px 12px', borderRadius: 8,
+                  background: 'rgba(239,68,68,.10)', border: '1px solid rgba(239,68,68,.25)',
+                }}>
+                  {(() => {
+                    const { title, hint } = facebookErrorLabel(formsInfo.error.errorType, formsInfo.error.message);
+                    return (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#dc2626' }}>{title}</div>
+                        <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 4, lineHeight: 1.5 }}>{hint}</div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
 
               <div style={{ marginTop: 12 }}>
                 {(!formsInfo.forms || formsInfo.forms.length === 0) ? (
