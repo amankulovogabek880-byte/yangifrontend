@@ -121,10 +121,10 @@ const NAV = [
   { href: '/clients',   labelKey: 'nav.clients',   label: 'Mijozlar',     Icon: Icons.Clients,   roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/tasks',     labelKey: 'nav.tasks',     label: 'Vazifalar',    Icon: Icons.Tasks,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/bookings',  labelKey: 'nav.bookings',  label: 'Bookinglar',   Icon: Icons.Bookings,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  // v12: Turlar bozori — operatorlarning turlari hamma agentlikka ochiq
-  { href: '/marketplace',          labelKey: 'nav.marketplace',   label: 'Turlar bozori', Icon: Icons.Marketplace, roles: ['PLATFORM_OWNER','TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/marketplace/requests', labelKey: 'nav.mpRequests',    label: "So'rovlarim",   Icon: Icons.MpRequests,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/marketplace/operators',labelKey: 'nav.mpOperators',   label: 'Tur operatorlar', Icon: Icons.Marketplace, roles: ['PLATFORM_OWNER'] },
+  // v12.1: Turlar bozori — har bir kompaniya O'Z operatorlarini qo'shadi.
+  // Turlarni hamma ko'radi va shu yerdan to'g'ridan-to'g'ri booking qiladi.
+  { href: '/marketplace',          labelKey: 'nav.marketplace',   label: 'Turlar bozori', Icon: Icons.Marketplace, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/marketplace/operators',labelKey: 'nav.mpOperators',   label: 'Tur operatorlar', Icon: Icons.MpRequests,  roles: ['TENANT_ADMIN'] },
   // v18: "Yo'qotilgan leadlar" alohida menyu bandi emas — endi Mijozlar
   // sahifasidagi "Yo'qotilgan mijozlar" tugmasi orqali modal sifatida ochiladi.
   // Qo'ng'iroqlar asosiy menyudan olib tashlandi — Dashboard ichida alohida bo'lim bor.

@@ -9,8 +9,9 @@ import toast from 'react-hot-toast';
 /**
  * TURLAR BOZORI — agentlar ko'radigan asosiy sahifa.
  *
- * Bu yerdagi turlar BARCHA agentliklar uchun umumiy (global).
- * Agent turni tanlab "Bron qilish" bosadi → operatorga so'rov ketadi.
+ * Turlar SHU KOMPANIYA (tenant) qo'shgan operatorlarnikidir.
+ * Turni bosish → to'liq ma'lumot ochiladi → o'sha yerdan BOOKING qilinadi.
+ * Oraliq "so'rov" bosqichi yo'q — booking darhol yaratiladi.
  */
 
 const inp: any = {
@@ -55,18 +56,17 @@ export default function MarketplacePage() {
     onlyAvailable: false, sort: '',
   });
 
-  // Bron modali
+  // Tanlangan tur (to'liq ma'lumot + booking formasi)
   const [sel, setSel] = useState<any>(null);
-  const [req, setReq] = useState<any>({ adults: 1, children: 0, infants: 0, contactName: '', contactPhone: '', note: '', clientId: '' });
+  const [form, setForm] = useState<any>({
+    adults: 1, children: 0, infants: 0, clientId: '', note: '',
+  });
   const [clients, setClients] = useState<any[]>([]);
-  const [sending, setSending] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Filtr qiymatlarini bir marta yuklaymiz
   useEffect(() => {
-    marketplaceApi.getFilters()
-      .then(r => setFilters(r.data || {}))
-      .catch(() => {});
-    clientsApi.list({ limit: 200 })
+    marketplaceApi.getFilters().then(r => setFilters(r.data || {})).catch(() => {});
+    clientsApi.list({ limit: 300 })
       .then(r => setClients(Array.isArray(r.data) ? r.data : (r.data?.data || [])))
       .catch(() => {});
   }, []);
@@ -78,43 +78,44 @@ export default function MarketplacePage() {
       if (v !== '' && v !== false && v !== undefined && v !== null) params[k] = v;
     });
     marketplaceApi.listTours(params)
-      .then(r => {
-        setTours(r.data?.data || []);
-        setTotal(r.data?.meta?.total || 0);
-      })
+      .then(r => { setTours(r.data?.data || []); setTotal(r.data?.meta?.total || 0); })
       .catch(() => toast.error(tr('common.error')))
       .finally(() => setLoading(false));
   }, [f, page]);
 
-  // Filtr o'zgarsa 1-sahifaga qaytamiz
   useEffect(() => { setPage(1); }, [f]);
   useEffect(() => { load(); }, [load]);
 
-  function openBooking(tour: any) {
-    setSel(tour);
-    setReq({ adults: 1, children: 0, infants: 0, contactName: '', contactPhone: '', note: '', clientId: '' });
+  function openTour(t: any) {
+    setSel(t);
+    setForm({ adults: 1, children: 0, infants: 0, clientId: '', note: '' });
   }
 
-  async function sendRequest() {
+  // Jami narx: 1 kishilik narx × (kattalar + bolalar)
+  const pax = Math.max(1, (Number(form.adults) || 0) + (Number(form.children) || 0));
+  const totalPrice = sel ? Number(sel.price) * pax : 0;
+
+  async function createBooking() {
     if (!sel) return;
-    setSending(true);
+    if (!form.clientId) { toast.error(tr('mp.clientRequired')); return; }
+    setSaving(true);
     try {
-      await marketplaceApi.createRequest(sel.id, {
-        adults: Number(req.adults) || 1,
-        children: Number(req.children) || 0,
-        infants: Number(req.infants) || 0,
-        contactName: req.contactName || undefined,
-        contactPhone: req.contactPhone || undefined,
-        note: req.note || undefined,
-        clientId: req.clientId || undefined,
+      const r = await marketplaceApi.bookTour(sel.id, {
+        clientId: form.clientId,
+        adults: Number(form.adults) || 1,
+        children: Number(form.children) || 0,
+        infants: Number(form.infants) || 0,
+        note: form.note || undefined,
       });
-      toast.success(tr('mp.requestSent'));
+      toast.success(tr('mp.booked'));
       setSel(null);
-      router.push('/marketplace/requests');
+      const bid = r.data?.booking?.id;
+      if (bid) router.push(`/bookings/${bid}`);
+      else { load(); router.push('/bookings'); }
     } catch (e: any) {
       toast.error(e?.response?.data?.message || tr('common.error'));
     } finally {
-      setSending(false);
+      setSaving(false);
     }
   }
 
@@ -149,10 +150,10 @@ export default function MarketplacePage() {
             <input style={inp} type="number" placeholder={tr('mp.priceTo')}
               value={f.priceMax} onChange={e => setF((s: any) => ({ ...s, priceMax: e.target.value }))} />
 
-            <input style={inp} type="date" title={tr('mp.dateFrom')}
-              value={f.dateFrom} onChange={e => setF((s: any) => ({ ...s, dateFrom: e.target.value }))} />
-            <input style={inp} type="date" title={tr('mp.dateTo')}
-              value={f.dateTo} onChange={e => setF((s: any) => ({ ...s, dateTo: e.target.value }))} />
+            <input style={inp} type="date" value={f.dateFrom}
+              onChange={e => setF((s: any) => ({ ...s, dateFrom: e.target.value }))} />
+            <input style={inp} type="date" value={f.dateTo}
+              onChange={e => setF((s: any) => ({ ...s, dateTo: e.target.value }))} />
 
             <select style={inp} value={f.sort} onChange={e => setF((s: any) => ({ ...s, sort: e.target.value }))}>
               <option value="">{tr('mp.sortNew')}</option>
@@ -175,12 +176,16 @@ export default function MarketplacePage() {
           </div>
         </div>
 
-        {/* ── Turlar ro'yxati ── */}
+        {/* ── Turlar ── */}
         {loading ? (
           <div style={{ color: 'var(--fg-3)', padding: 40, textAlign: 'center' }}>{tr('common.loading')}</div>
         ) : tours.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-            {tr('mp.empty')}
+          <div style={{ padding: 60, textAlign: 'center', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ color: 'var(--fg-2)', fontWeight: 600, marginBottom: 6 }}>{tr('mp.empty')}</div>
+            <div style={{ color: 'var(--fg-3)', fontSize: 13, marginBottom: 14 }}>{tr('mp.emptyHint')}</div>
+            <button style={btnPrimary} onClick={() => router.push('/marketplace/operators')}>
+              {tr('mpo.title')}
+            </button>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
@@ -188,9 +193,10 @@ export default function MarketplacePage() {
               const img = Array.isArray(t.images) && t.images.length ? t.images[0] : null;
               const noSeats = t.seatsAvailable !== null && t.seatsAvailable !== undefined && t.seatsAvailable <= 0;
               return (
-                <div key={t.id} style={{
+                <div key={t.id} onClick={() => !noSeats && openTour(t)} style={{
                   background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)',
                   overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                  cursor: noSeats ? 'not-allowed' : 'pointer', opacity: noSeats ? 0.6 : 1,
                 }}>
                   {img && (
                     <div style={{ height: 140, background: `center/cover no-repeat url(${img})`, borderBottom: '1px solid var(--border)' }} />
@@ -214,38 +220,27 @@ export default function MarketplacePage() {
                       {t.mealPlan ? <span>🍽 {t.mealPlan}</span> : null}
                     </div>
 
-                    {t.hotelName && (
-                      <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>🏨 {t.hotelName}</div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {t.includesVisa && <Tag>Viza</Tag>}
-                      {t.includesFlights && <Tag>Aviabilet</Tag>}
-                      {t.includesHotel && <Tag>Mehmonxona</Tag>}
-                      {t.includesTransfer && <Tag>Transfer</Tag>}
-                      {t.includesInsurance && <Tag>Sug'urta</Tag>}
-                    </div>
+                    {t.hotelName && <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>🏨 {t.hotelName}</div>}
 
                     <div style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 16 }}>{money(t.price, t.currency)}</div>
-                        {t.seatsAvailable !== null && t.seatsAvailable !== undefined && (
-                          <div style={{ fontSize: 11, color: noSeats ? '#ef4444' : 'var(--fg-3)' }}>
-                            {t.seatsAvailable} {tr('mp.seats')}
-                          </div>
+                        <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{tr('mp.pricePerPerson')}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        {noSeats ? (
+                          <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 700 }}>{tr('mp.noSeats')}</span>
+                        ) : (
+                          <>
+                            {t.seatsAvailable !== null && t.seatsAvailable !== undefined && (
+                              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4 }}>
+                                {t.seatsAvailable} {tr('mp.seats')}
+                              </div>
+                            )}
+                            <span style={{ fontSize: 12, color: '#3d7eff', fontWeight: 700 }}>{tr('mp.details')} →</span>
+                          </>
                         )}
                       </div>
-                      <button
-                        disabled={noSeats}
-                        onClick={() => openBooking(t)}
-                        style={{
-                          ...btnPrimary,
-                          background: noSeats ? 'var(--bg-4)' : '#3d7eff',
-                          color: noSeats ? 'var(--fg-3)' : 'white',
-                          cursor: noSeats ? 'not-allowed' : 'pointer',
-                        }}>
-                        {tr('mp.book')}
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -254,7 +249,6 @@ export default function MarketplacePage() {
           </div>
         )}
 
-        {/* ── Sahifalash ── */}
         {totalPages > 1 && (
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 20, alignItems: 'center' }}>
             <button style={btnGhost} disabled={page <= 1} onClick={() => setPage(p => p - 1)}>←</button>
@@ -264,66 +258,146 @@ export default function MarketplacePage() {
         )}
       </div>
 
-      {/* ── Bron so'rovi modali ── */}
+      {/* ── Tur tafsiloti + booking ── */}
       {sel && (
-        <div onClick={() => !sending && setSel(null)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+        <div onClick={() => !saving && setSel(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
         }}>
           <div onClick={e => e.stopPropagation()} style={{
             background: 'var(--bg-2)', borderRadius: 14, border: '1px solid var(--border)',
-            padding: 20, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto',
+            width: '100%', maxWidth: 720, maxHeight: '92vh', overflowY: 'auto',
           }}>
-            <h2 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 700 }}>{tr('mp.requestTitle')}</h2>
-            <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 4 }}>{sel.title}</div>
-            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14 }}>
-              {sel.operator?.name} · {money(sel.price, sel.currency)}
-            </div>
+            {Array.isArray(sel.images) && sel.images.length > 0 && (
+              <div style={{ height: 200, background: `center/cover no-repeat url(${sel.images[0]})`, borderRadius: '14px 14px 0 0' }} />
+            )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <Field label={tr('mp.adults')}>
-                <input style={inp} type="number" min={1} value={req.adults}
-                  onChange={e => setReq((s: any) => ({ ...s, adults: e.target.value }))} />
-              </Field>
-              <Field label={tr('mp.children')}>
-                <input style={inp} type="number" min={0} value={req.children}
-                  onChange={e => setReq((s: any) => ({ ...s, children: e.target.value }))} />
-              </Field>
-              <Field label={tr('mp.infants')}>
-                <input style={inp} type="number" min={0} value={req.infants}
-                  onChange={e => setReq((s: any) => ({ ...s, infants: e.target.value }))} />
-              </Field>
-            </div>
+            <div style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
+                <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700 }}>{sel.title}</h2>
+                <button onClick={() => setSel(null)} style={{
+                  background: 'none', border: 'none', color: 'var(--fg-3)', fontSize: 20,
+                  cursor: 'pointer', lineHeight: 1,
+                }}>×</button>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 16 }}>
+                📍 {sel.destination}{sel.country ? `, ${sel.country}` : ''}
+                {sel.operator ? ` · ${sel.operator.name}` : ''}
+              </div>
 
-            <Field label={tr('mp.client')}>
-              <select style={{ ...inp, marginBottom: 10 }} value={req.clientId}
-                onChange={e => setReq((s: any) => ({ ...s, clientId: e.target.value }))}>
-                <option value="">—</option>
-                {clients.map((c: any) => <option key={c.id} value={c.id}>{c.fullName || c.name}</option>)}
-              </select>
-            </Field>
+              {/* Ma'lumotlar jadvali */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12,
+                padding: 14, background: 'var(--bg-3)', borderRadius: 10, marginBottom: 14,
+              }}>
+                <Info label={tr('mp.departure')} value={fdate(sel.departureDate)} />
+                <Info label={tr('mp.return')} value={fdate(sel.returnDate)} />
+                <Info label={tr('mp.duration')} value={sel.duration ? `${sel.duration} ${tr('mp.days')}` : '—'} />
+                <Info label={tr('mp.hotel')} value={sel.hotelName ? `${sel.hotelName}${sel.hotelStars ? ` ${'⭐'.repeat(Math.min(5, sel.hotelStars))}` : ''}` : '—'} />
+                <Info label={tr('mp.meal')} value={sel.mealPlan || '—'} />
+                <Info label={tr('mp.seats')} value={
+                  sel.seatsAvailable !== null && sel.seatsAvailable !== undefined
+                    ? `${sel.seatsAvailable}${sel.seatsTotal ? ` / ${sel.seatsTotal}` : ''}` : '—'
+                } />
+              </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <Field label={tr('mp.contactName')}>
-                <input style={inp} value={req.contactName}
-                  onChange={e => setReq((s: any) => ({ ...s, contactName: e.target.value }))} />
-              </Field>
-              <Field label={tr('common.phone')}>
-                <input style={inp} value={req.contactPhone}
-                  onChange={e => setReq((s: any) => ({ ...s, contactPhone: e.target.value }))} />
-              </Field>
-            </div>
+              {/* Narxga nima kiradi */}
+              {(sel.includesVisa || sel.includesFlights || sel.includesHotel ||
+                sel.includesMeals || sel.includesTransfer || sel.includesInsurance) && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', fontWeight: 700, marginBottom: 6 }}>
+                    {tr('mp.includes')}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {sel.includesVisa && <Tag>✓ Viza</Tag>}
+                    {sel.includesFlights && <Tag>✓ Aviabilet</Tag>}
+                    {sel.includesHotel && <Tag>✓ Mehmonxona</Tag>}
+                    {sel.includesMeals && <Tag>✓ Ovqat</Tag>}
+                    {sel.includesTransfer && <Tag>✓ Transfer</Tag>}
+                    {sel.includesInsurance && <Tag>✓ Sug'urta</Tag>}
+                  </div>
+                </div>
+              )}
 
-            <Field label={tr('mp.note')}>
-              <textarea style={{ ...inp, minHeight: 70, resize: 'vertical', marginBottom: 14 }}
-                value={req.note} onChange={e => setReq((s: any) => ({ ...s, note: e.target.value }))} />
-            </Field>
+              {sel.description && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', fontWeight: 700, marginBottom: 5 }}>
+                    {tr('mp.tourInfo')}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--fg-2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {sel.description}
+                  </div>
+                </div>
+              )}
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button style={btnGhost} disabled={sending} onClick={() => setSel(null)}>{tr('common.cancel')}</button>
-              <button style={{ ...btnPrimary, opacity: sending ? 0.6 : 1 }} disabled={sending} onClick={sendRequest}>
-                {sending ? tr('common.loading') : tr('mp.sendRequest')}
-              </button>
+              {/* Operator aloqasi */}
+              {sel.operator && (sel.operator.contactPhone || sel.operator.contactEmail) && (
+                <div style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 16 }}>
+                  <b>{tr('mp.operator')}:</b> {sel.operator.name}
+                  {sel.operator.contactPhone ? ` · 📞 ${sel.operator.contactPhone}` : ''}
+                  {sel.operator.contactEmail ? ` · ✉ ${sel.operator.contactEmail}` : ''}
+                </div>
+              )}
+
+              {/* ── BOOKING FORMASI ── */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{tr('mp.book')}</div>
+
+                <div style={{ marginBottom: 10 }}>
+                  <L>{tr('mp.chooseClient')} *</L>
+                  <select style={inp} value={form.clientId}
+                    onChange={e => setForm((s: any) => ({ ...s, clientId: e.target.value }))}>
+                    <option value="">—</option>
+                    {clients.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.fullName || c.name} {c.phone ? `(${c.phone})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <L>{tr('mp.adults')}</L>
+                    <input style={inp} type="number" min={1} value={form.adults}
+                      onChange={e => setForm((s: any) => ({ ...s, adults: e.target.value }))} />
+                  </div>
+                  <div>
+                    <L>{tr('mp.children')}</L>
+                    <input style={inp} type="number" min={0} value={form.children}
+                      onChange={e => setForm((s: any) => ({ ...s, children: e.target.value }))} />
+                  </div>
+                  <div>
+                    <L>{tr('mp.infants')}</L>
+                    <input style={inp} type="number" min={0} value={form.infants}
+                      onChange={e => setForm((s: any) => ({ ...s, infants: e.target.value }))} />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <L>{tr('mp.note')}</L>
+                  <textarea style={{ ...inp, minHeight: 60, resize: 'vertical' }} value={form.note}
+                    onChange={e => setForm((s: any) => ({ ...s, note: e.target.value }))} />
+                </div>
+
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: 12, background: 'var(--bg-3)', borderRadius: 10, marginBottom: 14,
+                }}>
+                  <span style={{ fontSize: 13, color: 'var(--fg-2)' }}>
+                    {tr('mp.totalPrice')} ({pax} × {money(sel.price, sel.currency)})
+                  </span>
+                  <span style={{ fontSize: 18, fontWeight: 700 }}>{money(totalPrice, sel.currency)}</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button style={btnGhost} disabled={saving} onClick={() => setSel(null)}>
+                    {tr('common.cancel')}
+                  </button>
+                  <button style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }} disabled={saving}
+                    onClick={createBooking}>
+                    {saving ? tr('common.loading') : tr('mp.confirmBooking')}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -335,17 +409,23 @@ export default function MarketplacePage() {
 function Tag({ children }: { children: any }) {
   return (
     <span style={{
-      fontSize: 10, padding: '2px 7px', borderRadius: 6,
-      background: 'var(--bg-4)', color: 'var(--fg-2)', fontWeight: 600,
+      fontSize: 11, padding: '3px 9px', borderRadius: 6,
+      background: '#10b98122', color: '#10b981', fontWeight: 600,
     }}>{children}</span>
   );
 }
 
-function Field({ label, children }: { label: string; children: any }) {
+function Info({ label, value }: { label: string; value: any }) {
   return (
     <div>
-      <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4, fontWeight: 600 }}>{label}</div>
-      {children}
+      <div style={{ fontSize: 10, color: 'var(--fg-3)', fontWeight: 700, marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 13, color: 'var(--fg)' }}>{value}</div>
     </div>
+  );
+}
+
+function L({ children }: { children: any }) {
+  return (
+    <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4, fontWeight: 600 }}>{children}</div>
   );
 }

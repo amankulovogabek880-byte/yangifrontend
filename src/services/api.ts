@@ -606,14 +606,17 @@ export const facebookLeadsApi = {
   selectPage: (pageId: string) => api.post('/facebook-leads/oauth/select-page', { pageId }),
 };
 
-// ─── Turlar bozori (Marketplace) — v12 ───────────────────────────────────────
+// ─── Turlar bozori (Marketplace) — v12.1 ─────────────────────────────────────
+// Operatorlar va turlar HAR BIR KOMPANIYANIKI alohida (tenant-scoped).
+// Bron so'rovi bosqichi yo'q — turdan to'g'ridan-to'g'ri booking yaratiladi.
 export const marketplaceApi = {
-  // Operatorlar (yozish — faqat PLATFORM_OWNER)
+  // Operatorlar (yozish — TENANT_ADMIN va yuqorisi)
   listOperators: (params?: any) => api.get('/marketplace/operators', { params }),
   getOperator: (id: string) => api.get(`/marketplace/operators/${id}`),
   createOperator: (data: any) => api.post('/marketplace/operators', data),
   updateOperator: (id: string, data: any) => api.patch(`/marketplace/operators/${id}`, data),
   deleteOperator: (id: string) => api.delete(`/marketplace/operators/${id}`),
+
   // Turlarni yuklash
   importTours: (id: string, tours: any[], replaceAll = false) =>
     api.post(`/marketplace/operators/${id}/import`, { tours, replaceAll }),
@@ -623,14 +626,7 @@ export const marketplaceApi = {
   listTours: (params?: any) => api.get('/marketplace/tours', { params }),
   getTour: (id: string) => api.get(`/marketplace/tours/${id}`),
   getFilters: () => api.get('/marketplace/tours/filters'),
-  createRequest: (tourId: string, data: any) =>
-    api.post(`/marketplace/tours/${tourId}/request`, data),
 
-  // Bron so'rovlari
-  listRequests: (params?: any) => api.get('/marketplace/requests', { params }),
-  getRequest: (id: string) => api.get(`/marketplace/requests/${id}`),
-  updateRequestStatus: (id: string, status: string, operatorResponse?: string) =>
-    api.patch(`/marketplace/requests/${id}/status`, { status, operatorResponse }),
-  convertToBooking: (id: string, clientId: string) =>
-    api.post(`/marketplace/requests/${id}/convert`, { clientId }),
+  // To'g'ridan-to'g'ri booking
+  bookTour: (tourId: string, data: any) => api.post(`/marketplace/tours/${tourId}/book`, data),
 };

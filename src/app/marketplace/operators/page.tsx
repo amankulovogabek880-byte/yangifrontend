@@ -7,10 +7,11 @@ import { useI18n } from '@/lib/i18n';
 import toast from 'react-hot-toast';
 
 /**
- * TUR OPERATORLAR — faqat PLATFORM_OWNER uchun.
+ * TUR OPERATORLAR — har bir kompaniya O'Z operatorlarini boshqaradi.
  *
- * Bu yerda 20 ta operator qo'shiladi, ularning login/paroli kiritiladi
- * (backend shifrlab saqlaydi) va turlari yuklanadi.
+ * Kompaniya administratori istagancha operator qo'shadi (cheklov yo'q),
+ * ularning login/parolini kiritadi (backend shifrlab saqlaydi) va
+ * turlarini yuklaydi. Boshqa kompaniya bu operatorlarni KO'RMAYDI.
  *
  * Turlarni yuklashning 2 yo'li:
  *   1) CSV fayl (Excel'dan "Save as CSV") — kutubxonasiz, sof JS bilan o'qiladi
@@ -86,7 +87,8 @@ export default function MarketplaceOperatorsPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [replaceAll, setReplaceAll] = useState(true);
 
-  const isOwner = user?.role === 'PLATFORM_OWNER';
+  // v12.1: operatorlar TENANTGA tegishli — kompaniya administratori boshqaradi
+  const canManage = ['TENANT_ADMIN', 'PLATFORM_OWNER'].includes(user?.role || '');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -187,15 +189,18 @@ export default function MarketplaceOperatorsPage() {
     <CrmLayout>
       <div style={{ padding: 24, maxWidth: 1100 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>🏢 {tr('mpo.title')}</h1>
-          {isOwner && (
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>🏢 {tr('mpo.title')}</h1>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 4 }}>{tr('mpo.subtitle')}</div>
+          </div>
+          {canManage && (
             <button style={btnPrimary} onClick={() => setForm({ ...EMPTY })}>+ {tr('mpo.new')}</button>
           )}
         </div>
 
-        {!isOwner && (
+        {!canManage && (
           <div style={{ padding: 14, background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 16, fontSize: 13, color: 'var(--fg-2)' }}>
-            Bu sahifada faqat ko'rish mumkin. Operator qo'shish/o'zgartirish — PLATFORM_OWNER huquqi.
+            {tr('mpo.readOnly')}
           </div>
         )}
 
@@ -241,7 +246,7 @@ export default function MarketplaceOperatorsPage() {
                     )}
                   </div>
 
-                  {isOwner && (
+                  {canManage && (
                     <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                       <button style={btnGhost} onClick={() => { setImportFor(o); setRows([]); }}>{tr('mpo.import')}</button>
                       {o.integrationType === 'API' && (
