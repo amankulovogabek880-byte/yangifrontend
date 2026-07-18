@@ -371,7 +371,11 @@ export default function MarketplaceOperatorsPage() {
               <div style={{ fontSize: 11, color: 'var(--fg-2)', lineHeight: 1.7 }}>
                 <code>title</code> (yoki <code>nomi</code>, <code>название</code>) ·{' '}
                 <code>destination</code> (yoki <code>shahar</code>, <code>город</code>) ·{' '}
-                <code>price</code> (yoki <code>narx</code>, <code>цена</code>)
+                <code>price</code> (yoki <code>narx</code>, <code>цена</code>) — mijoz narxi
+                <br />
+                <b style={{ color: '#10b981' }}>Foyda hisoblanishi uchun:</b>{' '}
+                <code>netPrice</code> (yoki <code>netto</code>, <code>tannarx</code>,{' '}
+                <code>себестоимость</code>) — operatorga to'lanadigan narx
                 <br />
                 Qo'shimcha: <code>country</code>, <code>currency</code>, <code>departureDate</code>,{' '}
                 <code>returnDate</code>, <code>duration</code>, <code>seatsAvailable</code>,{' '}

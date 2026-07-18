@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { marketplaceApi, clientsApi } from '@/services/api';
+import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import toast from 'react-hot-toast';
 
@@ -42,7 +43,11 @@ function fdate(d: any) {
 
 export default function MarketplacePage() {
   const { t: tr } = useI18n();
+  const { user } = useAuth();
   const router = useRouter();
+
+  // Netto narx va foydani faqat rahbariyat ko'radi — agentga ko'rsatilmaydi
+  const canSeeCost = ['TENANT_ADMIN', 'MANAGER', 'PLATFORM_OWNER'].includes(user?.role || '');
 
   const [tours, setTours] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -379,13 +384,37 @@ export default function MarketplacePage() {
                 </div>
 
                 <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: 12, background: 'var(--bg-3)', borderRadius: 10, marginBottom: 14,
+                  display: 'flex', flexDirection: 'column', gap: 6,
                 }}>
-                  <span style={{ fontSize: 13, color: 'var(--fg-2)' }}>
-                    {tr('mp.totalPrice')} ({pax} × {money(sel.price, sel.currency)})
-                  </span>
-                  <span style={{ fontSize: 18, fontWeight: 700 }}>{money(totalPrice, sel.currency)}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: 'var(--fg-2)' }}>
+                      {tr('mp.totalPrice')} ({pax} × {money(sel.price, sel.currency)})
+                    </span>
+                    <span style={{ fontSize: 18, fontWeight: 700 }}>
+                      {money(totalPrice, sel.currency)}
+                    </span>
+                  </div>
+
+                  {canSeeCost && (
+                    sel.netPrice != null ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--fg-3)' }}>
+                          <span>{tr('mp.netPrice')} ({pax} × {money(sel.netPrice, sel.currency)})</span>
+                          <span>− {money(Number(sel.netPrice) * pax, sel.currency)}</span>
+                        </div>
+                        <div style={{
+                          display: 'flex', justifyContent: 'space-between', fontSize: 13,
+                          fontWeight: 700, color: '#10b981', borderTop: '1px solid var(--border)', paddingTop: 6,
+                        }}>
+                          <span>{tr('mp.profit')}</span>
+                          <span>{money(Math.max(0, totalPrice - Number(sel.netPrice) * pax), sel.currency)}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 11, color: '#f59e0b' }}>⚠ {tr('mp.noNetPrice')}</div>
+                    )
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
