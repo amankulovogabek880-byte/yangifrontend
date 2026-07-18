@@ -69,6 +69,14 @@ export default function MarketplacePage() {
   const [clients, setClients] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Booking oynasi ichida yangi mijoz yaratish — agent Mijozlar
+  // bo'limiga o'tib qaytmasligi uchun
+  const [newClient, setNewClient] = useState<any>(null); // null = yopiq
+  const [creatingClient, setCreatingClient] = useState(false);
+
+  // Rasm galereyasi (tanlangan rasm indeksi)
+  const [imgIdx, setImgIdx] = useState(0);
+
   useEffect(() => {
     marketplaceApi.getFilters().then(r => setFilters(r.data || {})).catch(() => {});
     clientsApi.list({ limit: 300 })
@@ -93,7 +101,34 @@ export default function MarketplacePage() {
 
   function openTour(t: any) {
     setSel(t);
+    setImgIdx(0);
+    setNewClient(null);
     setForm({ adults: 1, children: 0, infants: 0, clientId: '', note: '' });
+  }
+
+  /** Booking oynasidan chiqmasdan yangi mijoz yaratadi va uni tanlaydi */
+  async function createClientInline() {
+    const name = String(newClient?.fullName || '').trim();
+    if (!name) { toast.error(tr('mp.clientNameRequired')); return; }
+    setCreatingClient(true);
+    try {
+      const r = await clientsApi.create({
+        fullName: name,
+        phone: newClient?.phone?.trim() || undefined,
+        source: 'MANUAL',
+      });
+      const created = r.data?.data || r.data;
+      if (!created?.id) throw new Error('id yo\'q');
+      // Ro'yxatga qo'shamiz va darhol tanlaymiz
+      setClients((prev) => [created, ...prev]);
+      setForm((f: any) => ({ ...f, clientId: created.id }));
+      setNewClient(null);
+      toast.success(tr('mp.clientCreated'));
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || tr('common.error'));
+    } finally {
+      setCreatingClient(false);
+    }
   }
 
   // Jami narx: 1 kishilik narx × (kattalar + bolalar)
@@ -274,7 +309,57 @@ export default function MarketplacePage() {
             width: '100%', maxWidth: 720, maxHeight: '92vh', overflowY: 'auto',
           }}>
             {Array.isArray(sel.images) && sel.images.length > 0 && (
-              <div style={{ height: 200, background: `center/cover no-repeat url(${sel.images[0]})`, borderRadius: '14px 14px 0 0' }} />
+              <div style={{ position: 'relative' }}>
+                <div style={{
+                  height: 220,
+                  background: `center/cover no-repeat url(${sel.images[Math.min(imgIdx, sel.images.length - 1)]})`,
+                  borderRadius: '14px 14px 0 0',
+                }} />
+
+                {sel.images.length > 1 && (
+                  <>
+                    {/* Chap/o'ng tugmalar */}
+                    <button
+                      type="button"
+                      onClick={() => setImgIdx(i => (i - 1 + sel.images.length) % sel.images.length)}
+                      style={galBtn('left')}
+                      aria-label="Oldingi rasm"
+                    >‹</button>
+                    <button
+                      type="button"
+                      onClick={() => setImgIdx(i => (i + 1) % sel.images.length)}
+                      style={galBtn('right')}
+                      aria-label="Keyingi rasm"
+                    >›</button>
+
+                    {/* Nuqtalar */}
+                    <div style={{
+                      position: 'absolute', bottom: 10, left: 0, right: 0,
+                      display: 'flex', justifyContent: 'center', gap: 6,
+                    }}>
+                      {sel.images.map((_: any, i: number) => (
+                        <span
+                          key={i}
+                          onClick={() => setImgIdx(i)}
+                          style={{
+                            width: 7, height: 7, borderRadius: '50%', cursor: 'pointer',
+                            background: i === imgIdx ? '#fff' : 'rgba(255,255,255,0.45)',
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Hisoblagich */}
+                    <div style={{
+                      position: 'absolute', top: 10, right: 12,
+                      background: 'rgba(0,0,0,0.55)', color: '#fff',
+                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8,
+                    }}>
+                      {Math.min(imgIdx, sel.images.length - 1) + 1} / {sel.images.length}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             <div style={{ padding: 20 }}>
@@ -350,13 +435,64 @@ export default function MarketplacePage() {
 
                 <div style={{ marginBottom: 10 }}>
                   <L>{tr('mp.chooseClient')} *</L>
-                  <select style={inp} value={form.clientId}
-                    onChange={e => setForm((s: any) => ({ ...s, clientId: e.target.value }))}>
-                    <option value="">—</option>
-                    {clients.map((c: any) => (
-                      <option key={c.id} value={c.id}>{c.fullName || c.name} {c.phone ? `(${c.phone})` : ''}</option>
-                    ))}
-                  </select>
+
+                  {newClient === null ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select style={{ ...inp, flex: 1 }} value={form.clientId}
+                        onChange={e => setForm((s: any) => ({ ...s, clientId: e.target.value }))}>
+                        <option value="">—</option>
+                        {clients.map((c: any) => (
+                          <option key={c.id} value={c.id}>
+                            {c.fullName || c.name}{c.phone ? ` (${c.phone})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setNewClient({ fullName: '', phone: '' })}
+                        style={{ ...btnGhost, whiteSpace: 'nowrap' }}
+                        title={tr('mp.newClient')}
+                      >
+                        + {tr('mp.newClient')}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: 12, background: 'var(--bg-3)', borderRadius: 10,
+                      border: '1px solid var(--border)',
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 8 }}>
+                        {tr('mp.newClient')}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <input
+                          style={inp}
+                          autoFocus
+                          placeholder={tr('common.name') + ' *'}
+                          value={newClient.fullName}
+                          onChange={e => setNewClient((c: any) => ({ ...c, fullName: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') createClientInline(); }}
+                        />
+                        <input
+                          style={inp}
+                          placeholder="+998..."
+                          value={newClient.phone}
+                          onChange={e => setNewClient((c: any) => ({ ...c, phone: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') createClientInline(); }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button type="button" style={btnGhost} disabled={creatingClient}
+                          onClick={() => setNewClient(null)}>
+                          {tr('common.cancel')}
+                        </button>
+                        <button type="button" style={{ ...btnPrimary, opacity: creatingClient ? 0.6 : 1 }}
+                          disabled={creatingClient} onClick={createClientInline}>
+                          {creatingClient ? tr('common.loading') : tr('common.save')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -433,6 +569,17 @@ export default function MarketplacePage() {
       )}
     </CrmLayout>
   );
+}
+
+/** Galereya o'q tugmasi uslubi */
+function galBtn(side: 'left' | 'right'): any {
+  return {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+    [side]: 8,
+    width: 30, height: 30, borderRadius: '50%', border: 'none',
+    background: 'rgba(0,0,0,0.5)', color: '#fff',
+    fontSize: 20, lineHeight: '28px', cursor: 'pointer',
+  };
 }
 
 function Tag({ children }: { children: any }) {

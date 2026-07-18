@@ -83,6 +83,9 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'mp.confirmBooking': { uz: 'Bookingni yaratish', ru: 'Создать бронь' },
   'mp.booked': { uz: 'Booking yaratildi', ru: 'Бронь создана' },
   'mp.clientRequired': { uz: 'Mijozni tanlang', ru: 'Выберите клиента' },
+  'mp.newClient': { uz: 'Yangi mijoz', ru: 'Новый клиент' },
+  'mp.clientNameRequired': { uz: 'Mijoz ismini kiriting', ru: 'Введите имя клиента' },
+  'mp.clientCreated': { uz: 'Mijoz yaratildi va tanlandi', ru: 'Клиент создан и выбран' },
 
   // Operatorlar
   'mpo.title': { uz: 'Tur operatorlar', ru: 'Туроператоры' },
@@ -101,6 +104,7 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'mpo.tours': { uz: 'tur', ru: 'туров' },
   'mpo.lastSync': { uz: 'Oxirgi yuklash', ru: 'Последняя загрузка' },
   'mpo.replaceAll': { uz: 'Eskilarini arxivlash', ru: 'Архивировать старые' },
+  'mpo.template': { uz: 'CSV namuna yuklab olish', ru: 'Скачать шаблон CSV' },
   'mpo.csvHint': { uz: "Excel'ni CSV qilib saqlang, so'ng shu yerga yuklang", ru: 'Сохраните Excel как CSV и загрузите сюда' },
   'mpo.imported': { uz: 'Turlar yuklandi', ru: 'Туры загружены' },
   'mpo.deleteConfirm': { uz: "Operator va uning barcha turlari o'chiriladi. Davom etasizmi?", ru: 'Оператор и все его туры будут удалены. Продолжить?' },

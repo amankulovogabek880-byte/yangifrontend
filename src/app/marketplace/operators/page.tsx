@@ -75,6 +75,42 @@ function parseCSV(text: string): any[] {
   });
 }
 
+/**
+ * Namuna CSV — admin ustun nomlarini qo'lda yozmasin.
+ * Excel'da ochilganda o'zbekcha harflar to'g'ri ko'rinishi uchun BOM qo'shamiz.
+ */
+function downloadTemplate() {
+  const headers = [
+    'title', 'destination', 'country', 'price', 'netPrice', 'currency',
+    'departureDate', 'returnDate', 'duration', 'seatsTotal', 'seatsAvailable',
+    'hotelName', 'hotelStars', 'mealPlan',
+    'includesVisa', 'includesFlights', 'includesHotel', 'includesTransfer',
+    'externalId', 'description',
+  ];
+  const rows = [
+    ['Dubay 5 kun 4 kecha', 'Dubay', 'BAA', '450', '380', 'USD',
+      '2026-09-10', '2026-09-15', '5', '20', '20',
+      'Rove Downtown', '4', 'BB', 'ha', 'ha', 'ha', 'ha',
+      'DXB-001', 'Aviabilet va mehmonxona narxga kiradi'],
+    ['Antalya All Inclusive', 'Antalya', 'Turkiya', '520', '440', 'USD',
+      '2026-08-01', '2026-08-08', '7', '30', '25',
+      'Delphin Imperial', '5', 'AI', "yo'q", 'ha', 'ha', 'ha',
+      'AYT-014', 'Hammasi kiritilgan'],
+  ];
+  const esc = (v: string) => (/[",;\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'omoncrm-turlar-namuna.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function MarketplaceOperatorsPage() {
   const { t: tr } = useI18n();
   const { user } = useAuth();
@@ -383,6 +419,11 @@ export default function MarketplaceOperatorsPage() {
                 <code>externalId</code>, <code>images</code>
               </div>
             </div>
+
+            <button type="button" onClick={downloadTemplate}
+              style={{ ...btnGhost, width: '100%', marginBottom: 10, padding: '9px 12px' }}>
+              ⬇ {tr('mpo.template')}
+            </button>
 
             <input type="file" accept=".csv,.txt,.json" onChange={onFile}
               style={{ ...inp, padding: 8, marginBottom: 12 }} />

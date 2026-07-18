@@ -21,6 +21,31 @@ import { STAGE_LABELS, STAGE_COLORS } from '@/lib/helpers';
 import toast from 'react-hot-toast';
 
 // Real brend iconlar (emoji o'rniga)
+/**
+ * Instagram 24 soatlik javob oynasi.
+ *
+ * Meta qoidasi: mijoz oxirgi yozganidan keyin 24 soat ichidagina erkin
+ * javob berish mumkin. Oyna yopilsa xabar yuborilmaydi — shuning uchun
+ * agentga OLDINDAN ogohlantirish ko'rsatamiz.
+ */
+function igReplyWindow(channel: string | undefined, messages: any[]) {
+  if (channel !== 'INSTAGRAM') return null;
+  const lastIn = [...(messages || [])]
+    .reverse()
+    .find((m) => m.direction === 'INBOUND');
+  if (!lastIn) return null;
+
+  const passedMs = Date.now() - new Date(lastIn.createdAt).getTime();
+  const leftMs = 24 * 3600 * 1000 - passedMs;
+  if (leftMs <= 0) return { expired: true, leftHours: 0, leftMinutes: 0 };
+
+  return {
+    expired: false,
+    leftHours: Math.floor(leftMs / 3600000),
+    leftMinutes: Math.floor((leftMs % 3600000) / 60000),
+  };
+}
+
 function ChannelIcon({ channel, size = 9 }: { channel?: string; size?: number }) {
   switch (channel) {
     case 'TELEGRAM':  return <FaTelegramPlane size={size} />;
@@ -775,6 +800,36 @@ function InboxPageInner() {
                 />
               </div>
 
+              {/* Instagram: 24 soatlik javob oynasi */}
+              {(() => {
+                const w = igReplyWindow(active.channel, messages);
+                if (!w) return null;
+                if (w.expired) {
+                  return (
+                    <div style={{
+                      padding: '10px 14px', background: '#ef444418',
+                      borderTop: '1px solid var(--border)',
+                      color: '#ef4444', fontSize: 12, fontWeight: 600,
+                    }}>
+                      ⛔ Instagram 24 soatlik javob oynasi yopilgan. Mijoz qayta
+                      yozmaguncha xabar yuborib bo'lmaydi — telefon orqali bog'laning.
+                    </div>
+                  );
+                }
+                const warn = w.leftHours < 3;
+                return (
+                  <div style={{
+                    padding: '8px 14px',
+                    background: warn ? '#f59e0b18' : 'var(--bg-3)',
+                    borderTop: '1px solid var(--border)',
+                    color: warn ? '#f59e0b' : 'var(--fg-3)',
+                    fontSize: 11, fontWeight: 600,
+                  }}>
+                    ⏳ Javob berish oynasi: {w.leftHours} soat {w.leftMinutes} daqiqa qoldi
+                  </div>
+                );
+              })()}
+
               {/* Input */}
               <div style={{
                 padding: 14,
@@ -784,16 +839,25 @@ function InboxPageInner() {
               }}>
                 <Textarea
                   value={draft} onChange={(e) => setDraft(e.target.value)}
-                  placeholder={t('inbox.placeholder')}
+                  placeholder={
+                    igReplyWindow(active.channel, messages)?.expired
+                      ? "Instagram oynasi yopilgan — yuborib bo'lmaydi"
+                      : t('inbox.placeholder')
+                  }
                   style={{ minHeight: 44, maxHeight: 120 }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      sendText();
+                      if (!igReplyWindow(active.channel, messages)?.expired) sendText();
                     }
                   }}
                 />
-                <Btn variant="gradient" onClick={sendText} loading={sending} disabled={!draft.trim()}>
+                <Btn
+                  variant="gradient"
+                  onClick={sendText}
+                  loading={sending}
+                  disabled={!draft.trim() || !!igReplyWindow(active.channel, messages)?.expired}
+                >
                   →
                 </Btn>
               </div>
