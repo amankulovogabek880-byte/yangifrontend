@@ -57,6 +57,16 @@ const Icons = {
       <line x1="15" y1="2" x2="15" y2="6"/><line x1="17" y1="4" x2="13" y2="4"/>
     </svg>
   ),
+  Marketplace: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z"/><path d="M8 13h8"/>
+    </svg>
+  ),
+  MpRequests: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1z"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12l2 2 4-4"/>
+    </svg>
+  ),
   Settings: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3"/>
@@ -111,6 +121,10 @@ const NAV = [
   { href: '/clients',   labelKey: 'nav.clients',   label: 'Mijozlar',     Icon: Icons.Clients,   roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/tasks',     labelKey: 'nav.tasks',     label: 'Vazifalar',    Icon: Icons.Tasks,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/bookings',  labelKey: 'nav.bookings',  label: 'Bookinglar',   Icon: Icons.Bookings,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  // v12: Turlar bozori — operatorlarning turlari hamma agentlikka ochiq
+  { href: '/marketplace',          labelKey: 'nav.marketplace',   label: 'Turlar bozori', Icon: Icons.Marketplace, roles: ['PLATFORM_OWNER','TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/marketplace/requests', labelKey: 'nav.mpRequests',    label: "So'rovlarim",   Icon: Icons.MpRequests,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/marketplace/operators',labelKey: 'nav.mpOperators',   label: 'Tur operatorlar', Icon: Icons.Marketplace, roles: ['PLATFORM_OWNER'] },
   // v18: "Yo'qotilgan leadlar" alohida menyu bandi emas — endi Mijozlar
   // sahifasidagi "Yo'qotilgan mijozlar" tugmasi orqali modal sifatida ochiladi.
   // Qo'ng'iroqlar asosiy menyudan olib tashlandi — Dashboard ichida alohida bo'lim bor.
