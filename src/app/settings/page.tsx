@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { tenantsApi, usersApi, api } from '@/services/api';
+import { tenantsApi, usersApi, api, callsApi } from '@/services/api';
+import TourOperatorsSettings from '@/components/settings/TourOperatorsSettings';
 import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal } from '@/components/ui';
 import { useAuth } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
@@ -11,7 +12,7 @@ import toast from 'react-hot-toast';
 import { errMsg } from '@/lib/helpers';
 import {
   Settings, PhoneCall, FileText, Key, List, User, Users,
-  Target, Bot, ClipboardList, DollarSign, Lock,
+  Target, Bot, ClipboardList, DollarSign, Lock, Building2,
 } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-icons/fa';
 
@@ -19,6 +20,7 @@ const ICON = 15;
 const TABS = [
   { id: 'general',     label: 'Umumiy',            icon: <Settings size={ICON} /> },
   { id: 'phone',       label: 'Telefon',           icon: <PhoneCall size={ICON} /> },
+  { id: 'operators',   label: 'Tur operatorlar',   icon: <Building2 size={ICON} />, adminOnly: true },
   { id: 'whatsapp',    label: 'WhatsApp',          icon: <FaWhatsapp size={ICON} /> },
   { id: 'telegram',    label: 'Telegram',          icon: <FaTelegramPlane size={ICON} /> },
   { id: 'instagram',   label: 'Instagram',         icon: <FaInstagram size={ICON} />, adminOnly: true },
@@ -75,6 +77,12 @@ export default function SettingsPage() {
             </button>
           ))}
         </div>
+
+        {tab === 'operators' && (
+          <Card>
+            <TourOperatorsSettings />
+          </Card>
+        )}
 
         {tab === 'general' && (
           <Card>
@@ -252,6 +260,10 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
   const [tenant, setTenant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState('STUB');
+  // v12.3: OnlinePBX ulanishini tekshirish natijasi
+  const [pbxTest, setPbxTest] = useState<{ loading: boolean; ok: boolean | null; msg: string }>({
+    loading: false, ok: null, msg: '',
+  });
   const [config, setConfig] = useState<any>({});
   const [saving, setSaving] = useState(false);
 
@@ -365,11 +377,12 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
               <h4 style={{ marginTop: 0, fontSize: 13 }}>OnlinePBX.uz sozlamalari</h4>
               <div style={{ padding: '10px 12px', background: '#3d7eff12', borderRadius: 8, marginBottom: 12, fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.8 }}>
                 <b>API kalitlarini qayerdan olish:</b><br />
-                1. <a href="https://onlinepbx.uz" target="_blank" style={{color:'#3d7eff'}}>onlinepbx.uz</a> → Kabinet → API sozlamalari<br />
-                2. <b>Domain:</b> yourcompany.onpbx.ru (kabinetingizdan)<br />
-                3. <b>API Key + API ID:</b> API sozlamalari bo'limidan<br />
+                1. <a href="https://api2.onlinepbx.ru/documentation" target="_blank" style={{color:'#3d7eff'}}>OnlinePBX kabineti</a> → Интеграция → API<br />
+                2. <b>Domain:</b> kompaniyangiz.onpbx.ru<br />
+                3. <b>API Key:</b> API bo'limidan (bitta kalit yetarli)<br />
                 4. <b>Caller ID:</b> sizning raqamingiz (+998712XXXXXX)<br />
-                5. Har bir agent uchun: <b>Agentlar jadvali</b>da extension kiriting
+                5. Har bir agent uchun: <b>Agentlar jadvali</b>da extension kiriting<br />
+                6. Kiritgach <b>"Ulanishni tekshirish"</b> tugmasini bosing
               </div>
               <Label>Domain</Label>
               <Input
@@ -385,13 +398,20 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
                 onChange={(e) => setConfig({ ...config, onlinepbx: { ...(config.onlinepbx || {}), apiKey: e.target.value } })}
                 style={{ marginBottom: 10 }}
               />
-              <Label>API ID</Label>
+              {/* "API ID" maydoni OLIB TASHLANDI — u eski API 1.0 sozlamasi
+                  edi va 2020-yildan buyon ishlamaydi. */}
+
+              <Label>Qo'ng'iroq endpointi (odatda o'zgartirilmaydi)</Label>
               <Input
-                placeholder="..."
-                value={config.onlinepbx?.apiId || ''}
-                onChange={(e) => setConfig({ ...config, onlinepbx: { ...(config.onlinepbx || {}), apiId: e.target.value } })}
-                style={{ marginBottom: 10 }}
+                placeholder="command/reverse.json"
+                value={config.onlinepbx?.originatePath || ''}
+                onChange={(e) => setConfig({ ...config, onlinepbx: { ...(config.onlinepbx || {}), originatePath: e.target.value } })}
+                style={{ marginBottom: 4 }}
               />
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 10 }}>
+                Bo'sh qoldiring. Faqat qo'ng'iroq qilishda "endpoint qabul qilmadi"
+                xatosi chiqsa, OnlinePBX hujjatidagi to'g'ri manzilni kiriting.
+              </div>
               <Label>Caller ID (kompaniya raqami)</Label>
               <Input
                 placeholder="+998712001234"
@@ -406,6 +426,46 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
                 />
                 <span>Qo'ng'iroqlarni yozib olish (recording)</span>
               </div>
+              {/* v12.3: ULANISHNI TEKSHIRISH
+                  Faqat auth.json chaqiriladi — u rasmiy hujjatda tasdiqlangan,
+                  shuning uchun natijaga ishonish mumkin. */}
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                <Btn
+                  variant="secondary"
+                  onClick={async () => {
+                    setPbxTest({ loading: true, ok: null, msg: '' });
+                    try {
+                      const r = await callsApi.testConnection();
+                      const d = r.data || {};
+                      setPbxTest({ loading: false, ok: !!d.success, msg: d.message || '' });
+                      if (d.success) toast.success(d.message || 'Ulanish muvaffaqiyatli');
+                      else toast.error(d.message || 'Ulanmadi');
+                    } catch (e: any) {
+                      const m = e?.response?.data?.message || 'Tekshirib bo\'lmadi';
+                      setPbxTest({ loading: false, ok: false, msg: m });
+                      toast.error(m);
+                    }
+                  }}
+                  loading={pbxTest.loading}
+                >
+                  🔌 Ulanishni tekshirish
+                </Btn>
+
+                {pbxTest.ok !== null && (
+                  <div style={{
+                    marginTop: 10, padding: '10px 12px', borderRadius: 8, fontSize: 12,
+                    background: pbxTest.ok ? '#10b98118' : '#ef444418',
+                    color: pbxTest.ok ? '#10b981' : '#ef4444',
+                  }}>
+                    {pbxTest.ok ? '✅ ' : '❌ '}{pbxTest.msg}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--fg-3)' }}>
+                  Avval sozlamalarni <b>saqlang</b>, keyin tekshiring.
+                </div>
+              </div>
+
               <div style={{ marginTop: 12, padding: '10px 12px', background: '#10b98112', borderRadius: 8, fontSize: 12 }}>
                 <b>Webhook URL (OnlinePBX kabinetiga kiriting):</b><br />
                 <code style={{ background: 'var(--bg-2)', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>

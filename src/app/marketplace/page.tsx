@@ -222,10 +222,17 @@ export default function MarketplacePage() {
         ) : tours.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ color: 'var(--fg-2)', fontWeight: 600, marginBottom: 6 }}>{tr('mp.empty')}</div>
-            <div style={{ color: 'var(--fg-3)', fontSize: 13, marginBottom: 14 }}>{tr('mp.emptyHint')}</div>
-            <button style={btnPrimary} onClick={() => router.push('/marketplace/operators')}>
-              {tr('mpo.title')}
-            </button>
+            <div style={{ color: 'var(--fg-3)', fontSize: 13, marginBottom: 14 }}>
+              {canSeeCost
+                ? "Sozlamalar → Tur operatorlar bo'limidan operatorga ulaning"
+                : "Administrator hali tur operatorga ulanmagan"}
+            </div>
+            {/* Operatorlar endi Sozlamalar ichida (faqat admin ko'radi) */}
+            {canSeeCost && (
+              <button style={btnPrimary} onClick={() => router.push('/settings?tab=operators')}>
+                Tur operatorlarni ulash
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>

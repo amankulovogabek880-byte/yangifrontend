@@ -369,6 +369,8 @@ export const callsApi = {
   hangup: (id: string) => api.post(`/calls/${id}/hangup`),
   addNote: (id: string, notes: string) => api.post(`/calls/${id}/note`, { notes }),
   log: (data: any) => api.post('/calls/log', data),
+  // v12.3: telefoniya ulanishini tekshirish (OnlinePBX auth.json)
+  testConnection: () => api.post('/calls/test-connection'),
 };
 
 // ── UPLOADS v6 ───────────────────────────────────────────────
@@ -629,4 +631,13 @@ export const marketplaceApi = {
 
   // To'g'ridan-to'g'ri booking
   bookTour: (tourId: string, data: any) => api.post(`/marketplace/tours/${tourId}/book`, data),
+
+  // ─── Katalog (Sozlamalar → Tur operatorlar, faqat TENANT_ADMIN) ───
+  // Operator API manzillari serverda (env) turadi; agentlik faqat
+  // o'z login/parolini kiritadi.
+  listCatalog: () => api.get('/marketplace/catalog'),
+  connectCatalog: (slug: string, data: { login?: string; password: string }) =>
+    api.post(`/marketplace/catalog/${slug}/connect`, data),
+  disconnectCatalog: (slug: string) =>
+    api.post(`/marketplace/catalog/${slug}/disconnect`),
 };

@@ -124,7 +124,6 @@ const NAV = [
   // v12.1: Turlar bozori — har bir kompaniya O'Z operatorlarini qo'shadi.
   // Turlarni hamma ko'radi va shu yerdan to'g'ridan-to'g'ri booking qiladi.
   { href: '/marketplace',          labelKey: 'nav.marketplace',   label: 'Turlar bozori', Icon: Icons.Marketplace, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/marketplace/operators',labelKey: 'nav.mpOperators',   label: 'Tur operatorlar', Icon: Icons.MpRequests,  roles: ['TENANT_ADMIN'] },
   // v18: "Yo'qotilgan leadlar" alohida menyu bandi emas — endi Mijozlar
   // sahifasidagi "Yo'qotilgan mijozlar" tugmasi orqali modal sifatida ochiladi.
   // Qo'ng'iroqlar asosiy menyudan olib tashlandi — Dashboard ichida alohida bo'lim bor.
