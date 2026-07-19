@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { v8Api, clientsApi, tasksApi, followUpsApi, telegramApi, bookingsApi, userTelegramApi, paymentsApi, api, getAccessToken } from '@/services/api';
+import { v8Api, clientsApi, tasksApi, followUpsApi, telegramApi, bookingsApi, userTelegramApi, paymentsApi, api, getAccessToken, callsApi } from '@/services/api';
 import { Card, Btn, Badge, Skeleton, Avatar, Textarea, Label, Modal, Input, Select, Empty } from '@/components/ui';
 import { useDialer } from '@/lib/dialer';
 import { useAuth } from '@/lib/store';
@@ -436,6 +436,9 @@ export default function Client360Page() {
 
               </div>
             )}
+
+            {/* Qo'ng'iroqlar va ovoz yozuvlari — booking bo'lmasa ham ko'rinadi */}
+            <ClientCalls clientId={c.id} />
           </div>
         </div>
       </div>
@@ -477,6 +480,144 @@ export default function Client360Page() {
         />
       )}
     </CrmLayout>
+  );
+}
+
+
+/**
+ * QO'NG'IROQLAR VA YOZUVLAR — mijoz kartochkasi ichida.
+ *
+ * Shu mijoz bilan bo'lgan barcha suhbatlar: sana/vaqt, yo'nalish
+ * (kiruvchi/chiquvchi), davomiylik va ovoz yozuvi.
+ *
+ * Yozuv faqat ATS uni bergan bo'lsa ko'rinadi (OnlinePBX'da
+ * "yozib olish" yoqilgan bo'lishi kerak).
+ */
+function ClientCalls({ clientId }: { clientId: string }) {
+  const [calls, setCalls] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [playing, setPlaying] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    callsApi.list(clientId)
+      .then((r: any) => { if (alive) setCalls(r.data?.data || r.data || []); })
+      .catch(() => { /* telefoniya sozlanmagan bo'lishi mumkin — jim */ })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [clientId]);
+
+  if (loading) return null;
+  if (!calls.length) return null;
+
+  const fmtDur = (sec: number) => {
+    const s = Math.max(0, Math.round(sec || 0));
+    const m = Math.floor(s / 60);
+    return m > 0 ? `${m}:${String(s % 60).padStart(2, '0')}` : `${s} son`;
+  };
+
+  const withRec = calls.filter((c: any) => c.recordingUrl).length;
+
+  return (
+    <div style={{ paddingTop: 18, borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>
+          📞 Qo'ng'iroqlar
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>
+          {calls.length} ta{withRec > 0 ? ` · ${withRec} yozuv` : ''}
+        </span>
+      </div>
+
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
+        {calls.map((c: any, i: number) => {
+          const inbound = c.direction === 'INBOUND';
+          const missed = ['NO_ANSWER', 'MISSED', 'BUSY', 'FAILED'].includes(c.status);
+          const when = c.startedAt || c.createdAt;
+
+          return (
+            <div key={c.id} style={{
+              padding: '10px 14px',
+              borderBottom: i === calls.length - 1 ? 'none' : '1px solid var(--border)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                  {/* Yo'nalish belgisi */}
+                  <span
+                    title={inbound ? 'Kiruvchi' : 'Chiquvchi'}
+                    style={{
+                      fontSize: 14, lineHeight: 1,
+                      color: missed ? 'var(--danger)' : (inbound ? '#10b981' : '#3d7eff'),
+                    }}
+                  >
+                    {inbound ? '↙' : '↗'}
+                  </span>
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13 }}>
+                      {inbound ? 'Kiruvchi' : 'Chiquvchi'}
+                      {missed && (
+                        <span style={{ color: 'var(--danger)', fontSize: 11, marginLeft: 6 }}>
+                          javobsiz
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-4)' }}>
+                      {when ? new Date(when).toLocaleString('ru-RU', {
+                        day: '2-digit', month: '2-digit', year: '2-digit',
+                        hour: '2-digit', minute: '2-digit',
+                      }) : '—'}
+                      {c.duration > 0 && ` · ${fmtDur(c.duration)}`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Yozuvni tinglash */}
+                {c.recordingUrl ? (
+                  <button
+                    onClick={() => setPlaying(playing === c.id ? null : c.id)}
+                    style={{
+                      padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                      border: '1px solid var(--border)', background: 'none',
+                      color: 'var(--fg-2)', cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {playing === c.id ? '▲ Yopish' : '▶ Tinglash'}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 10, color: 'var(--fg-4)', whiteSpace: 'nowrap' }}>
+                    yozuv yo'q
+                  </span>
+                )}
+              </div>
+
+              {/* Ovoz pleyeri */}
+              {playing === c.id && c.recordingUrl && (
+                <div style={{ marginTop: 8 }}>
+                  <audio controls src={c.recordingUrl} style={{ width: '100%', height: 34 }}>
+                    Brauzeringiz audio pleyerni qo'llab-quvvatlamaydi.
+                  </audio>
+                  <a
+                    href={c.recordingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 11, color: 'var(--fg-4)', textDecoration: 'none' }}
+                  >
+                    ⬇ Yuklab olish
+                  </a>
+                </div>
+              )}
+
+              {c.notes && (
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--fg-3)' }}>
+                  {c.notes}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
