@@ -31,6 +31,78 @@ const btnGhost: any = {
   background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer', fontSize: 12, fontWeight: 600,
 };
 
+
+/**
+ * CSV parser — qo'shtirnoq ichidagi vergullarni ham to'g'ri o'qiydi.
+ * Kutubxona kerak emas (papaparse va shunga o'xshash paket o'rnatilmagan).
+ */
+function parseCSV(text: string): any[] {
+  const clean = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (clean[i + 1] === '"') { cell += '"'; i++; }
+        else inQuotes = false;
+      } else cell += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ',' || ch === ';') { row.push(cell); cell = ''; }
+      else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += ch;
+    }
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+
+  const nonEmpty = rows.filter((r) => r.some((c) => String(c).trim() !== ''));
+  if (nonEmpty.length < 2) return [];
+
+  const headers = nonEmpty[0].map((h) => String(h).trim());
+  return nonEmpty.slice(1).map((r) => {
+    const obj: any = {};
+    headers.forEach((h, i) => { if (h) obj[h] = (r[i] ?? '').trim(); });
+    return obj;
+  });
+}
+
+/** Namuna CSV — admin ustun nomlarini qo'lda yozmasin */
+function downloadTemplate() {
+  const headers = [
+    'title', 'destination', 'country', 'price', 'netPrice', 'currency',
+    'departureDate', 'returnDate', 'duration', 'seatsTotal', 'seatsAvailable',
+    'hotelName', 'hotelStars', 'mealPlan',
+    'includesVisa', 'includesFlights', 'includesHotel', 'includesTransfer',
+    'externalId', 'description',
+  ];
+  const rows = [
+    ['Dubay 5 kun 4 kecha', 'Dubay', 'BAA', '450', '380', 'USD',
+      '2026-09-10', '2026-09-15', '5', '20', '20',
+      'Rove Downtown', '4', 'BB', 'ha', 'ha', 'ha', 'ha',
+      'DXB-001', 'Aviabilet va mehmonxona narxga kiradi'],
+    ['Antalya All Inclusive', 'Antalya', 'Turkiya', '520', '440', 'USD',
+      '2026-08-01', '2026-08-08', '7', '30', '25',
+      'Delphin Imperial', '5', 'AI', "yo'q", 'ha', 'ha', 'ha',
+      'AYT-014', 'Hammasi kiritilgan'],
+  ];
+  const esc = (v: string) => (/[",;\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const csv = [headers, ...rows].map((r) => r.map(esc).join(',')).join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'omoncrm-turlar-namuna.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function TourOperatorsSettings() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,13 +112,109 @@ export default function TourOperatorsSettings() {
   const [form, setForm] = useState({ login: '', password: '' });
   const [busy, setBusy] = useState(false);
 
+  // ── Qo'lda qo'shilgan operatorlar (API'siz — Excel/CSV bilan ishlaydi) ──
+  const [manual, setManual] = useState<any[]>([]);
+  const [newOp, setNewOp] = useState<any>(null);      // qo'shish formasi
+  const [importFor, setImportFor] = useState<any>(null); // CSV oynasi
+  const [rows, setRows] = useState<any[]>([]);
+  const [replaceAll, setReplaceAll] = useState(true);
+
   const load = useCallback(() => {
     setLoading(true);
-    marketplaceApi.listCatalog()
-      .then((r) => setItems(r.data?.data || []))
+    Promise.all([
+      marketplaceApi.listCatalog().catch(() => ({ data: { data: [] } })),
+      marketplaceApi.listOperators({ limit: 100 }).catch(() => ({ data: { data: [] } })),
+    ])
+      .then(([cat, ops]: any[]) => {
+        const catalog = cat.data?.data || [];
+        setItems(catalog);
+
+        // Katalogdan ulanganlar yuqorida ko'rsatiladi — bu yerda
+        // faqat QO'LDA qo'shilganlar (Excel/CSV bilan ishlaydiganlar)
+        const catalogSlugs = new Set(catalog.map((c: any) => c.slug));
+        const all = ops.data?.data || [];
+        setManual(all.filter((o: any) => !catalogSlugs.has(o.slug)));
+      })
       .catch(() => toast.error("Operatorlar ro'yxatini olishda xato"))
       .finally(() => setLoading(false));
   }, []);
+
+  // ── Qo'lda operator qo'shish ──
+  async function createManual() {
+    const name = String(newOp?.name || '').trim();
+    if (!name) { toast.error('Operator nomini kiriting'); return; }
+    setBusy(true);
+    try {
+      await marketplaceApi.createOperator({
+        name,
+        contactPhone: newOp?.contactPhone?.trim() || undefined,
+        contactEmail: newOp?.contactEmail?.trim() || undefined,
+        integrationType: 'EXCEL',
+      });
+      toast.success(`"${name}" qo'shildi. Endi turlarini yuklang.`);
+      setNewOp(null);
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Xato');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeManual(op: any) {
+    if (!confirm(`"${op.name}" va uning barcha turlari o'chiriladi. Davom etasizmi?`)) return;
+    try {
+      await marketplaceApi.deleteOperator(op.id);
+      toast.success("O'chirildi");
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Xato');
+    }
+  }
+
+  // ── CSV fayl o'qish ──
+  function onFile(e: any) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result || '');
+        const parsed = text.trim().startsWith('[') ? JSON.parse(text) : parseCSV(text);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          toast.error("Fayl bo'sh yoki noto'g'ri formatda");
+          return;
+        }
+        setRows(parsed);
+        toast.success(`${parsed.length} ta qator o'qildi`);
+      } catch {
+        toast.error("Faylni o'qib bo'lmadi");
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  async function doImport() {
+    if (!importFor || rows.length === 0) return;
+    setBusy(true);
+    const tid = toast.loading('Yuklanmoqda...');
+    try {
+      const r = await marketplaceApi.importTours(importFor.id, rows, replaceAll);
+      const d = r.data || {};
+      toast.success(
+        `+${d.created || 0} yangi, ${d.updated || 0} yangilandi` +
+        (d.skippedCount ? `, ${d.skippedCount} o'tkazildi` : ''),
+        { id: tid },
+      );
+      setImportFor(null);
+      setRows([]);
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Xato', { id: tid });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -303,6 +471,213 @@ export default function TourOperatorsSettings() {
                 onClick={connect}
               >
                 {busy ? 'Tekshirilmoqda...' : 'Ulanish'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          EXCEL / CSV BILAN ISHLAYDIGAN OPERATORLAR
+          API'si yo'q operatorlar uchun — aksariyati shunday.
+          ══════════════════════════════════════════════════════ */}
+      <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 12,
+        }}>
+          <div>
+            <h4 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700 }}>
+              📄 Excel / CSV bilan ishlaydigan operatorlar
+            </h4>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.6, maxWidth: 620 }}>
+              Operatorning API'si bo'lmasa — bu yerdan qo'shing va turlar ro'yxatini
+              Excel'dan CSV qilib yuklang. Turlar xuddi shu tarzda agentlarga ko'rinadi.
+            </div>
+          </div>
+          <button style={btnPrimary} onClick={() => setNewOp({ name: '', contactPhone: '', contactEmail: '' })}>
+            + Operator qo'shish
+          </button>
+        </div>
+
+        {manual.length === 0 ? (
+          <div style={{
+            padding: 24, textAlign: 'center', background: 'var(--bg-3)',
+            borderRadius: 10, fontSize: 13, color: 'var(--fg-3)',
+          }}>
+            Hali qo'shilmagan. Operatordan Excel ro'yxatini oling va shu yerdan yuklang.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {manual.map((op) => (
+              <div key={op.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                gap: 12, padding: 12, background: 'var(--bg-2)',
+                border: '1px solid var(--border)', borderRadius: 10, flexWrap: 'wrap',
+              }}>
+                <div style={{ minWidth: 200 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{op.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>
+                    {op.toursCount || 0} ta tur
+                    {op.lastSyncAt
+                      ? ` · oxirgi yuklash: ${new Date(op.lastSyncAt).toLocaleDateString('ru-RU')}`
+                      : " · hali yuklanmagan"}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button style={btnPrimary} onClick={() => { setImportFor(op); setRows([]); }}>
+                    ⬆ Turlarni yuklash
+                  </button>
+                  <button
+                    style={{ ...btnGhost, borderColor: '#ef4444', color: '#ef4444' }}
+                    onClick={() => removeManual(op)}
+                  >
+                    O'chirish
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Qo'lda operator qo'shish oynasi ── */}
+      {newOp && (
+        <div onClick={() => !busy && setNewOp(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: 'var(--bg-2)', borderRadius: 14, border: '1px solid var(--border)',
+            padding: 22, width: '100%', maxWidth: 400,
+          }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>
+              Yangi operator
+            </h3>
+
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4, fontWeight: 600 }}>
+                Nomi *
+              </div>
+              <input style={inp} autoFocus value={newOp.name}
+                placeholder="Masalan: Asia Tour"
+                onChange={(e) => setNewOp((o: any) => ({ ...o, name: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === 'Enter') createManual(); }} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4, fontWeight: 600 }}>
+                  Telefon
+                </div>
+                <input style={inp} value={newOp.contactPhone} placeholder="+998..."
+                  onChange={(e) => setNewOp((o: any) => ({ ...o, contactPhone: e.target.value }))} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4, fontWeight: 600 }}>
+                  Email
+                </div>
+                <input style={inp} value={newOp.contactEmail}
+                  onChange={(e) => setNewOp((o: any) => ({ ...o, contactEmail: e.target.value }))} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button style={btnGhost} disabled={busy} onClick={() => setNewOp(null)}>
+                Bekor qilish
+              </button>
+              <button style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}
+                disabled={busy} onClick={createManual}>
+                Qo'shish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CSV yuklash oynasi ── */}
+      {importFor && (
+        <div onClick={() => !busy && setImportFor(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: 'var(--bg-2)', borderRadius: 14, border: '1px solid var(--border)',
+            padding: 22, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto',
+          }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700 }}>
+              Turlarni yuklash
+            </h3>
+            <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 14 }}>
+              {importFor.name}
+            </div>
+
+            <div style={{
+              padding: 12, background: 'var(--bg-3)', borderRadius: 10,
+              border: '1px solid var(--border)', marginBottom: 14, fontSize: 11,
+              color: 'var(--fg-2)', lineHeight: 1.8,
+            }}>
+              <b>Qanday qilinadi:</b><br />
+              1. Namunani yuklab oling → Excel'da oching<br />
+              2. Operatordan olgan turlarni kiriting<br />
+              3. <b>Fayl → Farqli saqlash → CSV UTF-8</b><br />
+              4. Shu yerga yuklang
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                <b>Majburiy ustunlar:</b> <code>title</code>, <code>destination</code>, <code>price</code><br />
+                <b style={{ color: '#10b981' }}>Foyda hisoblanishi uchun:</b> <code>netPrice</code> (operatorga to'lanadigan narx)
+              </div>
+            </div>
+
+            <button type="button" onClick={downloadTemplate}
+              style={{ ...btnGhost, width: '100%', marginBottom: 10, padding: '10px 12px' }}>
+              ⬇ Namuna faylni yuklab olish
+            </button>
+
+            <input type="file" accept=".csv,.txt,.json" onChange={onFile}
+              style={{ ...inp, padding: 8, marginBottom: 12 }} />
+
+            {rows.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: '#10b981', fontWeight: 700, marginBottom: 6 }}>
+                  ✓ {rows.length} ta qator tayyor
+                </div>
+                <div style={{
+                  maxHeight: 140, overflowY: 'auto', fontSize: 11, background: 'var(--bg)',
+                  borderRadius: 8, border: '1px solid var(--border)', padding: 8,
+                  color: 'var(--fg-2)',
+                }}>
+                  {rows.slice(0, 5).map((r: any, i: number) => (
+                    <div key={i} style={{ padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
+                      {Object.values(r).slice(0, 5).join(' · ')}
+                    </div>
+                  ))}
+                  {rows.length > 5 && (
+                    <div style={{ paddingTop: 4, color: 'var(--fg-3)' }}>… yana {rows.length - 5} ta</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <label style={{
+              display: 'flex', gap: 6, alignItems: 'center', fontSize: 12,
+              cursor: 'pointer', color: 'var(--fg-2)', marginBottom: 16,
+            }}>
+              <input type="checkbox" checked={replaceAll}
+                onChange={(e) => setReplaceAll(e.target.checked)} />
+              Eski turlarni arxivlash (yangi ro'yxat bilan almashtirish)
+            </label>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button style={btnGhost} disabled={busy}
+                onClick={() => { setImportFor(null); setRows([]); }}>
+                Bekor qilish
+              </button>
+              <button
+                style={{ ...btnPrimary, opacity: (busy || !rows.length) ? 0.5 : 1 }}
+                disabled={busy || !rows.length}
+                onClick={doImport}
+              >
+                Yuklash
               </button>
             </div>
           </div>
