@@ -3314,6 +3314,35 @@ function InstagramTab() {
   const [agents, setAgents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
+  /**
+   * TEZKOR ULANISH (v12.9).
+   *
+   * Instagram Business akkaunt Facebook Page'ga bog'langan bo'ladi va
+   * ikkalasi BIR XIL Page Access Token bilan ishlaydi. Shuning uchun
+   * Facebook orqali bir marta ulansa, backend Instagram sozlamasini
+   * ham avtomatik to'ldiradi (facebook-leads OAuth callback).
+   *
+   * Ilgari bu yerda faqat qo'lda kiritish maydonlari bor edi va
+   * foydalanuvchi tezkor yo'l borligini bilmasdi.
+   */
+  async function connectWithFacebook() {
+    setConnecting(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const res: any = await facebookLeadsApi.getOAuthStartUrl();
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        toast.error("Facebook Login URL olinmadi");
+        setConnecting(false);
+      }
+    } catch (e: any) {
+      toast.error(errMsg(e));
+      setConnecting(false);
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -3403,9 +3432,66 @@ function InstagramTab() {
       </Card>
 
 
+      {/* ── TEZKOR ULANISH (v12.9) ── */}
+      <Card>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>⚡ Tezkor ulanish</h3>
+
+        {cfg.accessToken ? (
+          <div style={{
+            padding: '12px 14px', background: 'rgba(16,185,129,0.1)',
+            border: '1px solid #10b981', borderRadius: 10, fontSize: 13,
+            color: 'var(--fg-2)', lineHeight: 1.7,
+          }}>
+            ✅ <b>Instagram ulangan.</b> Page ID: <code>{cfg.pageId || '—'}</code>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 4 }}>
+              DM'lar Chat bo'limiga tushadi. Ulanishni yangilash uchun
+              quyidagi tugmani qayta bosing.
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            padding: '12px 14px', background: 'var(--bg-3)',
+            borderRadius: 10, fontSize: 13, color: 'var(--fg-2)', lineHeight: 1.7,
+          }}>
+            Instagram Business akkauntingiz Facebook Page'ga bog'langan bo'lsa,
+            <b> quyidagi bitta tugma</b> bilan ulanadi — token va ID'ni qo'lda
+            kiritish shart emas.
+          </div>
+        )}
+
+        <button
+          onClick={connectWithFacebook}
+          disabled={connecting}
+          style={{
+            marginTop: 12, width: '100%', padding: '12px 16px',
+            borderRadius: 10, border: 'none',
+            background: connecting ? 'var(--bg-4)' : '#1877f2',
+            color: 'white', fontSize: 14, fontWeight: 700,
+            cursor: connecting ? 'default' : 'pointer',
+          }}
+        >
+          {connecting
+            ? "Yo'naltirilmoqda..."
+            : (cfg.accessToken ? '🔄 Ulanishni yangilash' : '📘 Facebook orqali ulash')}
+        </button>
+
+        <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 10, lineHeight: 1.7 }}>
+          <b>Shartlar:</b> Instagram akkaunt <b>Business</b> yoki <b>Creator</b> turida
+          bo'lishi va Facebook Page'ga bog'langan bo'lishi kerak.
+          Bitta ulanish Facebook Leads va Instagram DM — ikkalasini ham yoqadi.
+        </div>
+      </Card>
+
       {/* Config form */}
       <Card>
         <h3 style={{ marginTop: 0, fontSize: 15 }}>⚙️ Instagram Bot sozlamalari</h3>
+        <div style={{
+          fontSize: 12, color: 'var(--fg-3)', marginBottom: 14, lineHeight: 1.7,
+        }}>
+          Yuqoridagi tezkor ulanishdan foydalansangiz, Access Token va Page ID
+          <b> avtomatik to'ldiriladi</b>. Quyidagilar faqat qo'lda sozlash yoki
+          bot matnlarini o'zgartirish uchun.
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>Access Token (Page Token) *</label>
