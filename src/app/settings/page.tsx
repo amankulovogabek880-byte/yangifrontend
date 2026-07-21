@@ -3436,7 +3436,7 @@ function InstagramTab() {
       <Card>
         <h3 style={{ marginTop: 0, fontSize: 15 }}>⚡ Tezkor ulanish</h3>
 
-        {cfg.accessToken ? (
+        {cfg.hasAccessToken ? (
           <div style={{
             padding: '12px 14px', background: 'rgba(16,185,129,0.1)',
             border: '1px solid #10b981', borderRadius: 10, fontSize: 13,
@@ -3472,7 +3472,7 @@ function InstagramTab() {
         >
           {connecting
             ? "Yo'naltirilmoqda..."
-            : (cfg.accessToken ? '🔄 Ulanishni yangilash' : '📘 Facebook orqali ulash')}
+            : (cfg.hasAccessToken ? '🔄 Ulanishni yangilash' : '📘 Facebook orqali ulash')}
         </button>
 
         <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 10, lineHeight: 1.7 }}>
@@ -3495,7 +3495,23 @@ function InstagramTab() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>Access Token (Page Token) *</label>
-            <input style={inp} value={cfg.accessToken} onChange={e => setCfg({ ...cfg, accessToken: e.target.value })} placeholder="EAAG..." type="password" />
+            {/* v13.0: server endi ochiq tokenni QAYTARMAYDI (xavfsizlik).
+                Maydon bo'sh turadi; mavjud token maskalangan holda
+                pastda ko'rsatiladi. Bo'sh qoldirilsa eski token saqlanadi. */}
+            <input
+              style={inp}
+              value={cfg.accessToken || ''}
+              onChange={e => setCfg({ ...cfg, accessToken: e.target.value })}
+              placeholder={cfg.maskedAccessToken || 'EAAG...'}
+              type="password"
+              autoComplete="new-password"
+            />
+            {cfg.hasAccessToken && !cfg.accessToken && (
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                Saqlangan token: <code>{cfg.maskedAccessToken}</code> — o'zgartirmoqchi
+                bo'lsangizgina yangisini kiriting.
+              </div>
+            )}
           </div>
           <div>
             <label style={lbl}>Page ID</label>
