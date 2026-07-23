@@ -6,7 +6,7 @@ export default function PrivacyPage() {
 
       <h2 style={{ fontSize: 20, marginTop: 32 }}>1. Introduction</h2>
       <p>
-        Omon CRM we operates a customer relationship management platform
+        Omon CRM ("we", "our", or "us") operates a customer relationship management platform
         for travel agencies. This Privacy Policy explains how we collect, use, and protect
         information when you use our services or interact with our Facebook, Instagram, or
         WhatsApp integrations.

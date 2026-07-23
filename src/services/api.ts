@@ -602,10 +602,45 @@ export const facebookLeadsApi = {
   saveConfig: (data: any) => api.post('/facebook-leads/config', data),
   getStats: () => api.get('/facebook-leads/stats'),
   listForms: () => api.get('/facebook-leads/forms'),
+  // "Nega ishlamayapti?" — server sozlamalari + navbat holati
+  diagnose: () => api.get('/facebook-leads/diagnose'),
+
   // "Facebook orqali ulash" tugmasi (OAuth) — token/ID qo'lda kiritilmaydi
   getOAuthStartUrl: () => api.get('/facebook-leads/oauth/start-url'),
   getPendingPages: () => api.get('/facebook-leads/oauth/pending-pages'),
   selectPage: (pageId: string) => api.post('/facebook-leads/oauth/select-page', { pageId }),
+
+  // ── v14: yo'qolgan leadlarni tiklash ──
+  // Webhook o'tkazib yuborilsa (server o'chgan, deploy, 403) Meta uni
+  // QAYTA YUBORMAYDI. Quyidagi uchta chaqiruv shu bo'shliqni yopadi.
+  listFailed: () => api.get('/facebook-leads/failed'),
+  retryFailed: (id?: string) =>
+    api.post(id ? `/facebook-leads/retry/${id}` : '/facebook-leads/retry'),
+  runBackfill: () => api.post('/facebook-leads/backfill'),
+};
+
+// ─── Jonli tur qidiruvi (Ratehawk va boshqa adapterli operatorlar) ──────────
+//
+// `marketplaceApi` — DB'dagi statik turlar (CSV/import orqali kelgan).
+// `tourSearchApi` — operator API'siga JONLI so'rov: narx va bo'sh joy
+// har safar shu onda so'raladi, hech narsa saqlanmaydi.
+//
+// MUHIM: qidiruv natijasidagi `externalId` qisqa muddat amal qiladi
+// (Ratehawk'da ~38 daqiqa) — natijalarni uzoq saqlab qo'ymang.
+export const tourSearchApi = {
+  // Shu kompaniya ulangan, jonli qidiruvni qo'llab-quvvatlaydigan operatorlar
+  operators: () => api.get('/tour-search/operators'),
+
+  // Yo'nalish autocomplete — foydalanuvchi shaharni ANIQ tanlaydi
+  suggest: (q: string, slug?: string) =>
+    api.get('/tour-search/suggest', { params: { q, slug } }),
+
+  // body: { destination, regionId?, checkin, checkout, adults, childrenAges?, currency?, operatorSlugs? }
+  search: (data: any) => api.post('/tour-search/search', data),
+
+  // Natijadan to'g'ridan-to'g'ri booking yaratish
+  // body: { clientId, result, checkin, checkout, adults?, children?, ... }
+  book: (data: any) => api.post('/tour-search/book', data),
 };
 
 // ─── Turlar bozori (Marketplace) — v12.1 ─────────────────────────────────────

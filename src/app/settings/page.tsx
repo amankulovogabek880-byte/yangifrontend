@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { tenantsApi, usersApi, api, callsApi } from '@/services/api';
 import TourOperatorsSettings from '@/components/settings/TourOperatorsSettings';
+import FacebookLeadRecovery from '@/components/settings/FacebookLeadRecovery';
 import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal } from '@/components/ui';
 import { useAuth } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
@@ -3833,6 +3834,11 @@ function FacebookLeadsTab() {
         </div>
       )}
 
+      {/* ── v14: TASHXIS VA LEAD TIKLASH ──
+          Ilgari lead kelmay qolsa foydalanuvchi buni umuman bilmasdi —
+          CRM jim turardi, sabab esa server loglarida qolib ketardi. */}
+      <FacebookLeadRecovery />
+
       {/* Setup instructions */}
       <Card>
         <h3 style={{ marginTop: 0, fontSize: 15 }}>📋 Meta Developer sozlash (Lead Ads)</h3>
@@ -4010,8 +4016,20 @@ function FacebookLeadsTab() {
             <input style={inp} value={cfg.pageName} onChange={e => setCfg({ ...cfg, pageName: e.target.value })} placeholder="Mening Turizm Sahifam" />
           </div>
           <div>
-            <label style={lbl}>Verify Token</label>
-            <input style={inp} value={cfg.verifyToken} onChange={e => setCfg({ ...cfg, verifyToken: e.target.value })} placeholder="omoncrm_fb_verify" />
+            {/* ── v14: FAQAT O'QISH UCHUN ──
+                Ilgari bu maydon tahrirlanardi va tenant sozlamasiga
+                yozilardi, lekin server webhookni tekshirishda env dagi
+                FACEBOOK_VERIFY_TOKEN ni ishlatardi. Admin bu yerdagi
+                qiymatni Meta Dashboard'ga kiritsa — webhook verifikatsiyasi
+                YIQILARDI va obuna umuman o'rnatilmasdi.
+                Webhook manzili butun platforma uchun bitta, demak verify
+                token ham bitta. Endi server qiymati shunchaki ko'rsatiladi. */}
+            <label style={lbl}>Verify Token (serverdan)</label>
+            <input style={{ ...inp, opacity: 0.75, cursor: 'not-allowed' }}
+              value={cfg.verifyToken} readOnly />
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4, lineHeight: 1.5 }}>
+              Meta Dashboard → Webhooks → Verify Token maydoniga AYNAN shu qiymatni kiriting.
+            </div>
           </div>
           <div>
             <label style={lbl}>Leadni kim qabul qilsin</label>

@@ -219,8 +219,15 @@ export default function TourOperatorsSettings() {
   useEffect(() => { load(); }, [load]);
 
   function openConnect(op: any) {
-    if (!op.configured) {
-      toast.error(`"${op.name}" hali sozlanmagan. Platforma administratoriga murojaat qiling.`);
+    // v14: `available` — hozir ulansa ISHLAYDIMI. Ilgari `configured`
+    // ishlatilardi va u faqat "API manzili bormi" degani edi, shuning
+    // uchun hali adapteri yozilmagan operatorlar ham bosiladigan
+    // ko'rinardi. Endi ular umuman bu ro'yxatga tushmaydi.
+    if (op.available === false || (op.available === undefined && !op.configured)) {
+      toast.error(
+        `"${op.name}" bilan avtomatik integratsiya hali tayyor emas. ` +
+        `Hozircha turlarni Excel/CSV orqali yuklashingiz mumkin.`,
+      );
       return;
     }
     setActive(op);
@@ -279,7 +286,19 @@ export default function TourOperatorsSettings() {
     }
   }
 
-  const connectedCount = items.filter((i) => i.connected).length;
+  // ── v14: ISHLAYDIGAN va KUTILAYOTGAN operatorlarni AJRATAMIZ ──
+  //
+  // Ilgari 19 ta operator bitta ro'yxatda ko'rinardi, lekin ulardan
+  // faqat bittasi ishlardi. Foydalanuvchi har birini bosib ko'rib,
+  // 18 marta "hali mavjud emas" xabarini olardi va mahsulotga
+  // ishonchini yo'qotardi.
+  //
+  // Endi ishlaydiganlari yuqorida, qolganlari esa pastda alohida,
+  // ochib-yopiladigan "Tez orada" ro'yxatida — ulanish tugmasisiz.
+  const availableOps = items.filter((i) => i.available !== false);
+  const comingSoonOps = items.filter((i) => i.available === false);
+
+  const connectedCount = availableOps.filter((i) => i.connected).length;
   const totalTours = items.reduce((sum, i) => sum + (i.toursCount || 0), 0);
 
   return (
@@ -297,8 +316,11 @@ export default function TourOperatorsSettings() {
           display: 'flex', gap: 16, padding: '10px 14px', marginBottom: 16,
           background: 'var(--bg-3)', borderRadius: 10, fontSize: 12, flexWrap: 'wrap',
         }}>
-          <span>Ulangan: <b style={{ color: '#10b981' }}>{connectedCount}</b> / {items.length}</span>
+          <span>Ulangan: <b style={{ color: '#10b981' }}>{connectedCount}</b> / {availableOps.length}</span>
           <span>Jami turlar: <b>{totalTours}</b></span>
+          {comingSoonOps.length > 0 && (
+            <span style={{ color: 'var(--fg-3)' }}>Tez orada: {comingSoonOps.length}</span>
+          )}
         </div>
       )}
 
@@ -310,7 +332,7 @@ export default function TourOperatorsSettings() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
           gap: 12,
         }}>
-          {items.map((op) => {
+          {availableOps.map((op) => {
             const isError = op.status === 'ERROR';
             return (
               <div
@@ -321,8 +343,8 @@ export default function TourOperatorsSettings() {
                   background: 'var(--bg-2)',
                   border: `1px solid ${op.connected ? (isError ? '#ef4444' : '#10b981') : 'var(--border)'}`,
                   borderRadius: 12,
-                  cursor: op.connected ? 'default' : (op.configured ? 'pointer' : 'not-allowed'),
-                  opacity: op.configured ? 1 : 0.55,
+                  cursor: op.connected ? 'default' : 'pointer',
+                  opacity: 1,
                   display: 'flex', flexDirection: 'column', gap: 10,
                 }}
               >
@@ -367,13 +389,9 @@ export default function TourOperatorsSettings() {
                       ✅ Ulandingiz
                     </div>
                   )
-                ) : op.configured ? (
+                ) : (
                   <div style={{ fontSize: 11, color: '#3d7eff', fontWeight: 600 }}>
                     Ulanish uchun bosing →
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                    Hali mavjud emas
                   </div>
                 )}
 
@@ -395,6 +413,47 @@ export default function TourOperatorsSettings() {
             );
           })}
         </div>
+      )}
+
+      {/* ── TEZ ORADA (integratsiyasi hali tayyor emas) ── */}
+      {!loading && comingSoonOps.length > 0 && (
+        <details style={{ marginTop: 20 }}>
+          <summary style={{
+            cursor: 'pointer', fontSize: 13, fontWeight: 700,
+            color: 'var(--fg-2)', padding: '10px 0',
+          }}>
+            Tez orada — {comingSoonOps.length} ta operator
+          </summary>
+          <p style={{ fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.7, margin: '4px 0 12px' }}>
+            Bu operatorlar bilan avtomatik integratsiya ustida ish ketmoqda.
+            Shu paytgacha ularning turlarini <b>Excel/CSV orqali</b> yuklashingiz
+            mumkin — pastdagi «Qo'lda operator qo'shish» bo'limidan foydalaning.
+          </p>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: 8,
+          }}>
+            {comingSoonOps.map((op) => (
+              <div key={op.slug} style={{
+                padding: '10px 12px', background: 'var(--bg-3)',
+                border: '1px dashed var(--border)', borderRadius: 10,
+                fontSize: 12.5, color: 'var(--fg-2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+              }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {op.name}
+                </span>
+                {op.website && (
+                  <a href={op.website} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 11, color: '#3d7eff', flexShrink: 0 }}>
+                    sayt ↗
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {/* ── Ulanish oynasi ── */}
