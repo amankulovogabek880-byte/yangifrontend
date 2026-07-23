@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { tenantsApi, usersApi, api, callsApi } from '@/services/api';
 import TourOperatorsSettings from '@/components/settings/TourOperatorsSettings';
-import FacebookLeadRecovery from '@/components/settings/FacebookLeadRecovery';
 import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal } from '@/components/ui';
 import { useAuth } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
@@ -3662,6 +3661,16 @@ function FacebookLeadsTab() {
   // Lead formalar + webhook obuna holati (ko'rinadigan tasdiq + self-heal)
   const [formsInfo, setFormsInfo] = useState<any>(null);
   const [formsLoading, setFormsLoading] = useState(false);
+  // "Nega ishlamayapti?" tashxis
+  const [diagnosis, setDiagnosis] = useState<any>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
+  // Xato bo'lgan leadlar ro'yxati + qo'lda qayta ishlash
+  const [failedEvents, setFailedEvents] = useState<any[]>([]);
+  const [failedLoading, setFailedLoading] = useState(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [retryingAll, setRetryingAll] = useState(false);
+  // Qo'lda backfill (Meta'dan o'tkazib yuborilgan leadlarni tortib olish)
+  const [backfilling, setBackfilling] = useState(false);
 
   async function checkForms() {
     setFormsLoading(true);
@@ -3682,6 +3691,59 @@ function FacebookLeadsTab() {
     finally { setFormsLoading(false); }
   }
 
+  async function runDiagnose() {
+    setDiagnosing(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const r: any = await facebookLeadsApi.diagnose();
+      setDiagnosis(r.data);
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setDiagnosing(false); }
+  }
+
+  async function loadFailed() {
+    setFailedLoading(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const r: any = await facebookLeadsApi.listFailed();
+      setFailedEvents(r.data?.data || []);
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setFailedLoading(false); }
+  }
+
+  async function retryOneEvent(id: string) {
+    setRetryingId(id);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      await facebookLeadsApi.retryOne(id);
+      toast.success('Qayta navbatga qo\'yildi');
+      await loadFailed();
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setRetryingId(null); }
+  }
+
+  async function retryAllEvents() {
+    setRetryingAll(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const r: any = await facebookLeadsApi.retryAll();
+      toast.success(`${r.data?.requeued ?? 0} ta lead qayta navbatga qo'yildi`);
+      await loadFailed();
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setRetryingAll(false); }
+  }
+
+  async function runManualBackfill() {
+    setBackfilling(true);
+    try {
+      const { facebookLeadsApi } = await import('@/services/api');
+      const r: any = await facebookLeadsApi.runBackfill();
+      toast.success(r.data?.message || 'Backfill tugadi');
+      await Promise.all([loadAll(), loadFailed()]);
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setBackfilling(false); }
+  }
+
   async function loadAll() {
     try {
       const [cfgR, statsR, usersR]: any = await Promise.all([
@@ -3699,16 +3761,6 @@ function FacebookLeadsTab() {
       });
       setHasToken(!!d.hasAccessToken);
       setMaskedToken(d.maskedAccessToken || '');
-      // Backend fon jarayoni (har 10 daqiqada) yozib qo'ygan oxirgi natijani
-      // darhol ko'rsatamiz — checkForms() natijasi kelguncha kutish shart emas.
-      if (d.lastCheck) {
-        setFormsInfo((prev: any) => prev ?? {
-          connected: d.lastCheck.connected,
-          leadgenSubscribed: d.lastCheck.leadgenSubscribed,
-          forms: new Array(d.lastCheck.formsCount || 0).fill(null),
-          error: d.lastCheck.error,
-        });
-      }
       setStats(statsR.data);
       const list = Array.isArray(usersR.data) ? usersR.data : (usersR.data?.data || []);
       setAgents(list.filter((u: any) => u.role === 'AGENT'));
@@ -3725,7 +3777,10 @@ function FacebookLeadsTab() {
 
   // Page ulangan bo'lsa — formalar va webhook holatini avtomatik bir marta tekshiramiz
   useEffect(() => {
-    if (hasToken) checkForms();
+    if (hasToken) {
+      checkForms();
+      loadFailed();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasToken]);
 
@@ -3833,11 +3888,6 @@ function FacebookLeadsTab() {
           ))}
         </div>
       )}
-
-      {/* ── v14: TASHXIS VA LEAD TIKLASH ──
-          Ilgari lead kelmay qolsa foydalanuvchi buni umuman bilmasdi —
-          CRM jim turardi, sabab esa server loglarida qolib ketardi. */}
-      <FacebookLeadRecovery />
 
       {/* Setup instructions */}
       <Card>
@@ -3964,6 +4014,138 @@ function FacebookLeadsTab() {
         </Card>
       )}
 
+      {/* "Nega ishlamayapti?" tashxis + qo'lda backfill */}
+      {hasToken && (
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15 }}>🔧 Tashxis va tiklash</h3>
+              <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '4px 0 0', maxWidth: 480, lineHeight: 1.5 }}>
+                Lead kelmayotgan bo'lsa, avval shu tugmani bosing — token, huquqlar va
+                navbat holatini bir zumda tekshirib beradi.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <button onClick={runManualBackfill} disabled={backfilling} style={{
+                padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                opacity: backfilling ? 0.6 : 1,
+              }}>
+                {backfilling ? 'Tortilmoqda...' : "📥 O'tkazib yuborilganlarni tortish"}
+              </button>
+              <button onClick={runDiagnose} disabled={diagnosing} style={{
+                padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff',
+                color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: diagnosing ? 0.6 : 1,
+              }}>
+                {diagnosing ? 'Tekshirilmoqda...' : '🩺 Nega ishlamayapti?'}
+              </button>
+            </div>
+          </div>
+
+          {diagnosis && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10,
+              }}>
+                {[
+                  { label: 'Navbatda', value: diagnosis.queue?.pending ?? 0, color: '#f97316' },
+                  { label: 'Xato', value: diagnosis.queue?.failed ?? 0, color: '#ef4444' },
+                  { label: 'Tugallangan', value: diagnosis.queue?.done ?? 0, color: '#16a34a' },
+                ].map((q, i) => (
+                  <div key={i} style={{
+                    padding: '6px 12px', borderRadius: 8, background: 'var(--bg-3)', fontSize: 12,
+                  }}>
+                    <b style={{ color: q.color }}>{q.value}</b>{' '}
+                    <span style={{ color: 'var(--fg-3)' }}>{q.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{
+                padding: '10px 12px', borderRadius: 8,
+                background: diagnosis.recommendation === 'OK' ? 'rgba(34,197,94,.10)' : 'rgba(245,158,11,.10)',
+                border: `1px solid ${diagnosis.recommendation === 'OK' ? 'rgba(34,197,94,.25)' : 'rgba(245,158,11,.25)'}`,
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: diagnosis.recommendation === 'OK' ? '#16a34a' : '#d97706' }}>
+                  {diagnosis.recommendation === 'OK' ? '✅ Hammasi joyida' : '⚠️ Diqqat talab qilinadi'}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 4, lineHeight: 1.5 }}>
+                  {diagnosis.message}
+                </div>
+                {!!diagnosis.missingTasks?.length && (
+                  <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 6 }}>
+                    Yetishmayotgan vazifalar: {diagnosis.missingTasks.join(', ')}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Xato bo'lgan leadlar — qo'lda qayta ishlash */}
+      {hasToken && (stats?.queueFailed > 0 || failedEvents.length > 0) && (
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15 }}>❌ Xato bo'lgan leadlar</h3>
+              <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '4px 0 0', maxWidth: 480, lineHeight: 1.5 }}>
+                Bu leadlar qayta ishlanmagan (masalan, token muddati tugagani uchun). Sababni
+                tuzatgach, "Barchasini qayta urinish"ni bosing.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <button onClick={loadFailed} disabled={failedLoading} style={{
+                padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                background: 'var(--bg-3)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                opacity: failedLoading ? 0.6 : 1,
+              }}>
+                {failedLoading ? 'Yuklanmoqda...' : '🔄 Yangilash'}
+              </button>
+              {failedEvents.length > 0 && (
+                <button onClick={retryAllEvents} disabled={retryingAll} style={{
+                  padding: '8px 16px', borderRadius: 8, border: 'none', background: '#ef4444',
+                  color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: retryingAll ? 0.6 : 1,
+                }}>
+                  {retryingAll ? 'Urinilmoqda...' : "🔁 Barchasini qayta urinish"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {failedEvents.length > 0 && (
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {failedEvents.map((ev: any) => (
+                <div key={ev.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+                  padding: '9px 11px', background: 'var(--bg-3)', borderRadius: 8,
+                }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      Lead ID: {ev.leadgenId}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'var(--fg-4)', marginTop: 1 }}>
+                      {ev.status} · {ev.attempts} urinish{ev.lastError ? ` · ${String(ev.lastError).slice(0, 80)}` : ''}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => retryOneEvent(ev.id)}
+                    disabled={retryingId === ev.id}
+                    style={{
+                      padding: '5px 12px', borderRadius: 999, border: 'none', flexShrink: 0,
+                      background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 700, opacity: retryingId === ev.id ? 0.6 : 1,
+                    }}
+                  >
+                    {retryingId === ev.id ? '...' : '🔁 Qayta urinish'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Bir nechta Page topilganda tanlash */}
       {pendingPages.length > 0 && (
         <Card style={{ border: '1px solid #f97316' }}>
@@ -4016,20 +4198,8 @@ function FacebookLeadsTab() {
             <input style={inp} value={cfg.pageName} onChange={e => setCfg({ ...cfg, pageName: e.target.value })} placeholder="Mening Turizm Sahifam" />
           </div>
           <div>
-            {/* ── v14: FAQAT O'QISH UCHUN ──
-                Ilgari bu maydon tahrirlanardi va tenant sozlamasiga
-                yozilardi, lekin server webhookni tekshirishda env dagi
-                FACEBOOK_VERIFY_TOKEN ni ishlatardi. Admin bu yerdagi
-                qiymatni Meta Dashboard'ga kiritsa — webhook verifikatsiyasi
-                YIQILARDI va obuna umuman o'rnatilmasdi.
-                Webhook manzili butun platforma uchun bitta, demak verify
-                token ham bitta. Endi server qiymati shunchaki ko'rsatiladi. */}
-            <label style={lbl}>Verify Token (serverdan)</label>
-            <input style={{ ...inp, opacity: 0.75, cursor: 'not-allowed' }}
-              value={cfg.verifyToken} readOnly />
-            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4, lineHeight: 1.5 }}>
-              Meta Dashboard → Webhooks → Verify Token maydoniga AYNAN shu qiymatni kiriting.
-            </div>
+            <label style={lbl}>Verify Token</label>
+            <input style={inp} value={cfg.verifyToken} onChange={e => setCfg({ ...cfg, verifyToken: e.target.value })} placeholder="omoncrm_fb_verify" />
           </div>
           <div>
             <label style={lbl}>Leadni kim qabul qilsin</label>
