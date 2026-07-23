@@ -648,3 +648,21 @@ export const marketplaceApi = {
   disconnectCatalog: (slug: string) =>
     api.post(`/marketplace/catalog/${slug}/disconnect`),
 };
+
+// ─── Jonli tur qidiruvi (Tour Search) — v14 ──────────────────────────────────
+// MUHIM TUZATISH: `tour-search/page.tsx` bu eksportni chaqirardi, lekin u
+// hech qachon mavjud bo'lmagan — shu sababli Vercel build'i har safar
+// "no exported member named 'tourSearchApi'" xatosi bilan yiqilardi.
+// Backend controller (`/tour-search/*`) allaqachon bor, faqat shu ko'prik
+// yo'q edi.
+export const tourSearchApi = {
+  // Ulangan operatorlar ro'yxati (qidiruv shular ustida ishlaydi)
+  operators: () => api.get('/tour-search/operators'),
+  // Yo'nalish autocomplete: ?q=Antalya
+  suggest: (q: string, slug?: string) =>
+    api.get('/tour-search/suggest', { params: { q, slug } }),
+  // Jonli qidiruv: { destination, regionId?, checkin, checkout, adults, childrenAges?, currency? }
+  search: (data: any) => api.post('/tour-search/search', data),
+  // Jonli natijadan booking yaratish: { clientId, result, checkin, checkout, adults?, children?, totalPrice?, supplierCost?, note? }
+  book: (data: any) => api.post('/tour-search/book', data),
+};
