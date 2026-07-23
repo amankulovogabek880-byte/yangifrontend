@@ -3785,11 +3785,25 @@ function FacebookLeadsTab() {
   }, [hasToken]);
 
   // Facebook Login orqali qaytgandan keyingi natijani ko'rsatish
-  // (?tab=facebook&fb=success|choose|denied|nopages|error)
+  // (?tab=facebook&fb=success|choose|denied|nopages|error|...)
+  //
+  // TUZATILDI: ilgari faqat success/choose/denied/nopages/error holatlari
+  // ko'rsatilardi. Backend (`handleOAuthCallback`) esa yana quyidagi
+  // kodlarni ham qaytaradi:
+  //   no_admin_access, missing_permissions, invalid_token —
+  //     ulanish umuman muvaffaqiyatsiz, sabab aniq
+  //   connected_no_admin_access, connected_subscribe_failed —
+  //     Page SAQLANDI, lekin "leadgen" hodisasiga obuna bo'lmadi
+  //     (aynan ruxsat/permissions xatosi) — bu holatda hech qanday
+  //     xabar chiqmasdi va admin nima bo'lganini bilmasdi.
+  // Bundan tashqari backend yuborgan `fbMsg` (Meta'ning aniq xato matni)
+  // umuman o'qilmasdi.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const fb = params.get('fb');
     if (!fb) return;
+    const fbMsg = params.get('fbMsg') || '';
+    const detail = fbMsg ? ` — ${fbMsg}` : '';
 
     if (fb === 'success') {
       toast.success('✅ Facebook Page muvaffaqiyatli ulandi!');
@@ -3803,8 +3817,23 @@ function FacebookLeadsTab() {
       toast.error("Facebook ulanishi bekor qilindi");
     } else if (fb === 'nopages') {
       toast.error("Bu Facebook akkauntida siz boshqaradigan Page topilmadi");
+    } else if (fb === 'no_admin_access') {
+      toast.error(`Page uchun admin huquqi yo'q${detail}. Page egasidan Business Manager orqali "Manage Page" huquqini so'rang.`, { duration: 8000 });
+    } else if (fb === 'missing_permissions') {
+      toast.error(`Facebook ruxsatlari yetarli emas${detail}. Qaytadan ulanishda barcha so'ralgan ruxsatlarni tasdiqlang.`, { duration: 8000 });
+    } else if (fb === 'invalid_token') {
+      toast.error(`Facebook token yaroqsiz${detail}. Qaytadan ulaning.`, { duration: 8000 });
+    } else if (fb === 'connected_no_admin_access') {
+      toast.error(`Page ulandi, lekin leadlar kelmaydi: admin huquqi yetarli emas${detail}. Page egasidan "Manage Page" huquqini so'rang, so'ng "Nega ishlamayapti?" tugmasini bosing.`, { duration: 10000 });
+      loadAll();
+    } else if (fb === 'connected_subscribe_failed') {
+      toast.error(`Page ulandi, lekin "leadgen" hodisasiga obuna bo'lmadi${detail}. "Nega ishlamayapti?" tugmasini bosib sababini ko'ring.`, { duration: 10000 });
+      loadAll();
     } else if (fb === 'error') {
-      toast.error("Facebook ulanishida xatolik yuz berdi");
+      toast.error(`Facebook ulanishida xatolik yuz berdi${detail}`);
+    } else {
+      // Noma'lum kod kelsa ham jim qolmasin
+      toast.error(`Facebook ulanishida kutilmagan holat: ${fb}${detail}`);
     }
 
     // URL'ni tozalab qo'yamiz — sahifa qayta yuklanganda qayta ishlanmasin
