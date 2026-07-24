@@ -3823,6 +3823,8 @@ function FacebookLeadsTab() {
       toast.error(`Facebook ruxsatlari yetarli emas${detail}. Qaytadan ulanishda barcha so'ralgan ruxsatlarni tasdiqlang.`, { duration: 8000 });
     } else if (fb === 'invalid_token') {
       toast.error(`Facebook token yaroqsiz${detail}. Qaytadan ulaning.`, { duration: 8000 });
+    } else if (fb === 'token_exchange_failed') {
+      toast.error(`Facebook uzoq muddatli token olishda xatolik${detail}. Bir necha daqiqadan so'ng qaytadan urinib ko'ring, davom etsa administratorga murojaat qiling.`, { duration: 10000 });
     } else if (fb === 'connected_no_admin_access') {
       toast.error(`Page ulandi, lekin leadlar kelmaydi: admin huquqi yetarli emas${detail}. Page egasidan "Manage Page" huquqini so'rang, so'ng "Nega ishlamayapti?" tugmasini bosing.`, { duration: 10000 });
       loadAll();
