@@ -373,6 +373,26 @@ export const callsApi = {
   testConnection: () => api.post('/calls/test-connection'),
 };
 
+// ── AI MARKETING (Reklama generatori — TurMaker-uslubida) ────
+export const aiMarketingApi = {
+  // 1-bosqich: rasm + 3 ta tayyor post (Instagram/Telegram/Facebook)
+  generate: (data: any) => api.post('/ai-marketing/generate', data),
+  // Faqat rasm qidirish (natijani almashtirish uchun)
+  images: (query: string, count?: number) =>
+    api.post('/ai-marketing/images', { query, count }),
+  // 2-bosqich: tayyor 1080×1080 banner (PNG)
+  banner: (data: any) => api.post('/ai-marketing/banner', data),
+  // Shablon (agentlik nomi, kontakt, brend rangi)
+  getTemplate: () => api.get('/ai-marketing/template'),
+  saveTemplate: (data: any) => api.patch('/ai-marketing/template', data),
+  // Telegram kanaliga yuborish
+  sendTelegram: (data: { chatId: string; photoUrl: string; caption: string; telegramAccountId?: string }) =>
+    api.post('/ai-marketing/send/telegram', data),
+  // Instagram — hozircha qo'lda joylash uchun tayyorlaydi (avtomatik emas)
+  instagramPrepare: (data: { caption: string; bannerUrl: string }) =>
+    api.post('/ai-marketing/instagram/prepare', data),
+};
+
 // ── UPLOADS v6 ───────────────────────────────────────────────
 export const uploadsApi = {
   one: (file: File) => {
