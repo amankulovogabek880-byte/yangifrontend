@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import CrmLayout from '@/components/layout/CrmLayout';
-import { aiMarketingApi } from '@/services/api';
+import { aiMarketingApi, usersApi } from '@/services/api';
 import toast from 'react-hot-toast';
 
 /**
@@ -51,6 +51,15 @@ const emptyForm = {
   agencyContact: '',
   adLanguage: 'uz' as 'uz' | 'ru', // reklama MATNI tili — ilova tilidan mustaqil
   extraTexts: [] as string[], // bannerga qo'shimcha urg'u matnlari (masalan "Bepul transfer!")
+
+  hotels: [] as Array<{ name: string; stars?: number; price: string }>, // ko'p mehmonxona/narx solishtirish
+  showHotelList: false,
+
+  textColor: '#FFFFFF',
+  fontFamily: 'sans-serif',
+  overlayDarkness: 0.82,
+  borderColor: '',
+  borderWidth: 0,
 };
 
 function copyToClipboard(text: string, label: string) {
@@ -142,12 +151,17 @@ function LivePreview({ form, template, generatedUrl }: { form: any; template: an
     .filter(Boolean).join('   •   ');
   const priceText = fmtPrice(form.price, form.currency);
   const bg = form.imageUrl || generatedUrl;
+  const fontFamily = form.fontFamily || 'sans-serif';
+  const textColor = /^#[0-9a-fA-F]{3,8}$/.test(form.textColor || '') ? form.textColor : '#FFFFFF';
+  const darkness = Math.max(0.3, Math.min(0.95, Number(form.overlayDarkness) || 0.82));
+  const validHotels = (form.hotels || []).filter((h: any) => h.name?.trim() && Number(h.price) > 0);
+  const useHotelList = form.showHotelList && validHotels.length > 1;
 
   return (
     <div style={{
       position: 'relative', width: '100%', aspectRatio: '1 / 1', borderRadius: 16,
-      overflow: 'hidden', border: '1px solid var(--border)', background: bg ? '#111' : 'var(--gradient)',
-      boxShadow: 'var(--shadow)',
+      overflow: 'hidden', border: form.borderWidth > 0 ? `${Math.min(form.borderWidth, 12)}px solid ${form.borderColor || accent}` : '1px solid var(--border)',
+      background: bg ? '#111' : 'var(--gradient)', boxShadow: 'var(--shadow)', fontFamily,
     }}>
       {bg ? (
         <img src={bg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -161,10 +175,10 @@ function LivePreview({ form, template, generatedUrl }: { form: any; template: an
         </div>
       )}
 
-      {/* Pastki qorong'ilashuv — matn o'qilishi uchun */}
+      {/* Pastki qorong'ilashuv — matn o'qilishi uchun (qorong'ilik darajasi sozlanadi) */}
       <div style={{
         position: 'absolute', inset: 0,
-        background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.86) 100%)',
+        background: `linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,${(darkness * 0.18).toFixed(2)}) 55%, rgba(0,0,0,${darkness.toFixed(2)}) 100%)`,
       }} />
 
       <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: '5%', color: '#fff' }}>
@@ -188,33 +202,52 @@ function LivePreview({ form, template, generatedUrl }: { form: any; template: an
         {stars && (
           <div style={{ color: '#FFD54A', fontWeight: 700, fontSize: 'clamp(11px,2.4vw,14px)', letterSpacing: 2, marginBottom: 5 }}>{stars}</div>
         )}
-        <div style={{ fontWeight: 800, fontSize: 'clamp(19px,4.6vw,29px)', lineHeight: 1.14, letterSpacing: '-0.01em', textShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
+        <div style={{ fontWeight: 800, fontSize: 'clamp(19px,4.6vw,29px)', lineHeight: 1.14, letterSpacing: '-0.01em', textShadow: '0 2px 12px rgba(0,0,0,0.45)', color: textColor }}>
           {form.destination || "Yo'nalishni kiriting"}
         </div>
-        {form.hotelName && (
-          <div style={{ fontWeight: 600, fontSize: 'clamp(12px,2.6vw,15.5px)', marginTop: 4, color: '#f1f1f1' }}>{form.hotelName}</div>
+        {form.hotelName && !useHotelList && (
+          <div style={{ fontWeight: 600, fontSize: 'clamp(12px,2.6vw,15.5px)', marginTop: 4, color: textColor, opacity: 0.94 }}>{form.hotelName}</div>
         )}
         {infoParts.length > 0 && (
-          <div style={{ fontSize: 'clamp(10px,2.1vw,12.5px)', marginTop: 6, color: '#dfe3ea', fontWeight: 500 }}>{infoParts.join('   ·   ')}</div>
+          <div style={{ fontSize: 'clamp(10px,2.1vw,12.5px)', marginTop: 6, color: textColor, opacity: 0.85, fontWeight: 500 }}>{infoParts.join('   ·   ')}</div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 13 }}>
-          {priceText ? (
-            <span style={{
-              background: accent, color: '#fff', fontWeight: 800, padding: '9px 16px', borderRadius: 12,
-              fontSize: 'clamp(13px,2.9vw,19px)', letterSpacing: '-0.01em', whiteSpace: 'nowrap',
-              boxShadow: `0 8px 20px -6px ${accent}99`, flexShrink: 0,
-            }}>{priceText}</span>
-          ) : <span />}
-          {dateLine && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-              fontSize: 'clamp(9.5px,2vw,11.5px)', fontWeight: 600, color: '#fff',
-              background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255,255,255,0.18)', padding: '7px 11px', borderRadius: 999,
-            }}>📅 {dateLine}</span>
-          )}
-        </div>
+        {useHotelList ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+            {validHotels.slice(0, 3).map((h: any, i: number) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                background: 'rgba(255,255,255,0.10)', borderRadius: 10, padding: '8px 12px',
+              }}>
+                <span style={{ fontSize: 'clamp(11px,2.3vw,14px)', fontWeight: 700, color: textColor }}>
+                  {h.name}{h.stars ? <span style={{ color: '#FFD54A' }}> {'★'.repeat(Math.min(5, Number(h.stars)))}</span> : null}
+                </span>
+                <span style={{
+                  background: accent, color: '#fff', fontWeight: 800, padding: '5px 12px', borderRadius: 999,
+                  fontSize: 'clamp(10px,2.1vw,13px)', whiteSpace: 'nowrap',
+                }}>{fmtPrice(h.price, form.currency)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 13 }}>
+            {priceText ? (
+              <span style={{
+                background: accent, color: '#fff', fontWeight: 800, padding: '9px 16px', borderRadius: 12,
+                fontSize: 'clamp(13px,2.9vw,19px)', letterSpacing: '-0.01em', whiteSpace: 'nowrap',
+                boxShadow: `0 8px 20px -6px ${accent}99`, flexShrink: 0,
+              }}>{priceText}</span>
+            ) : <span />}
+            {dateLine && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+                fontSize: 'clamp(9.5px,2vw,11.5px)', fontWeight: 600, color: '#fff',
+                background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255,255,255,0.18)', padding: '7px 11px', borderRadius: 999,
+              }}>📅 {dateLine}</span>
+            )}
+          </div>
+        )}
 
         {footer && (
           <>
@@ -260,6 +293,12 @@ export default function AiMarketingPage() {
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [useTelegramTemplate, setUseTelegramTemplate] = useState(false);
+  const [telegramTemplatePreview, setTelegramTemplatePreview] = useState('');
+  const [loadingTgPreview, setLoadingTgPreview] = useState(false);
+
   // ── Shablonni yuklash ──
   useEffect(() => {
     aiMarketingApi.getTemplate()
@@ -269,7 +308,32 @@ export default function AiMarketingPage() {
         setTgChatId(t.telegramChatId || '');
       })
       .catch(() => {});
+    // Xodimlar ro'yxati — bannerga kimning kontakti chiqishini tanlash uchun
+    usersApi.list()
+      .then(r => setStaffList((r.data || []).filter((u: any) => u.phone || u.name)))
+      .catch(() => {});
   }, []);
+
+  const pickStaff = (id: string) => {
+    setSelectedStaffId(id);
+    const staff = staffList.find((s: any) => s.id === id);
+    if (staff) {
+      setForm((f: any) => ({ ...f, agencyName: staff.name || f.agencyName, agencyContact: staff.phone || f.agencyContact }));
+    }
+  };
+
+  const previewTelegramTemplate = async () => {
+    if (!form.destination.trim()) { toast.error("Avval yo'nalishni kiriting"); return; }
+    setLoadingTgPreview(true);
+    try {
+      const res = await aiMarketingApi.renderTelegramTemplate(buildPayload());
+      setTelegramTemplatePreview(res?.data?.text || '');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Andozani ko'rsatib bo'lmadi");
+    } finally {
+      setLoadingTgPreview(false);
+    }
+  };
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -295,6 +359,15 @@ export default function AiMarketingPage() {
     agencyContact: form.agencyContact.trim() || undefined,
     adLanguage: form.adLanguage || 'uz',
     extraTexts: (form.extraTexts || []).map((t: string) => t.trim()).filter(Boolean),
+    hotels: (form.hotels || [])
+      .filter((h: any) => h.name?.trim() && Number(h.price) > 0)
+      .map((h: any) => ({ name: h.name.trim(), stars: h.stars ? Number(h.stars) : undefined, price: Number(h.price) })),
+    showHotelList: !!form.showHotelList,
+    textColor: form.textColor || undefined,
+    fontFamily: form.fontFamily || undefined,
+    overlayDarkness: Number(form.overlayDarkness) || undefined,
+    borderColor: form.borderWidth > 0 ? (form.borderColor || undefined) : undefined,
+    borderWidth: Number(form.borderWidth) || undefined,
   });
 
   const validate = () => {
@@ -370,14 +443,28 @@ export default function AiMarketingPage() {
   const doSendTelegram = async () => {
     if (!bannerUrl) { toast.error('Avval banner yarating'); return; }
     if (!tgChatId.trim()) { toast.error("Kanal ID/username kiriting (masalan @kanalim)"); return; }
-    if (!result?.posts?.telegram) { toast.error('Avval post matnini yarating'); return; }
+
+    let caption = '';
+    if (useTelegramTemplate) {
+      caption = telegramTemplatePreview;
+      if (!caption) {
+        try {
+          const res = await aiMarketingApi.renderTelegramTemplate(buildPayload());
+          caption = res.data?.text || '';
+          setTelegramTemplatePreview(caption);
+        } catch { /* pastda umumiy xato ko'rsatiladi */ }
+      }
+    } else {
+      caption = result?.posts?.telegram || '';
+    }
+    if (!caption) { toast.error('Avval post matnini yarating'); return; }
 
     setSendingTg(true);
     try {
       await aiMarketingApi.sendTelegram({
         chatId: tgChatId.trim(),
         photoUrl: bannerUrl,
-        caption: result.posts.telegram,
+        caption,
       });
       toast.success('Telegram kanaliga yuborildi!');
     } catch (e: any) {
@@ -501,6 +588,22 @@ export default function AiMarketingPage() {
     setForm((f: any) => ({ ...f, extraTexts: (f.extraTexts || []).filter((_: string, idx: number) => idx !== i) }));
   };
 
+  // ── Ko'p mehmonxona/narx solishtirish ──
+  const addHotelRow = () => {
+    if ((form.hotels || []).length >= 3) { toast.error("Ko'pi bilan 3 ta mehmonxona"); return; }
+    setForm((f: any) => ({ ...f, hotels: [...(f.hotels || []), { name: '', stars: 5, price: '' }] }));
+  };
+  const updateHotelRow = (i: number, patch: any) => {
+    setForm((f: any) => {
+      const arr = [...(f.hotels || [])];
+      arr[i] = { ...arr[i], ...patch };
+      return { ...f, hotels: arr };
+    });
+  };
+  const removeHotelRow = (i: number) => {
+    setForm((f: any) => ({ ...f, hotels: (f.hotels || []).filter((_: any, idx: number) => idx !== i) }));
+  };
+
   const platformMeta: Record<string, { label: string; icon: string }> = {
     telegram: { label: 'Telegram', icon: '✈️' },
     instagram: { label: 'Instagram', icon: '📸' },
@@ -612,6 +715,21 @@ export default function AiMarketingPage() {
                 <label className="form-label">Standart Telegram kanal</label>
                 <input className="form-input" value={tgChatId} placeholder="@kanalim_yoki_id"
                   onChange={e => setTgChatId(e.target.value)} />
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="form-label">
+                Telegram xabar andozasi
+                <span style={{ fontWeight: 400, color: 'var(--fg-3)', marginLeft: 6 }}>
+                  (ixtiyoriy — Claude yozgan erkin matn o'rniga qat'iy formatda yuborish uchun)
+                </span>
+              </label>
+              <textarea className="form-input" style={{ minHeight: 110, fontFamily: 'monospace', fontSize: 12.5 }}
+                placeholder={"🌴 {destination}\n{hotel}\n\n📅 {dates} ({nights} kecha)\n👥 {people}\n🍽 {meal}\n\n💰 Narx: {price}\n\n📞 {agency} — {contact}"}
+                value={template.telegramMessageTemplate || ''}
+                onChange={e => setTemplate((t: any) => ({ ...t, telegramMessageTemplate: e.target.value }))} />
+              <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 4 }}>
+                Mavjud placeholder'lar: {'{destination} {hotel} {stars} {nights} {meal} {people} {price} {dates} {agency} {contact}'}
               </div>
             </div>
             <div style={{ marginTop: 12, textAlign: 'right' }}>
@@ -798,6 +916,101 @@ export default function AiMarketingPage() {
               )}
             </div>
 
+            {staffList.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <label className="form-label">Bannerda kimning kontakti chiqsin?</label>
+                <select className="form-input" value={selectedStaffId} onChange={(e) => pickStaff(e.target.value)}>
+                  <option value="">— Agentlik shabloni (standart) —</option>
+                  {staffList.map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.phone ? ` — ${s.phone}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" checked={!!form.showHotelList}
+                    onChange={(e) => set('showHotelList', e.target.checked)}
+                    style={{ accentColor: 'var(--primary)' }} />
+                  Ko'p mehmonxona/narx solishtirish
+                </label>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={addHotelRow}>+ Mehmonxona</button>
+              </div>
+              {(form.hotels || []).length === 0 ? (
+                <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
+                  2-3 ta mehmonxonani narxi bilan bitta bannerda solishtirib ko'rsating (yuqoridagi asosiy Narx maydoni e'tiborga olinmaydi)
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(form.hotels || []).map((h: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', gap: 8 }}>
+                      <input className="form-input" style={{ flex: 2 }} value={h.name} placeholder="Mehmonxona nomi"
+                        onChange={(e) => updateHotelRow(i, { name: e.target.value })} />
+                      <select className="form-input" style={{ flex: 1 }} value={h.stars || 5}
+                        onChange={(e) => updateHotelRow(i, { stars: e.target.value })}>
+                        {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} ★</option>)}
+                      </select>
+                      <input className="form-input" style={{ flex: 1 }} type="number" value={h.price} placeholder="Narx"
+                        onChange={(e) => updateHotelRow(i, { price: e.target.value })} />
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeHotelRow(i)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <details style={{ marginTop: 16 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--fg-2)' }}>
+                🎨 Dizaynni moslashtirish (shrift, rang, ramka)
+              </summary>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginTop: 12 }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Shrift</label>
+                  <select className="form-input" value={form.fontFamily} onChange={(e) => set('fontFamily', e.target.value)}>
+                    <option value="sans-serif">Sans-serif (standart)</option>
+                    <option value="serif">Serif</option>
+                    <option value="monospace">Monospace</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Matn rangi</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="color" value={form.textColor} onChange={(e) => set('textColor', e.target.value)}
+                      style={{ width: 40, height: 36, borderRadius: 8, border: '1px solid var(--border)', padding: 0, background: 'none' }} />
+                    <input className="form-input" value={form.textColor} onChange={(e) => set('textColor', e.target.value)} />
+                  </div>
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Fon qorong'iligi ({Math.round(form.overlayDarkness * 100)}%)</label>
+                  <input type="range" min={0.3} max={0.95} step={0.01} value={form.overlayDarkness}
+                    onChange={(e) => set('overlayDarkness', Number(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--primary)' }} />
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Ramka qalinligi ({form.borderWidth}px)</label>
+                  <input type="range" min={0} max={20} step={1} value={form.borderWidth}
+                    onChange={(e) => set('borderWidth', Number(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--primary)' }} />
+                </div>
+                {form.borderWidth > 0 && (
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Ramka rangi</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input type="color" value={form.borderColor || template.primaryColor || '#FF6A2B'}
+                        onChange={(e) => set('borderColor', e.target.value)}
+                        style={{ width: 40, height: 36, borderRadius: 8, border: '1px solid var(--border)', padding: 0, background: 'none' }} />
+                      <input className="form-input" value={form.borderColor} placeholder="brend rangi (standart)"
+                        onChange={(e) => set('borderColor', e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </details>
+
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
               <button className="btn btn-lg btn-secondary" disabled={bannering} onClick={doBanner}>
                 {bannering ? 'Banner yaratilmoqda...' : '🖼️ Banner yaratish'}
@@ -860,14 +1073,29 @@ export default function AiMarketingPage() {
                 </div>
 
                 {activeTab === 'telegram' && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                    <input className="form-input" placeholder="@kanalim yoki chat ID"
-                      value={tgChatId} onChange={e => setTgChatId(e.target.value)} />
-                    <button className="btn btn-md btn-primary" style={{ flexShrink: 0 }}
-                      disabled={sendingTg} onClick={doSendTelegram}>
-                      {sendingTg ? '...' : '📤 Kanalga yuborish'}
-                    </button>
-                  </div>
+                  <>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, marginTop: 12, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={useTelegramTemplate}
+                        onChange={(e) => {
+                          setUseTelegramTemplate(e.target.checked);
+                          if (e.target.checked) previewTelegramTemplate();
+                        }}
+                        style={{ accentColor: 'var(--primary)' }} />
+                      Claude matni o'rniga qat'iy shablon (andoza) ishlatish
+                    </label>
+                    {useTelegramTemplate && (
+                      <textarea readOnly value={loadingTgPreview ? 'Yuklanmoqda...' : telegramTemplatePreview}
+                        className="form-input" style={{ minHeight: 120, marginTop: 6, fontFamily: 'monospace', fontSize: 12 }} />
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <input className="form-input" placeholder="@kanalim yoki chat ID"
+                        value={tgChatId} onChange={e => setTgChatId(e.target.value)} />
+                      <button className="btn btn-md btn-primary" style={{ flexShrink: 0 }}
+                        disabled={sendingTg} onClick={doSendTelegram}>
+                        {sendingTg ? '...' : '📤 Kanalga yuborish'}
+                      </button>
+                    </div>
+                  </>
                 )}
 
                 {activeTab === 'instagram' && (

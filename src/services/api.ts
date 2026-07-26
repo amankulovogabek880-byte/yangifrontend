@@ -391,6 +391,8 @@ export const aiMarketingApi = {
   // Instagram — hozircha qo'lda joylash uchun tayyorlaydi (avtomatik emas)
   instagramPrepare: (data: { caption: string; bannerUrl: string }) =>
     api.post('/ai-marketing/instagram/prepare', data),
+  // Telegram xabar andozasi (fixed-format shablon) — tur ma'lumotlari bilan to'ldirib ko'rsatadi
+  renderTelegramTemplate: (data: any) => api.post('/ai-marketing/telegram/render-template', data),
   // Facebook sahifasiga (Page) avtomatik joylash
   sendFacebook: (data: { photoUrl: string; caption: string }) =>
     api.post('/ai-marketing/send/facebook', data),
