@@ -130,7 +130,7 @@ export default function LoginPage() {
         {/* Top bar */}
         <div style={{ position: 'absolute', top: 18, right: 18, display: 'flex', gap: 8 }}>
           <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 8, padding: 2, border: '1px solid var(--border)' }}>
-            {(['uz','ru'] as const).map(l => (
+            {(['uz','ru','en'] as const).map(l => (
               <button key={l} onClick={() => setLang(l)} style={{
                 background: lang === l ? 'var(--bg-4)' : 'transparent',
                 border: 'none', borderRadius: 6, padding: '4px 10px',

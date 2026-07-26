@@ -99,6 +99,7 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <Btn variant={lang === 'uz' ? 'primary' : 'secondary'} onClick={() => setLang('uz')}>O'zbek</Btn>
                 <Btn variant={lang === 'ru' ? 'primary' : 'secondary'} onClick={() => setLang('ru')}>Русский</Btn>
+                <Btn variant={lang === 'en' ? 'primary' : 'secondary'} onClick={() => setLang('en')}>English</Btn>
               </div>
             </div>
           </Card>

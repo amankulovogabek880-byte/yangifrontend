@@ -468,7 +468,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* Lang switcher */}
             <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 8, padding: 2, border: '1px solid var(--border)' }}>
-              {(['uz','ru'] as const).map(l => (
+              {(['uz','ru','en'] as const).map(l => (
                 <button key={l} onClick={() => setLang(l)} style={{
                   background: lang === l ? 'var(--bg-2)' : 'transparent',
                   border: 'none', borderRadius: 6, padding: '4px 9px',
