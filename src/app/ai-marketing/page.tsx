@@ -49,6 +49,8 @@ const emptyForm = {
   imageUrl: '',
   agencyName: '',
   agencyContact: '',
+  adLanguage: 'uz' as 'uz' | 'ru', // reklama MATNI tili — ilova tilidan mustaqil
+  extraTexts: [] as string[], // bannerga qo'shimcha urg'u matnlari (masalan "Bepul transfer!")
 };
 
 function copyToClipboard(text: string, label: string) {
@@ -121,12 +123,16 @@ function fmtPrice(price: any, currency: string) {
 // ── Jonli banner preview — backenddagi buildBannerSvg bilan bir xil tarkib ──
 function LivePreview({ form, template, generatedUrl }: { form: any; template: any; generatedUrl?: string }) {
   const accent = /^#[0-9a-fA-F]{3,8}$/.test(template?.primaryColor) ? template.primaryColor : '#FF6A2B';
+  const isRu = form.adLanguage === 'ru';
+  const L = isRu
+    ? { nights: 'ночей', adults: 'взрослых', child: 'ребёнок', offer: 'ТУР ПРЕДЛОЖЕНИЕ' }
+    : { nights: 'kecha', adults: 'kattalar', child: 'bola', offer: 'TUR TAKLIFI' };
   const stars = form.hotelStars ? '★'.repeat(Math.max(0, Math.min(5, Number(form.hotelStars)))) : '';
   const infoParts = [
-    form.nights ? `${form.nights} kecha` : null,
+    form.nights ? `${form.nights} ${L.nights}` : null,
     form.mealPlan || null,
     (form.adults || form.children)
-      ? `${form.adults || 1} kattalar${form.children ? ` + ${form.children} bola` : ''}`
+      ? `${form.adults || 1} ${L.adults}${form.children ? ` + ${form.children} ${L.child}` : ''}`
       : null,
   ].filter(Boolean);
   const dateLine = form.departureDate
@@ -162,13 +168,21 @@ function LivePreview({ form, template, generatedUrl }: { form: any; template: an
       }} />
 
       <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: '5%', color: '#fff' }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'clamp(8.5px,1.7vw,10.5px)',
-          fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent,
-          background: 'rgba(255,255,255,0.12)', border: `1px solid ${accent}55`, backdropFilter: 'blur(6px)',
-          padding: '3px 9px', borderRadius: 999, marginBottom: 9,
-        }}>
-          ✨ Tur taklifi
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'clamp(8.5px,1.7vw,10.5px)',
+            fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent,
+            background: 'rgba(255,255,255,0.12)', border: `1px solid ${accent}55`, backdropFilter: 'blur(6px)',
+            padding: '3px 9px', borderRadius: 999,
+          }}>
+            ✨ {L.offer}
+          </div>
+          {(form.extraTexts || []).filter(Boolean).slice(0, 4).map((txt: string, i: number) => (
+            <div key={i} style={{
+              fontSize: 'clamp(8.5px,1.7vw,10.5px)', fontWeight: 700, color: '#fff',
+              background: accent, padding: '3px 10px', borderRadius: 999,
+            }}>{txt}</div>
+          ))}
         </div>
 
         {stars && (
@@ -240,6 +254,12 @@ export default function AiMarketingPage() {
   const [searchingImages, setSearchingImages] = useState(false);
   const [imageResults, setImageResults] = useState<string[]>([]);
 
+  const [sendingFb, setSendingFb] = useState(false);
+  const [savingHistory, setSavingHistory] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   // ── Shablonni yuklash ──
   useEffect(() => {
     aiMarketingApi.getTemplate()
@@ -273,6 +293,8 @@ export default function AiMarketingPage() {
     imageUrl: form.imageUrl.trim() || undefined,
     agencyName: form.agencyName.trim() || undefined,
     agencyContact: form.agencyContact.trim() || undefined,
+    adLanguage: form.adLanguage || 'uz',
+    extraTexts: (form.extraTexts || []).map((t: string) => t.trim()).filter(Boolean),
   });
 
   const validate = () => {
@@ -394,6 +416,91 @@ export default function AiMarketingPage() {
     setSharing(false);
   };
 
+  // ── Facebook sahifasiga (Page) avtomatik joylash ──
+  const doSendFacebook = async () => {
+    if (!bannerUrl) { toast.error('Avval banner yarating'); return; }
+    if (!result?.posts?.facebook) { toast.error('Avval post matnini yarating'); return; }
+
+    setSendingFb(true);
+    try {
+      await aiMarketingApi.sendFacebook({ photoUrl: bannerUrl, caption: result.posts.facebook });
+      toast.success('Facebook sahifasiga yuborildi!');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Yuborib bo'lmadi");
+    } finally {
+      setSendingFb(false);
+    }
+  };
+
+  // ── Tarix: saqlash / ro'yxatni yuklash / bittasini ochish / o'chirish ──
+  const doSaveHistory = async () => {
+    if (!bannerUrl && !result?.posts) { toast.error("Avval banner yoki post yarating"); return; }
+    setSavingHistory(true);
+    try {
+      await aiMarketingApi.saveHistory({
+        input: buildPayload(),
+        bannerUrl: bannerUrl || undefined,
+        posts: result?.posts || undefined,
+      });
+      toast.success('Tarixga saqlandi');
+      if (historyOpen) refreshHistory();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Saqlab bo'lmadi");
+    } finally {
+      setSavingHistory(false);
+    }
+  };
+
+  const refreshHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await aiMarketingApi.listHistory();
+      setHistoryItems(res.data || []);
+    } catch {
+      toast.error("Tarixni yuklab bo'lmadi");
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const toggleHistory = () => {
+    const next = !historyOpen;
+    setHistoryOpen(next);
+    if (next) refreshHistory();
+  };
+
+  const doLoadHistoryItem = (item: any) => {
+    setForm((f: any) => ({ ...f, ...item.input }));
+    setBannerUrl(item.bannerUrl || '');
+    setResult(item.posts ? { posts: item.posts } : null);
+    setHistoryOpen(false);
+    toast.success("Yuklandi — pastda tahrirlab qayta yuborishingiz mumkin");
+  };
+
+  const doDeleteHistoryItem = async (id: string) => {
+    try {
+      await aiMarketingApi.deleteHistoryItem(id);
+      setHistoryItems((items) => items.filter((h) => h.id !== id));
+    } catch {
+      toast.error("O'chirib bo'lmadi");
+    }
+  };
+
+  const addExtraText = () => {
+    if ((form.extraTexts || []).length >= 4) { toast.error("Ko'pi bilan 4 ta qo'shimcha matn"); return; }
+    setForm((f: any) => ({ ...f, extraTexts: [...(f.extraTexts || []), ''] }));
+  };
+  const updateExtraText = (i: number, v: string) => {
+    setForm((f: any) => {
+      const arr = [...(f.extraTexts || [])];
+      arr[i] = v;
+      return { ...f, extraTexts: arr };
+    });
+  };
+  const removeExtraText = (i: number) => {
+    setForm((f: any) => ({ ...f, extraTexts: (f.extraTexts || []).filter((_: string, idx: number) => idx !== i) }));
+  };
+
   const platformMeta: Record<string, { label: string; icon: string }> = {
     telegram: { label: 'Telegram', icon: '✈️' },
     instagram: { label: 'Instagram', icon: '📸' },
@@ -417,10 +524,59 @@ export default function AiMarketingPage() {
               tizim o'zi topadi, matnni Claude yozadi, banner esa aniq narx bilan avtomatik chiziladi.
             </div>
           </div>
-          <button className="btn btn-md btn-ghost" onClick={() => setTemplateOpen(o => !o)}>
-            {templateOpen ? 'Shablonni yopish' : '⚙️ Shablon sozlamalari'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-md btn-ghost" onClick={toggleHistory}>
+              {historyOpen ? 'Tarixni yopish' : '🗂️ Tarix'}
+            </button>
+            <button className="btn btn-md btn-ghost" onClick={() => setTemplateOpen(o => !o)}>
+              {templateOpen ? 'Shablonni yopish' : '⚙️ Shablon sozlamalari'}
+            </button>
+          </div>
         </div>
+
+        {/* ── Tarix (avval saqlangan reklamalar) ── */}
+        {historyOpen && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
+              Saqlangan reklamalar
+              <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--fg-2)', marginLeft: 8 }}>
+                — bosing va formaga qayta yuklanadi
+              </span>
+            </div>
+            {loadingHistory ? (
+              <div style={{ padding: 16, textAlign: 'center', color: 'var(--fg-3)', fontSize: 12.5 }}>Yuklanmoqda...</div>
+            ) : historyItems.length === 0 ? (
+              <div style={{ padding: 16, textAlign: 'center', color: 'var(--fg-3)', fontSize: 12.5 }}>
+                Hali hech narsa saqlanmagan — banner/post tayyor bo'lgach "💾 Tarixga saqlash" tugmasini bosing.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+                {historyItems.map((item) => (
+                  <div key={item.id} style={{
+                    border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden',
+                    background: 'var(--bg-3)', cursor: 'pointer',
+                  }} onClick={() => doLoadHistoryItem(item)}>
+                    {item.bannerUrl ? (
+                      <img src={item.bannerUrl} alt="" style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <div style={{ width: '100%', aspectRatio: '1/1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📝</div>
+                    )}
+                    <div style={{ padding: '8px 10px' }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700 }}>{item.input?.destination || '—'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{fmtPrice(item.input?.price, item.input?.currency)}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); doDeleteHistoryItem(item.id); }}
+                          className="btn btn-sm btn-ghost" style={{ padding: '2px 6px' }}
+                        >🗑️</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Shablon sozlamalari ── */}
         {templateOpen && (
@@ -602,6 +758,46 @@ export default function AiMarketingPage() {
               ))}
             </div>
 
+            <div style={{ marginTop: 16 }}>
+              <label className="form-label">Reklama matni tili</label>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
+                (bu — ilova tili emas, mijozga chiqadigan banner/post matni qaysi tilda yozilishi)
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => set('adLanguage', 'uz')}
+                  className={`btn btn-sm ${form.adLanguage === 'uz' ? 'btn-primary' : 'btn-secondary'}`}>
+                  O'zbek
+                </button>
+                <button type="button" onClick={() => set('adLanguage', 'ru')}
+                  className={`btn btn-sm ${form.adLanguage === 'ru' ? 'btn-primary' : 'btn-secondary'}`}>
+                  Русский
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="form-label" style={{ margin: 0 }}>Qo'shimcha urg'u matnlari</label>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={addExtraText}>+ Qo'shish</button>
+              </div>
+              {(form.extraTexts || []).length === 0 ? (
+                <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
+                  Masalan: "Bepul transfer!", "Cheklangan joylar" — bannerda kichik chip sifatida chiqadi
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(form.extraTexts || []).map((txt: string, i: number) => (
+                    <div key={i} style={{ display: 'flex', gap: 8 }}>
+                      <input className="form-input" value={txt} placeholder="Bepul transfer!"
+                        maxLength={24}
+                        onChange={(e) => updateExtraText(i, e.target.value)} />
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeExtraText(i)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
               <button className="btn btn-lg btn-secondary" disabled={bannering} onClick={doBanner}>
                 {bannering ? 'Banner yaratilmoqda...' : '🖼️ Banner yaratish'}
@@ -626,6 +822,10 @@ export default function AiMarketingPage() {
               <button className="btn btn-md btn-ghost" disabled={!bannerUrl}
                 onClick={() => copyToClipboard(bannerUrl, 'Banner havolasi')}>
                 🔗
+              </button>
+              <button className="btn btn-md btn-ghost" disabled={(!bannerUrl && !result?.posts) || savingHistory}
+                onClick={doSaveHistory} title="Tarixga saqlash">
+                {savingHistory ? '...' : '💾'}
               </button>
             </div>
 
@@ -680,6 +880,25 @@ export default function AiMarketingPage() {
                     ruxsati kerak, hali tasdiqlanmagan). Yuqoridagi <b>📤 Ulashish</b> tugmasi telefoningizda
                     Instagram'ni to'g'ridan-to'g'ri ochib beradi — rasm va matnni tanlab, bir necha soniyada joylaysiz.
                   </div>
+                )}
+
+                {activeTab === 'facebook' && (
+                  <>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button className="btn btn-md btn-primary" style={{ flex: 1 }}
+                        disabled={sendingFb} onClick={doSendFacebook}>
+                        {sendingFb ? '...' : '📘 Sahifaga yuborish'}
+                      </button>
+                    </div>
+                    <div style={{
+                      marginTop: 8, padding: '10px 12px', borderRadius: 8, fontSize: 11.5, lineHeight: 1.6,
+                      background: 'var(--bg-3)', color: 'var(--fg-2)',
+                    }}>
+                      ℹ️ Bu tugma Sozlamalar → Facebook Ads'da ulangan sahifangizga to'g'ridan-to'g'ri joylaydi.
+                      Agar xato chiqsa (masalan ruxsat yetarli emas), sahifani Sozlamalar → Facebook Ads'da
+                      qaytadan ulang — yangi ulanish kerakli ruxsatni so'raydi.
+                    </div>
+                  </>
                 )}
               </div>
             )}

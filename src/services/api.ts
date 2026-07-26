@@ -391,6 +391,15 @@ export const aiMarketingApi = {
   // Instagram — hozircha qo'lda joylash uchun tayyorlaydi (avtomatik emas)
   instagramPrepare: (data: { caption: string; bannerUrl: string }) =>
     api.post('/ai-marketing/instagram/prepare', data),
+  // Facebook sahifasiga (Page) avtomatik joylash
+  sendFacebook: (data: { photoUrl: string; caption: string }) =>
+    api.post('/ai-marketing/send/facebook', data),
+  // Tarix — saqlash / ro'yxat / bitta yozuv / o'chirish
+  saveHistory: (data: { input: any; bannerUrl?: string; images?: string[]; posts?: any }) =>
+    api.post('/ai-marketing/history', data),
+  listHistory: () => api.get('/ai-marketing/history'),
+  getHistoryItem: (id: string) => api.get(`/ai-marketing/history/${id}`),
+  deleteHistoryItem: (id: string) => api.delete(`/ai-marketing/history/${id}`),
 };
 
 // ── UPLOADS v6 ───────────────────────────────────────────────
@@ -405,10 +414,6 @@ export const uploadsApi = {
     files.forEach((f) => form.append('files', f));
     return api.post('/uploads/batch', form, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
-  // XAVFSIZLIK: fayl havolalari endi muddatli (signed URL, ~1 soat).
-  // Eski havola ishlamay qolsa (masalan kesh'da uzoq turgan sahifa),
-  // shu orqali yangisini so'rang.
-  getFreshUrl: (documentId: string) => api.get(`/uploads/${documentId}/url`),
 };
 
 // ── TELEGRAM v6 — media, template, invoice ───────────────────
