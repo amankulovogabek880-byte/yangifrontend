@@ -39,6 +39,7 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'nav.marketplace': { uz: 'Turlar bozori', ru: 'Биржа туров' },
   'nav.tourSearch': { uz: 'Tur qidirish', ru: 'Поиск туров' },
   'nav.mpOperators': { uz: 'Tur operatorlar', ru: 'Туроператоры' },
+  'nav.aiMarketing': { uz: 'Shablon yasash', ru: 'Создать шаблон' },
 
   // Marketplace — turlar
   'mp.title': { uz: 'Turlar bozori', ru: 'Биржа туров' },

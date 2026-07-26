@@ -161,27 +161,53 @@ function LivePreview({ form, template, generatedUrl }: { form: any; template: an
         background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0.86) 100%)',
       }} />
 
-      <div style={{ position: 'absolute', left: '5.5%', right: '5.5%', bottom: '4%', color: '#fff' }}>
-        {stars && <div style={{ color: '#FFD54A', fontWeight: 800, fontSize: 'clamp(14px,3.2vw,20px)', marginBottom: 4 }}>{stars}</div>}
-        <div style={{ fontWeight: 800, fontSize: 'clamp(18px,4.6vw,28px)', lineHeight: 1.15, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>
+      <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: '5%', color: '#fff' }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'clamp(8.5px,1.7vw,10.5px)',
+          fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent,
+          background: 'rgba(255,255,255,0.12)', border: `1px solid ${accent}55`, backdropFilter: 'blur(6px)',
+          padding: '3px 9px', borderRadius: 999, marginBottom: 9,
+        }}>
+          ✨ Tur taklifi
+        </div>
+
+        {stars && (
+          <div style={{ color: '#FFD54A', fontWeight: 700, fontSize: 'clamp(11px,2.4vw,14px)', letterSpacing: 2, marginBottom: 5 }}>{stars}</div>
+        )}
+        <div style={{ fontWeight: 800, fontSize: 'clamp(19px,4.6vw,29px)', lineHeight: 1.14, letterSpacing: '-0.01em', textShadow: '0 2px 12px rgba(0,0,0,0.45)' }}>
           {form.destination || "Yo'nalishni kiriting"}
         </div>
         {form.hotelName && (
-          <div style={{ fontWeight: 600, fontSize: 'clamp(12px,2.6vw,16px)', marginTop: 3, color: '#f1f1f1' }}>{form.hotelName}</div>
+          <div style={{ fontWeight: 600, fontSize: 'clamp(12px,2.6vw,15.5px)', marginTop: 4, color: '#f1f1f1' }}>{form.hotelName}</div>
         )}
         {infoParts.length > 0 && (
-          <div style={{ fontSize: 'clamp(10px,2.1vw,13px)', marginTop: 5, color: '#e0e0e0' }}>{infoParts.join('  •  ')}</div>
+          <div style={{ fontSize: 'clamp(10px,2.1vw,12.5px)', marginTop: 6, color: '#dfe3ea', fontWeight: 500 }}>{infoParts.join('   ·   ')}</div>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-          {priceText && (
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 13 }}>
+          {priceText ? (
             <span style={{
-              background: accent, color: '#fff', fontWeight: 800, padding: '7px 14px', borderRadius: 10,
-              fontSize: 'clamp(12px,2.6vw,17px)', whiteSpace: 'nowrap',
+              background: accent, color: '#fff', fontWeight: 800, padding: '9px 16px', borderRadius: 12,
+              fontSize: 'clamp(13px,2.9vw,19px)', letterSpacing: '-0.01em', whiteSpace: 'nowrap',
+              boxShadow: `0 8px 20px -6px ${accent}99`, flexShrink: 0,
             }}>{priceText}</span>
+          ) : <span />}
+          {dateLine && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+              fontSize: 'clamp(9.5px,2vw,11.5px)', fontWeight: 600, color: '#fff',
+              background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255,255,255,0.18)', padding: '7px 11px', borderRadius: 999,
+            }}>📅 {dateLine}</span>
           )}
-          {dateLine && <span style={{ fontSize: 'clamp(9px,2vw,12px)', color: '#fff', opacity: 0.9 }}>{dateLine}</span>}
         </div>
-        {footer && <div style={{ fontSize: 'clamp(8.5px,1.8vw,11px)', color: '#cfcfcf', marginTop: 8 }}>{footer}</div>}
+
+        {footer && (
+          <>
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.16)', margin: '11px 0 8px' }} />
+            <div style={{ fontSize: 'clamp(8.5px,1.8vw,11px)', color: '#c8ccd6', fontWeight: 500 }}>{footer}</div>
+          </>
+        )}
       </div>
 
       {generatedUrl && (
@@ -261,7 +287,7 @@ export default function AiMarketingPage() {
     setSearchingImages(true);
     setImageResults([]);
     try {
-      const res = await aiMarketingApi.images(`${form.destination} hotel resort travel`, 6);
+      const res = await aiMarketingApi.images(`${form.destination} hotel resort travel`, 20);
       const imgs: string[] = res.data || [];
       setImageResults(imgs);
       if (!imgs.length) toast("Rasm topilmadi — URL'ni qo'lda kiriting", { icon: 'ℹ️' });
@@ -518,15 +544,39 @@ export default function AiMarketingPage() {
                 </button>
               </div>
               {imageResults.length > 0 && (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-                  {imageResults.map((img, i) => (
-                    <img key={i} src={img} alt="" onClick={() => { set('imageUrl', img); toast.success('Rasm tanlandi'); }}
-                      style={{
-                        width: 64, height: 64, objectFit: 'cover', borderRadius: 8, cursor: 'pointer',
-                        border: form.imageUrl === img ? '2px solid var(--primary)' : '1px solid var(--border)',
-                        opacity: form.imageUrl === img ? 1 : 0.85,
-                      }} />
-                  ))}
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                    {imageResults.length} ta variant — birini tanlang
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 8 }}>
+                    {imageResults.map((img, i) => {
+                      const selected = form.imageUrl === img;
+                      return (
+                        <button key={i} type="button"
+                          onClick={() => { set('imageUrl', img); toast.success('Rasm tanlandi'); }}
+                          style={{
+                            position: 'relative', padding: 0, aspectRatio: '1 / 1', borderRadius: 10, cursor: 'pointer',
+                            overflow: 'hidden', background: 'none',
+                            border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                            boxShadow: selected ? '0 0 0 3px var(--primary-soft)' : 'none',
+                            transition: 'all .14s',
+                          }}>
+                          <img src={img} alt="" style={{
+                            width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+                            opacity: selected ? 1 : 0.82, transition: 'opacity .14s',
+                          }} />
+                          {selected && (
+                            <span style={{
+                              position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: '50%',
+                              background: 'var(--primary)', color: '#fff', fontSize: 11, fontWeight: 800,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                            }}>✓</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
