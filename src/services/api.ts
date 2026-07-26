@@ -385,6 +385,13 @@ export const aiMarketingApi = {
   // Shablon (agentlik nomi, kontakt, brend rangi)
   getTemplate: () => api.get('/ai-marketing/template'),
   saveTemplate: (data: any) => api.patch('/ai-marketing/template', data),
+  // Brend logotipi — yuklansa har bir bannerga avtomatik qo'yiladi
+  uploadLogo: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post('/ai-marketing/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  removeLogo: () => api.delete('/ai-marketing/logo'),
   // Telegram kanaliga yuborish
   sendTelegram: (data: { chatId: string; photoUrl: string; caption: string; telegramAccountId?: string }) =>
     api.post('/ai-marketing/send/telegram', data),

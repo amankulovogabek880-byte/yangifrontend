@@ -141,7 +141,7 @@ const NAV = [
   { href: '/tour-search',          labelKey: 'nav.tourSearch',    label: 'Tur qidirish',  Icon: Icons.TourSearch,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   // v19: AI Marketing — TurMaker-uslubidagi reklama generatori.
   // Tur ma'lumotlaridan avtomatik banner + Instagram/Telegram/Facebook posti yasaydi.
-  { href: '/ai-marketing',         labelKey: 'nav.aiMarketing',   label: 'AI Reklama',    Icon: Icons.AiMarketing, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  { href: '/ai-marketing',         labelKey: 'nav.aiMarketing',   label: 'Tur yaratish', Icon: Icons.AiMarketing, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   // v18: "Yo'qotilgan leadlar" alohida menyu bandi emas — endi Mijozlar
   // sahifasidagi "Yo'qotilgan mijozlar" tugmasi orqali modal sifatida ochiladi.
   // Qo'ng'iroqlar asosiy menyudan olib tashlandi — Dashboard ichida alohida bo'lim bor.

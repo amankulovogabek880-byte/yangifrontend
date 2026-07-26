@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { aiMarketingApi, usersApi } from '@/services/api';
 import toast from 'react-hot-toast';
@@ -60,6 +60,15 @@ const emptyForm = {
   overlayDarkness: 0.82,
   borderColor: '',
   borderWidth: 0,
+
+  // Erkin joylashtirish — har bir blokning standart joyidan foiz (%)
+  // siljishi. 0/0 = standart joy (hech narsa sudralmagan).
+  layout: {
+    header: { dx: 0, dy: 0 },
+    price: { dx: 0, dy: 0 },
+    footer: { dx: 0, dy: 0 },
+    logo: { dx: 0, dy: 0 },
+  } as Record<'header' | 'price' | 'footer' | 'logo', { dx: number; dy: number }>,
 };
 
 function copyToClipboard(text: string, label: string) {
@@ -130,7 +139,16 @@ function fmtPrice(price: any, currency: string) {
 }
 
 // ── Jonli banner preview — backenddagi buildBannerSvg bilan bir xil tarkib ──
-function LivePreview({ form, template, generatedUrl }: { form: any; template: any; generatedUrl?: string }) {
+type LayoutKey = 'header' | 'price' | 'footer' | 'logo';
+type LayoutOffset = { dx: number; dy: number };
+
+function LivePreview({
+  form, template, generatedUrl, editMode, onLayoutChange,
+}: {
+  form: any; template: any; generatedUrl?: string;
+  editMode?: boolean;
+  onLayoutChange?: (key: LayoutKey, dx: number, dy: number) => void;
+}) {
   const accent = /^#[0-9a-fA-F]{3,8}$/.test(template?.primaryColor) ? template.primaryColor : '#FF6A2B';
   const isRu = form.adLanguage === 'ru';
   const L = isRu
@@ -156,13 +174,68 @@ function LivePreview({ form, template, generatedUrl }: { form: any; template: an
   const darkness = Math.max(0.3, Math.min(0.95, Number(form.overlayDarkness) || 0.82));
   const validHotels = (form.hotels || []).filter((h: any) => h.name?.trim() && Number(h.price) > 0);
   const useHotelList = form.showHotelList && validHotels.length > 1;
+  const logoUrl = template?.logoUrl as string | undefined;
+
+  // ── Erkin joylashtirish: konteyner o'lchamini kuzatib turamiz (px),
+  // shunda foiz (%) siljishlarni to'g'ri pikselga aylantira olamiz ──
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [boxPx, setBoxPx] = useState(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width;
+      if (w) setBoxPx(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const layout: Record<LayoutKey, LayoutOffset> = form.layout || {};
+  const offOf = (key: LayoutKey): LayoutOffset => layout[key] || { dx: 0, dy: 0 };
+  const pxOf = (pct: number) => (Number(pct) || 0) / 100 * boxPx;
+  const translateOf = (key: LayoutKey) => {
+    const o = offOf(key);
+    return `translate(${pxOf(o.dx).toFixed(1)}px, ${pxOf(o.dy).toFixed(1)}px)`;
+  };
+
+  // Sudrash holati — pointermove/up butun konteynerda tinglanadi
+  const dragRef = useRef<{ key: LayoutKey; startX: number; startY: number; origDx: number; origDy: number } | null>(null);
+
+  const beginDrag = (key: LayoutKey) => (e: React.PointerEvent) => {
+    if (!editMode || !onLayoutChange) return;
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    const o = offOf(key);
+    dragRef.current = { key, startX: e.clientX, startY: e.clientY, origDx: o.dx || 0, origDy: o.dy || 0 };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || !boxPx) return;
+    const dxPct = ((e.clientX - d.startX) / boxPx) * 100;
+    const dyPct = ((e.clientY - d.startY) / boxPx) * 100;
+    onLayoutChange?.(d.key, d.origDx + dxPct, d.origDy + dyPct);
+  };
+  const endDrag = () => { dragRef.current = null; };
+
+  const handleStyle = (active: boolean): React.CSSProperties => editMode ? {
+    cursor: 'move', touchAction: 'none',
+    outline: active ? `1.5px dashed ${accent}` : '1px dashed rgba(255,255,255,0.35)',
+    outlineOffset: 4, borderRadius: 8,
+  } : {};
 
   return (
-    <div style={{
-      position: 'relative', width: '100%', aspectRatio: '1 / 1', borderRadius: 16,
-      overflow: 'hidden', border: form.borderWidth > 0 ? `${Math.min(form.borderWidth, 12)}px solid ${form.borderColor || accent}` : '1px solid var(--border)',
-      background: bg ? '#111' : 'var(--gradient)', boxShadow: 'var(--shadow)', fontFamily,
-    }}>
+    <div
+      ref={containerRef}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerLeave={endDrag}
+      style={{
+        position: 'relative', width: '100%', aspectRatio: '1 / 1', borderRadius: 16,
+        overflow: 'hidden', border: form.borderWidth > 0 ? `${Math.min(form.borderWidth, 12)}px solid ${form.borderColor || accent}` : '1px solid var(--border)',
+        background: bg ? '#111' : 'var(--gradient)', boxShadow: 'var(--shadow)', fontFamily,
+      }}>
       {bg ? (
         <img src={bg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
@@ -177,91 +250,128 @@ function LivePreview({ form, template, generatedUrl }: { form: any; template: an
 
       {/* Pastki qorong'ilashuv — matn o'qilishi uchun (qorong'ilik darajasi sozlanadi) */}
       <div style={{
-        position: 'absolute', inset: 0,
+        position: 'absolute', inset: 0, pointerEvents: 'none',
         background: `linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,${(darkness * 0.18).toFixed(2)}) 55%, rgba(0,0,0,${darkness.toFixed(2)}) 100%)`,
       }} />
 
       <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: '5%', color: '#fff' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'clamp(8.5px,1.7vw,10.5px)',
-            fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent,
-            background: 'rgba(255,255,255,0.12)', border: `1px solid ${accent}55`, backdropFilter: 'blur(6px)',
-            padding: '3px 9px', borderRadius: 999,
-          }}>
-            ✨ {L.offer}
-          </div>
-          {(form.extraTexts || []).filter(Boolean).slice(0, 4).map((txt: string, i: number) => (
-            <div key={i} style={{
-              fontSize: 'clamp(8.5px,1.7vw,10.5px)', fontWeight: 700, color: '#fff',
-              background: accent, padding: '3px 10px', borderRadius: 999,
-            }}>{txt}</div>
-          ))}
-        </div>
-
-        {stars && (
-          <div style={{ color: '#FFD54A', fontWeight: 700, fontSize: 'clamp(11px,2.4vw,14px)', letterSpacing: 2, marginBottom: 5 }}>{stars}</div>
-        )}
-        <div style={{ fontWeight: 800, fontSize: 'clamp(19px,4.6vw,29px)', lineHeight: 1.14, letterSpacing: '-0.01em', textShadow: '0 2px 12px rgba(0,0,0,0.45)', color: textColor }}>
-          {form.destination || "Yo'nalishni kiriting"}
-        </div>
-        {form.hotelName && !useHotelList && (
-          <div style={{ fontWeight: 600, fontSize: 'clamp(12px,2.6vw,15.5px)', marginTop: 4, color: textColor, opacity: 0.94 }}>{form.hotelName}</div>
-        )}
-        {infoParts.length > 0 && (
-          <div style={{ fontSize: 'clamp(10px,2.1vw,12.5px)', marginTop: 6, color: textColor, opacity: 0.85, fontWeight: 500 }}>{infoParts.join('   ·   ')}</div>
-        )}
-
-        {useHotelList ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
-            {validHotels.slice(0, 3).map((h: any, i: number) => (
+        {/* ── Sarlavha guruhi: eyebrow + qo'shimcha chip'lar + yulduz + nom + mehmonxona + info — birgalikda sudraladi ── */}
+        <div
+          onPointerDown={beginDrag('header')}
+          style={{ transform: translateOf('header'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'header') }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'clamp(8.5px,1.7vw,10.5px)',
+              fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent,
+              background: 'rgba(255,255,255,0.12)', border: `1px solid ${accent}55`, backdropFilter: 'blur(6px)',
+              padding: '3px 9px', borderRadius: 999,
+            }}>
+              ✨ {L.offer}
+            </div>
+            {(form.extraTexts || []).filter(Boolean).slice(0, 4).map((txt: string, i: number) => (
               <div key={i} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                background: 'rgba(255,255,255,0.10)', borderRadius: 10, padding: '8px 12px',
-              }}>
-                <span style={{ fontSize: 'clamp(11px,2.3vw,14px)', fontWeight: 700, color: textColor }}>
-                  {h.name}{h.stars ? <span style={{ color: '#FFD54A' }}> {'★'.repeat(Math.min(5, Number(h.stars)))}</span> : null}
-                </span>
-                <span style={{
-                  background: accent, color: '#fff', fontWeight: 800, padding: '5px 12px', borderRadius: 999,
-                  fontSize: 'clamp(10px,2.1vw,13px)', whiteSpace: 'nowrap',
-                }}>{fmtPrice(h.price, form.currency)}</span>
-              </div>
+                fontSize: 'clamp(8.5px,1.7vw,10.5px)', fontWeight: 700, color: '#fff',
+                background: accent, padding: '3px 10px', borderRadius: 999,
+              }}>{txt}</div>
             ))}
           </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 13 }}>
-            {priceText ? (
-              <span style={{
-                background: accent, color: '#fff', fontWeight: 800, padding: '9px 16px', borderRadius: 12,
-                fontSize: 'clamp(13px,2.9vw,19px)', letterSpacing: '-0.01em', whiteSpace: 'nowrap',
-                boxShadow: `0 8px 20px -6px ${accent}99`, flexShrink: 0,
-              }}>{priceText}</span>
-            ) : <span />}
-            {dateLine && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-                fontSize: 'clamp(9.5px,2vw,11.5px)', fontWeight: 600, color: '#fff',
-                background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255,255,255,0.18)', padding: '7px 11px', borderRadius: 999,
-              }}>📅 {dateLine}</span>
-            )}
-          </div>
-        )}
 
+          {stars && (
+            <div style={{ color: '#FFD54A', fontWeight: 700, fontSize: 'clamp(11px,2.4vw,14px)', letterSpacing: 2, marginBottom: 5 }}>{stars}</div>
+          )}
+          <div style={{ fontWeight: 800, fontSize: 'clamp(19px,4.6vw,29px)', lineHeight: 1.14, letterSpacing: '-0.01em', textShadow: '0 2px 12px rgba(0,0,0,0.45)', color: textColor }}>
+            {form.destination || "Yo'nalishni kiriting"}
+          </div>
+          {form.hotelName && !useHotelList && (
+            <div style={{ fontWeight: 600, fontSize: 'clamp(12px,2.6vw,15.5px)', marginTop: 4, color: textColor, opacity: 0.94 }}>{form.hotelName}</div>
+          )}
+          {infoParts.length > 0 && (
+            <div style={{ fontSize: 'clamp(10px,2.1vw,12.5px)', marginTop: 6, color: textColor, opacity: 0.85, fontWeight: 500 }}>{infoParts.join('   ·   ')}</div>
+          )}
+        </div>
+
+        {/* ── Narx/sana (yoki mehmonxonalar ro'yxati) guruhi — alohida sudraladi ── */}
+        <div
+          onPointerDown={beginDrag('price')}
+          style={{ marginTop: 13, transform: translateOf('price'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'price') }}
+        >
+          {useHotelList ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {validHotels.slice(0, 3).map((h: any, i: number) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                  background: 'rgba(255,255,255,0.10)', borderRadius: 10, padding: '8px 12px',
+                }}>
+                  <span style={{ fontSize: 'clamp(11px,2.3vw,14px)', fontWeight: 700, color: textColor }}>
+                    {h.name}{h.stars ? <span style={{ color: '#FFD54A' }}> {'★'.repeat(Math.min(5, Number(h.stars)))}</span> : null}
+                  </span>
+                  <span style={{
+                    background: accent, color: '#fff', fontWeight: 800, padding: '5px 12px', borderRadius: 999,
+                    fontSize: 'clamp(10px,2.1vw,13px)', whiteSpace: 'nowrap',
+                  }}>{fmtPrice(h.price, form.currency)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              {priceText ? (
+                <span style={{
+                  background: accent, color: '#fff', fontWeight: 800, padding: '9px 16px', borderRadius: 12,
+                  fontSize: 'clamp(13px,2.9vw,19px)', letterSpacing: '-0.01em', whiteSpace: 'nowrap',
+                  boxShadow: `0 8px 20px -6px ${accent}99`, flexShrink: 0,
+                }}>{priceText}</span>
+              ) : <span />}
+              {dateLine && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+                  fontSize: 'clamp(9.5px,2vw,11.5px)', fontWeight: 600, color: '#fff',
+                  background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.18)', padding: '7px 11px', borderRadius: 999,
+                }}>📅 {dateLine}</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Footer (agentlik/kontakt) guruhi — alohida sudraladi ── */}
         {footer && (
-          <>
+          <div
+            onPointerDown={beginDrag('footer')}
+            style={{ transform: translateOf('footer'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'footer') }}
+          >
             <div style={{ height: 1, background: 'rgba(255,255,255,0.16)', margin: '11px 0 8px' }} />
             <div style={{ fontSize: 'clamp(8.5px,1.8vw,11px)', color: '#c8ccd6', fontWeight: 500 }}>{footer}</div>
-          </>
+          </div>
         )}
       </div>
+
+      {/* ── Brend logotipi — standart: yuqori-o'ng burchak, alohida sudraladi ── */}
+      {logoUrl && (
+        <div
+          onPointerDown={beginDrag('logo')}
+          style={{
+            position: 'absolute', top: '5.6%', right: '5.6%', width: '11%', aspectRatio: '1/1',
+            transform: translateOf('logo'), borderRadius: 10, overflow: 'hidden',
+            background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            ...handleStyle(!!dragRef.current && dragRef.current.key === 'logo'),
+          }}
+        >
+          <img src={logoUrl} alt="Logo" style={{ width: '82%', height: '82%', objectFit: 'contain' }} />
+        </div>
+      )}
 
       {generatedUrl && (
         <span className="badge badge-success" style={{ position: 'absolute', top: 10, right: 10 }}>✓ Tayyor banner</span>
       )}
-      {!generatedUrl && (
+      {!generatedUrl && !editMode && (
         <span className="badge badge-gray" style={{ position: 'absolute', top: 10, right: 10 }}>Jonli preview</span>
+      )}
+      {editMode && (
+        <span className="badge badge-gray" style={{ position: 'absolute', top: 10, left: 10 }}>
+          🖱 Bloklarni sudrab ko'chiring
+        </span>
       )}
     </div>
   );
@@ -272,6 +382,11 @@ export default function AiMarketingPage() {
   const [template, setTemplate] = useState<any>({ agencyName: '', agencyContact: '', primaryColor: '#FF6A2B' });
   const [templateOpen, setTemplateOpen] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // ── Erkin joylashtirish (drag & drop) — banner bloklarini jonli
+  // preview'da sudrab, o'zi xohlagan joyga qo'yish uchun ──
+  const [editMode, setEditMode] = useState(false);
 
   const [generating, setGenerating] = useState(false);
   const [bannering, setBannering] = useState(false);
@@ -368,6 +483,7 @@ export default function AiMarketingPage() {
     overlayDarkness: Number(form.overlayDarkness) || undefined,
     borderColor: form.borderWidth > 0 ? (form.borderColor || undefined) : undefined,
     borderWidth: Number(form.borderWidth) || undefined,
+    layout: form.layout || undefined,
   });
 
   const validate = () => {
@@ -382,7 +498,7 @@ export default function AiMarketingPage() {
     setSearchingImages(true);
     setImageResults([]);
     try {
-      const res = await aiMarketingApi.images(`${form.destination} hotel resort travel`, 20);
+      const res = await aiMarketingApi.images(form.destination.trim(), 20);
       const imgs: string[] = res.data || [];
       setImageResults(imgs);
       if (!imgs.length) toast("Rasm topilmadi — URL'ni qo'lda kiriting", { icon: 'ℹ️' });
@@ -437,6 +553,50 @@ export default function AiMarketingPage() {
     } finally {
       setSavingTemplate(false);
     }
+  };
+
+  // ── Brend logotipi: yuklash / o'chirish ──
+  const doUploadLogo = async (file: File) => {
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+      toast.error('Faqat PNG/JPG/WEBP rasm yuklang'); return;
+    }
+    setUploadingLogo(true);
+    try {
+      const res = await aiMarketingApi.uploadLogo(file);
+      setTemplate(res.data);
+      toast.success('Logotip yuklandi — endi har bir bannerda avtomatik chiqadi');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Logotipni yuklab bo'lmadi");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+  const doRemoveLogo = async () => {
+    setUploadingLogo(true);
+    try {
+      const res = await aiMarketingApi.removeLogo();
+      setTemplate(res.data);
+      toast.success('Logotip olib tashlandi');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "O'chirib bo'lmadi");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  // ── Erkin joylashtirish: bloklarni sudrab ko'chirish ──
+  const updateLayout = (key: 'header' | 'price' | 'footer' | 'logo', dx: number, dy: number) => {
+    setForm((f: any) => ({ ...f, layout: { ...(f.layout || {}), [key]: { dx, dy } } }));
+  };
+  const resetLayout = () => {
+    setForm((f: any) => ({
+      ...f,
+      layout: {
+        header: { dx: 0, dy: 0 }, price: { dx: 0, dy: 0 },
+        footer: { dx: 0, dy: 0 }, logo: { dx: 0, dy: 0 },
+      },
+    }));
+    toast.success('Joylashuv standart holatga qaytarildi');
   };
 
   // ── Telegram kanaliga to'g'ridan-to'g'ri yuborish (bot orqali) ──
@@ -715,6 +875,34 @@ export default function AiMarketingPage() {
                 <label className="form-label">Standart Telegram kanal</label>
                 <input className="form-input" value={tgChatId} placeholder="@kanalim_yoki_id"
                   onChange={e => setTgChatId(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">
+                  Brend logotipi
+                  <span style={{ fontWeight: 400, color: 'var(--fg-3)', marginLeft: 6 }}>
+                    (har bir bannerga avtomatik qo'yiladi)
+                  </span>
+                </label>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  {template.logoUrl && (
+                    <img src={template.logoUrl} alt="Logo" style={{
+                      width: 44, height: 44, borderRadius: 10, objectFit: 'contain',
+                      background: 'var(--bg-3)', border: '1px solid var(--border)', flexShrink: 0,
+                    }} />
+                  )}
+                  <input type="file" accept="image/png,image/jpeg,image/webp" id="ai-mkt-logo-input"
+                    style={{ display: 'none' }}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) doUploadLogo(f); e.target.value = ''; }} />
+                  <button type="button" className="btn btn-sm btn-secondary" disabled={uploadingLogo}
+                    onClick={() => document.getElementById('ai-mkt-logo-input')?.click()}>
+                    {uploadingLogo ? '...' : template.logoUrl ? "Almashtirish" : '⬆️ Yuklash'}
+                  </button>
+                  {template.logoUrl && (
+                    <button type="button" className="btn btn-sm btn-ghost" disabled={uploadingLogo} onClick={doRemoveLogo}>
+                      ✕ O'chirish
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
@@ -1023,7 +1211,30 @@ export default function AiMarketingPage() {
 
           {/* ── O'NG: jonli preview + yuborish ── */}
           <div style={{ position: 'sticky', top: 70, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <LivePreview form={form} template={template} generatedUrl={bannerUrl} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${editMode ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ flex: 1 }}
+                onClick={() => setEditMode((v) => !v)}
+              >
+                {editMode ? '✓ Joylashtirish tugadi' : '🖱 Erkin joylashtirish'}
+              </button>
+              {editMode && (
+                <button type="button" className="btn btn-sm btn-ghost" onClick={resetLayout}>
+                  ↺ Tiklash
+                </button>
+              )}
+            </div>
+            {editMode && (
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: -8 }}>
+                Sarlavha, narx/sana va footer bloklarini (hamda brend logotipini) sudrab, o'zingiz xohlagan joyga qo'ying.
+              </div>
+            )}
+            <LivePreview
+              form={form} template={template} generatedUrl={bannerUrl}
+              editMode={editMode} onLayoutChange={updateLayout}
+            />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="btn btn-md btn-primary" style={{ flex: 1 }} disabled={!bannerUrl || downloading} onClick={doDownload}>
