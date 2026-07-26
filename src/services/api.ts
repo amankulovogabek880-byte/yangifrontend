@@ -405,6 +405,10 @@ export const uploadsApi = {
     files.forEach((f) => form.append('files', f));
     return api.post('/uploads/batch', form, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
+  // XAVFSIZLIK: fayl havolalari endi muddatli (signed URL, ~1 soat).
+  // Eski havola ishlamay qolsa (masalan kesh'da uzoq turgan sahifa),
+  // shu orqali yangisini so'rang.
+  getFreshUrl: (documentId: string) => api.get(`/uploads/${documentId}/url`),
 };
 
 // ── TELEGRAM v6 — media, template, invoice ───────────────────
