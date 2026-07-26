@@ -78,6 +78,34 @@ const emptyForm = {
   } as Record<'badge' | 'chips' | 'stars' | 'title' | 'hotel' | 'info' | 'price' | 'date' | 'footer' | 'logo', { dx: number; dy: number }>,
 };
 
+/**
+ * Eski (4 ta guruh: header/price/footer/logo) formatda saqlangan tarix
+ * yozuvlari bilan orqaga moslik uchun — `header` ostida saqlangan siljish
+ * endi shu guruhga kirgan barcha yangi, mayda elementlarga (badge, chips,
+ * stars, title, hotel, info) qo'llanadi, `price`/`footer`/`logo` esa
+ * o'zgarishsiz ko'chadi. Yangi formatdagi yozuvlar uchun bu funksiya
+ * hech narsani o'zgartirmaydi (faqat noma'lum `header` kaliti bo'lsa ishga tushadi).
+ */
+function normalizeLegacyLayout(layout: any): Record<LayoutKey, LayoutOffset> {
+  const base: Record<LayoutKey, LayoutOffset> = {
+    badge: { dx: 0, dy: 0 }, chips: { dx: 0, dy: 0 }, stars: { dx: 0, dy: 0 },
+    title: { dx: 0, dy: 0 }, hotel: { dx: 0, dy: 0 }, info: { dx: 0, dy: 0 },
+    price: { dx: 0, dy: 0 }, date: { dx: 0, dy: 0 },
+    footer: { dx: 0, dy: 0 }, logo: { dx: 0, dy: 0 },
+  };
+  if (!layout) return base;
+  const merged = { ...base, ...layout };
+  if (layout.header && !layout.badge && !layout.title) {
+    (['badge', 'chips', 'stars', 'title', 'hotel', 'info'] as const).forEach((k) => {
+      merged[k] = layout.header;
+    });
+  }
+  if (layout.price && !layout.date) {
+    merged.date = layout.price;
+  }
+  return merged;
+}
+
 function copyToClipboard(text: string, label: string) {
   navigator.clipboard.writeText(text)
     .then(() => toast.success(`${label} nusxalandi`))
@@ -143,6 +171,30 @@ function fmtPrice(price: any, currency: string) {
   const n = Number(price);
   if (!n) return '';
   return `${Math.round(n).toLocaleString('ru-RU')} ${currency || 'USD'}`;
+}
+
+/**
+ * TurMaker "matn HTML, Markdown va oddiy formatda" imkoniyatiga o'xshab —
+ * AI yozgan bitta matnni uch xil chiqish formatida ko'rsatish/nusxalash
+ * imkonini beradi (backendga qayta so'rov yubormasdan, faqat ko'rinishni
+ * o'zgartiradi — mazmun bir xil qoladi).
+ */
+type TextFormat = 'plain' | 'markdown' | 'html';
+function formatPostText(text: string, format: TextFormat): string {
+  const t = text || '';
+  if (format === 'plain') return t;
+  if (format === 'markdown') {
+    // Emoji-bullet qatorlarni Markdown ro'yxatiga, birinchi qatorni sarlavhaga aylantiramiz
+    const lines = t.split('\n');
+    return lines
+      .map((line, i) => (i === 0 && line.trim() ? `**${line.trim()}**` : line))
+      .join('\n');
+  }
+  // html
+  const esc = (s: string) => s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const paragraphs = t.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`);
+  return paragraphs.join('\n');
 }
 
 // ── Jonli banner preview — backenddagi buildBannerSvg bilan bir xil tarkib ──
@@ -453,6 +505,7 @@ export default function AiMarketingPage() {
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState<'instagram' | 'telegram' | 'facebook'>('telegram');
+  const [textFormat, setTextFormat] = useState<TextFormat>('plain');
 
   const [searchingImages, setSearchingImages] = useState(false);
   const [imageResults, setImageResults] = useState<string[]>([]);
@@ -466,6 +519,7 @@ export default function AiMarketingPage() {
   }, []);
 
   const [sendingFb, setSendingFb] = useState(false);
+  const [sendingAll, setSendingAll] = useState(false);
   const [savingHistory, setSavingHistory] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<any[]>([]);
@@ -744,6 +798,64 @@ export default function AiMarketingPage() {
     }
   };
 
+  // ── TurMaker uslubida: "bir tugma orqali barcha tarmoqlarga yuborish" —
+  // Telegram (kanal ID kiritilgan bo'lsa) va Facebook (sahifa ulangan bo'lsa)
+  // avtomatik yuboriladi, Instagram uchun esa (Meta cheklovi tufayli avtomatik
+  // joylash mumkin emasligi sababli) telefon ulashish oynasi ochiladi.
+  const doSendAll = async () => {
+    if (!bannerUrl) { toast.error('Avval banner yarating'); return; }
+    if (!result?.posts) { toast.error('Avval post matnlarini yarating'); return; }
+
+    setSendingAll(true);
+    const done: string[] = [];
+    const failed: string[] = [];
+
+    if (tgChatId.trim()) {
+      try {
+        let caption = '';
+        if (useTelegramTemplate) {
+          caption = telegramTemplatePreview;
+          if (!caption) {
+            const res = await aiMarketingApi.renderTelegramTemplate(buildPayload());
+            caption = res.data?.text || '';
+          }
+        } else {
+          caption = result.posts.telegram || '';
+        }
+        if (caption) {
+          await aiMarketingApi.sendTelegram({ chatId: tgChatId.trim(), photoUrl: bannerUrl, caption });
+          done.push('Telegram');
+        }
+      } catch {
+        failed.push('Telegram');
+      }
+    }
+
+    if (result.posts.facebook) {
+      try {
+        await aiMarketingApi.sendFacebook({ photoUrl: bannerUrl, caption: result.posts.facebook });
+        done.push('Facebook');
+      } catch {
+        failed.push('Facebook');
+      }
+    }
+
+    if (result.posts.instagram) {
+      const status = await shareBanner(bannerUrl, result.posts.instagram);
+      if (status === 'shared' || status === 'shared-link') done.push('Instagram (ulashish orqali)');
+    }
+
+    setSendingAll(false);
+    if (done.length) toast.success(`Yuborildi: ${done.join(', ')}`);
+    if (failed.length) toast.error(`Yuborilmadi: ${failed.join(', ')} — tegishli tab'da sababini ko'ring`);
+    if (!done.length && !failed.length) {
+      toast(
+        "Hech qayerga yuborilmadi — Telegram uchun kanal ID kiriting yoki Facebook sahifani Sozlamalar'da ulang",
+        { icon: 'ℹ️' },
+      );
+    }
+  };
+
   // ── Tarix: saqlash / ro'yxatni yuklash / bittasini ochish / o'chirish ──
   const doSaveHistory = async () => {
     if (!bannerUrl && !result?.posts) { toast.error("Avval banner yoki post yarating"); return; }
@@ -782,7 +894,7 @@ export default function AiMarketingPage() {
   };
 
   const doLoadHistoryItem = (item: any) => {
-    setForm((f: any) => ({ ...f, ...item.input }));
+    setForm((f: any) => ({ ...f, ...item.input, layout: normalizeLegacyLayout(item.input?.layout) }));
     setBannerUrl(item.bannerUrl || '');
     setResult(item.posts ? { posts: item.posts } : null);
     setHistoryOpen(false);
@@ -1357,6 +1469,16 @@ export default function AiMarketingPage() {
               </button>
             </div>
 
+            <button
+              className="btn btn-md btn-primary"
+              style={{ width: '100%', background: 'linear-gradient(135deg,#FF6A2B,#FF3D71)' }}
+              disabled={!bannerUrl || !result?.posts || sendingAll}
+              onClick={doSendAll}
+              title="Telegram (kanal ID kiritilgan bo'lsa) + Facebook (ulangan bo'lsa) avtomatik, Instagram uchun ulashish oynasi"
+            >
+              {sendingAll ? 'Yuborilmoqda...' : '🚀 Barchasiga yuborish (Telegram + Facebook + Instagram)'}
+            </button>
+
             {!bannerUrl && (
               <div style={{ fontSize: 11.5, color: 'var(--fg-3)', textAlign: 'center', lineHeight: 1.5 }}>
                 Chapdagi maydonlarni to'ldiring — preview shu zahoti yangilanadi. Tayyor bo'lgach "Banner yaratish"ni bosing.
@@ -1374,15 +1496,27 @@ export default function AiMarketingPage() {
                   ))}
                 </div>
 
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  {(['plain', 'markdown', 'html'] as const).map((fmt) => (
+                    <button key={fmt} type="button" onClick={() => setTextFormat(fmt)}
+                      style={{
+                        fontSize: 11, padding: '4px 10px', borderRadius: 999, border: '1px solid var(--border)',
+                        background: textFormat === fmt ? 'var(--primary)' : 'var(--bg-3)',
+                        color: textFormat === fmt ? '#fff' : 'var(--fg-2)', cursor: 'pointer', fontWeight: 600,
+                      }}
+                    >{fmt === 'plain' ? 'Oddiy matn' : fmt === 'markdown' ? 'Markdown' : 'HTML'}</button>
+                  ))}
+                </div>
+
                 <textarea
                   readOnly
-                  value={result.posts[activeTab] || ''}
+                  value={formatPostText(result.posts[activeTab] || '', textFormat)}
                   className="form-input"
-                  style={{ minHeight: 150, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }}
+                  style={{ minHeight: 150, resize: 'vertical', fontFamily: textFormat === 'html' ? 'monospace' : 'inherit', lineHeight: 1.6 }}
                 />
 
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10, flexWrap: 'wrap' }}>
-                  <button className="btn btn-sm btn-ghost" onClick={() => copyToClipboard(result.posts[activeTab] || '', 'Matn')}>
+                  <button className="btn btn-sm btn-ghost" onClick={() => copyToClipboard(formatPostText(result.posts[activeTab] || '', textFormat), 'Matn')}>
                     📋 Nusxalash
                   </button>
                 </div>
