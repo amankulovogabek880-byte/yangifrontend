@@ -380,6 +380,8 @@ export const aiMarketingApi = {
   // Faqat rasm qidirish (natijani almashtirish uchun)
   images: (query: string, count?: number) =>
     api.post('/ai-marketing/images', { query, count }),
+  // Mashhur yo'nalishlar (davlat → joylar) — tanlagich uchun
+  destinations: () => api.get('/ai-marketing/destinations'),
   // 2-bosqich: tayyor 1080×1080 banner (PNG)
   banner: (data: any) => api.post('/ai-marketing/banner', data),
   // Shablon (agentlik nomi, kontakt, brend rangi)

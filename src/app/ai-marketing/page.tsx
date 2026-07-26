@@ -61,14 +61,21 @@ const emptyForm = {
   borderColor: '',
   borderWidth: 0,
 
-  // Erkin joylashtirish — har bir blokning standart joyidan foiz (%)
-  // siljishi. 0/0 = standart joy (hech narsa sudralmagan).
+  // Erkin joylashtirish — har bir ELEMENTNING (bittalab, bir-biridan
+  // mustaqil) standart joyidan foiz (%) siljishi. 0/0 = standart joy
+  // (hech narsa sudralmagan).
   layout: {
-    header: { dx: 0, dy: 0 },
+    badge: { dx: 0, dy: 0 },
+    chips: { dx: 0, dy: 0 },
+    stars: { dx: 0, dy: 0 },
+    title: { dx: 0, dy: 0 },
+    hotel: { dx: 0, dy: 0 },
+    info: { dx: 0, dy: 0 },
     price: { dx: 0, dy: 0 },
+    date: { dx: 0, dy: 0 },
     footer: { dx: 0, dy: 0 },
     logo: { dx: 0, dy: 0 },
-  } as Record<'header' | 'price' | 'footer' | 'logo', { dx: number; dy: number }>,
+  } as Record<'badge' | 'chips' | 'stars' | 'title' | 'hotel' | 'info' | 'price' | 'date' | 'footer' | 'logo', { dx: number; dy: number }>,
 };
 
 function copyToClipboard(text: string, label: string) {
@@ -139,7 +146,9 @@ function fmtPrice(price: any, currency: string) {
 }
 
 // ── Jonli banner preview — backenddagi buildBannerSvg bilan bir xil tarkib ──
-type LayoutKey = 'header' | 'price' | 'footer' | 'logo';
+// HAR BIR element (eyebrow, urg'u chiplari, yulduzlar, sarlavha, mehmonxona
+// nomi, info qatori, narx, sana, footer, logo) BIR-BIRIDAN MUSTAQIL sudraladi.
+type LayoutKey = 'badge' | 'chips' | 'stars' | 'title' | 'hotel' | 'info' | 'price' | 'date' | 'footer' | 'logo';
 type LayoutOffset = { dx: number; dy: number };
 
 function LivePreview({
@@ -255,86 +264,132 @@ function LivePreview({
       }} />
 
       <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: '5%', color: '#fff' }}>
-        {/* ── Sarlavha guruhi: eyebrow + qo'shimcha chip'lar + yulduz + nom + mehmonxona + info — birgalikda sudraladi ── */}
-        <div
-          onPointerDown={beginDrag('header')}
-          style={{ transform: translateOf('header'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'header') }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
-            <div style={{
+        {/* ── Har biri MUSTAQIL sudraladigan alohida elementlar (guruhlanmagan) ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
+          <div
+            onPointerDown={beginDrag('badge')}
+            style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'clamp(8.5px,1.7vw,10.5px)',
               fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent,
               background: 'rgba(255,255,255,0.12)', border: `1px solid ${accent}55`, backdropFilter: 'blur(6px)',
               padding: '3px 9px', borderRadius: 999,
-            }}>
-              ✨ {L.offer}
+              transform: translateOf('badge'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'badge'),
+            }}
+          >
+            ✨ {L.offer}
+          </div>
+          {(form.extraTexts || []).filter(Boolean).length > 0 && (
+            <div
+              onPointerDown={beginDrag('chips')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                transform: translateOf('chips'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'chips'),
+              }}
+            >
+              {(form.extraTexts || []).filter(Boolean).slice(0, 4).map((txt: string, i: number) => (
+                <div key={i} style={{
+                  fontSize: 'clamp(8.5px,1.7vw,10.5px)', fontWeight: 700, color: '#fff',
+                  background: accent, padding: '3px 10px', borderRadius: 999,
+                }}>{txt}</div>
+              ))}
             </div>
-            {(form.extraTexts || []).filter(Boolean).slice(0, 4).map((txt: string, i: number) => (
-              <div key={i} style={{
-                fontSize: 'clamp(8.5px,1.7vw,10.5px)', fontWeight: 700, color: '#fff',
-                background: accent, padding: '3px 10px', borderRadius: 999,
-              }}>{txt}</div>
-            ))}
-          </div>
-
-          {stars && (
-            <div style={{ color: '#FFD54A', fontWeight: 700, fontSize: 'clamp(11px,2.4vw,14px)', letterSpacing: 2, marginBottom: 5 }}>{stars}</div>
-          )}
-          <div style={{ fontWeight: 800, fontSize: 'clamp(19px,4.6vw,29px)', lineHeight: 1.14, letterSpacing: '-0.01em', textShadow: '0 2px 12px rgba(0,0,0,0.45)', color: textColor }}>
-            {form.destination || "Yo'nalishni kiriting"}
-          </div>
-          {form.hotelName && !useHotelList && (
-            <div style={{ fontWeight: 600, fontSize: 'clamp(12px,2.6vw,15.5px)', marginTop: 4, color: textColor, opacity: 0.94 }}>{form.hotelName}</div>
-          )}
-          {infoParts.length > 0 && (
-            <div style={{ fontSize: 'clamp(10px,2.1vw,12.5px)', marginTop: 6, color: textColor, opacity: 0.85, fontWeight: 500 }}>{infoParts.join('   ·   ')}</div>
           )}
         </div>
 
-        {/* ── Narx/sana (yoki mehmonxonalar ro'yxati) guruhi — alohida sudraladi ── */}
+        {stars && (
+          <div
+            onPointerDown={beginDrag('stars')}
+            style={{
+              color: '#FFD54A', fontWeight: 700, fontSize: 'clamp(11px,2.4vw,14px)', letterSpacing: 2, marginBottom: 5,
+              display: 'inline-block', transform: translateOf('stars'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'stars'),
+            }}
+          >{stars}</div>
+        )}
+
         <div
-          onPointerDown={beginDrag('price')}
-          style={{ marginTop: 13, transform: translateOf('price'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'price') }}
+          onPointerDown={beginDrag('title')}
+          style={{
+            fontWeight: 800, fontSize: 'clamp(19px,4.6vw,29px)', lineHeight: 1.14, letterSpacing: '-0.01em',
+            textShadow: '0 2px 12px rgba(0,0,0,0.45)', color: textColor,
+            transform: translateOf('title'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'title'),
+          }}
         >
-          {useHotelList ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {validHotels.slice(0, 3).map((h: any, i: number) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                  background: 'rgba(255,255,255,0.10)', borderRadius: 10, padding: '8px 12px',
-                }}>
-                  <span style={{ fontSize: 'clamp(11px,2.3vw,14px)', fontWeight: 700, color: textColor }}>
-                    {h.name}{h.stars ? <span style={{ color: '#FFD54A' }}> {'★'.repeat(Math.min(5, Number(h.stars)))}</span> : null}
-                  </span>
-                  <span style={{
-                    background: accent, color: '#fff', fontWeight: 800, padding: '5px 12px', borderRadius: 999,
-                    fontSize: 'clamp(10px,2.1vw,13px)', whiteSpace: 'nowrap',
-                  }}>{fmtPrice(h.price, form.currency)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              {priceText ? (
+          {form.destination || "Yo'nalishni kiriting"}
+        </div>
+
+        {form.hotelName && !useHotelList && (
+          <div
+            onPointerDown={beginDrag('hotel')}
+            style={{
+              fontWeight: 600, fontSize: 'clamp(12px,2.6vw,15.5px)', marginTop: 4, color: textColor, opacity: 0.94,
+              display: 'inline-block', transform: translateOf('hotel'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'hotel'),
+            }}
+          >{form.hotelName}</div>
+        )}
+
+        {infoParts.length > 0 && (
+          <div
+            onPointerDown={beginDrag('info')}
+            style={{
+              fontSize: 'clamp(10px,2.1vw,12.5px)', marginTop: 6, color: textColor, opacity: 0.85, fontWeight: 500,
+              display: 'inline-block', transform: translateOf('info'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'info'),
+            }}
+          >{infoParts.join('   ·   ')}</div>
+        )}
+
+        {/* ── Narx / sana / mehmonxonalar ro'yxati — HAR BIRI alohida sudraladi ── */}
+        {useHotelList ? (
+          <div
+            onPointerDown={beginDrag('price')}
+            style={{
+              marginTop: 13, display: 'flex', flexDirection: 'column', gap: 6,
+              transform: translateOf('price'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'price'),
+            }}
+          >
+            {validHotels.slice(0, 3).map((h: any, i: number) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                background: 'rgba(255,255,255,0.10)', borderRadius: 10, padding: '8px 12px',
+              }}>
+                <span style={{ fontSize: 'clamp(11px,2.3vw,14px)', fontWeight: 700, color: textColor }}>
+                  {h.name}{h.stars ? <span style={{ color: '#FFD54A' }}> {'★'.repeat(Math.min(5, Number(h.stars)))}</span> : null}
+                </span>
                 <span style={{
+                  background: accent, color: '#fff', fontWeight: 800, padding: '5px 12px', borderRadius: 999,
+                  fontSize: 'clamp(10px,2.1vw,13px)', whiteSpace: 'nowrap',
+                }}>{fmtPrice(h.price, form.currency)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ marginTop: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            {priceText ? (
+              <span
+                onPointerDown={beginDrag('price')}
+                style={{
                   background: accent, color: '#fff', fontWeight: 800, padding: '9px 16px', borderRadius: 12,
                   fontSize: 'clamp(13px,2.9vw,19px)', letterSpacing: '-0.01em', whiteSpace: 'nowrap',
                   boxShadow: `0 8px 20px -6px ${accent}99`, flexShrink: 0,
-                }}>{priceText}</span>
-              ) : <span />}
-              {dateLine && (
-                <span style={{
+                  transform: translateOf('price'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'price'),
+                }}
+              >{priceText}</span>
+            ) : <span />}
+            {dateLine && (
+              <span
+                onPointerDown={beginDrag('date')}
+                style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
                   fontSize: 'clamp(9.5px,2vw,11.5px)', fontWeight: 600, color: '#fff',
                   background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
                   border: '1px solid rgba(255,255,255,0.18)', padding: '7px 11px', borderRadius: 999,
-                }}>📅 {dateLine}</span>
-              )}
-            </div>
-          )}
-        </div>
+                  transform: translateOf('date'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'date'),
+                }}
+              >📅 {dateLine}</span>
+            )}
+          </div>
+        )}
 
-        {/* ── Footer (agentlik/kontakt) guruhi — alohida sudraladi ── */}
+        {/* ── Footer (agentlik/kontakt) — alohida sudraladi ── */}
         {footer && (
           <div
             onPointerDown={beginDrag('footer')}
@@ -401,6 +456,14 @@ export default function AiMarketingPage() {
 
   const [searchingImages, setSearchingImages] = useState(false);
   const [imageResults, setImageResults] = useState<string[]>([]);
+
+  // ── Mashhur yo'nalishlar (davlat → joylar) — TurMaker uslubidagi
+  // tanlagich, aniq joy nomi tanlansa rasm qidiruvi ancha aniqroq bo'ladi ──
+  const [destinations, setDestinations] = useState<Array<{ country: string; countryUz: string; places: string[] }>>([]);
+  const [destPickerOpen, setDestPickerOpen] = useState(false);
+  useEffect(() => {
+    aiMarketingApi.destinations().then((res: any) => setDestinations(res.data || [])).catch(() => {});
+  }, []);
 
   const [sendingFb, setSendingFb] = useState(false);
   const [savingHistory, setSavingHistory] = useState(false);
@@ -584,15 +647,17 @@ export default function AiMarketingPage() {
     }
   };
 
-  // ── Erkin joylashtirish: bloklarni sudrab ko'chirish ──
-  const updateLayout = (key: 'header' | 'price' | 'footer' | 'logo', dx: number, dy: number) => {
+  // ── Erkin joylashtirish: HAR BIR elementni bir-biridan mustaqil sudrab ko'chirish ──
+  const updateLayout = (key: LayoutKey, dx: number, dy: number) => {
     setForm((f: any) => ({ ...f, layout: { ...(f.layout || {}), [key]: { dx, dy } } }));
   };
   const resetLayout = () => {
     setForm((f: any) => ({
       ...f,
       layout: {
-        header: { dx: 0, dy: 0 }, price: { dx: 0, dy: 0 },
+        badge: { dx: 0, dy: 0 }, chips: { dx: 0, dy: 0 }, stars: { dx: 0, dy: 0 },
+        title: { dx: 0, dy: 0 }, hotel: { dx: 0, dy: 0 }, info: { dx: 0, dy: 0 },
+        price: { dx: 0, dy: 0 }, date: { dx: 0, dy: 0 },
         footer: { dx: 0, dy: 0 }, logo: { dx: 0, dy: 0 },
       },
     }));
@@ -935,9 +1000,48 @@ export default function AiMarketingPage() {
           <div className="card">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
               <div className="form-group" style={{ gridColumn: 'span 2', margin: 0 }}>
-                <label className="form-label">Yo'nalish *</label>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Yo'nalish *</span>
+                  {destinations.length > 0 && (
+                    <button type="button" onClick={() => setDestPickerOpen(v => !v)}
+                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                      🌍 Mashhur yo'nalishlar {destPickerOpen ? '▲' : '▼'}
+                    </button>
+                  )}
+                </label>
                 <input className="form-input" placeholder="Antalya, Turkiya" value={form.destination}
                   onChange={e => set('destination', e.target.value)} />
+                {destPickerOpen && (
+                  <div style={{
+                    marginTop: 8, padding: 12, borderRadius: 12, border: '1px solid var(--border)',
+                    background: 'var(--bg-3)', maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10,
+                  }}>
+                    {destinations.map((group) => (
+                      <div key={group.country}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          {group.countryUz}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {group.places.map((place) => (
+                            <button key={place} type="button"
+                              onClick={() => {
+                                set('destination', `${place}, ${group.countryUz}`);
+                                setDestPickerOpen(false);
+                                toast.success(`${place} tanlandi — endi "🔍 Rasm topish" tugmasini bosing`);
+                              }}
+                              style={{
+                                fontSize: 12, padding: '5px 11px', borderRadius: 999, border: '1px solid var(--border)',
+                                background: form.destination.startsWith(place) ? 'var(--primary)' : 'var(--bg-2)',
+                                color: form.destination.startsWith(place) ? '#fff' : 'var(--fg)',
+                                cursor: 'pointer', fontWeight: 600,
+                              }}
+                            >{place}</button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2', margin: 0 }}>
                 <label className="form-label">Mehmonxona nomi</label>
