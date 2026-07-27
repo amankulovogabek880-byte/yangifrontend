@@ -19,6 +19,8 @@ import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-ico
 const ICON = 15;
 const TABS = [
   { id: 'general',     label: 'Umumiy',            icon: <Settings size={ICON} /> },
+  { id: 'profile',     label: 'Profil',            icon: <User size={ICON} /> },
+  { id: 'security',    label: 'Xavfsizlik',        icon: <Lock size={ICON} /> },
   { id: 'phone',       label: 'Telefon',           icon: <PhoneCall size={ICON} /> },
   { id: 'operators',   label: 'Tur operatorlar',   icon: <Building2 size={ICON} />, adminOnly: true },
   { id: 'whatsapp',    label: 'WhatsApp',          icon: <FaWhatsapp size={ICON} /> },
@@ -28,13 +30,23 @@ const TABS = [
   { id: 'templates',   label: 'Shablonlar',        icon: <FileText size={ICON} />, adminOnly: true },
   { id: 'api',         label: 'API Keys',          icon: <Key size={ICON} />, adminOnly: true },
   { id: 'webhooklogs', label: 'Webhook Logs',      icon: <List size={ICON} />, adminOnly: true },
-  { id: 'profile',     label: 'Profil',            icon: <User size={ICON} /> },
   { id: 'team',        label: 'Jamoa',             icon: <Users size={ICON} />, adminOnly: true },
   { id: 'leads',       label: 'Lead taqsimlash',   icon: <Target size={ICON} />, adminOnly: true },
   { id: 'autoreply',   label: 'Auto-Reply',        icon: <Bot size={ICON} />, adminOnly: true },
   { id: 'forms',       label: 'Web Forms',         icon: <ClipboardList size={ICON} />, adminOnly: true },
-  { id: 'kpi',         label: 'Commission Tiers',  icon: <DollarSign size={ICON} />, adminOnly: true },
-  { id: 'security',    label: 'Xavfsizlik',        icon: <Lock size={ICON} /> },
+  { id: 'kpi',         label: "Komissiya darajalari", icon: <DollarSign size={ICON} />, adminOnly: true },
+];
+
+// v29: Ilgari TABS bitta gorizontal-skroll qator sifatida chizilardi — 17 ta
+// element ekranga sig'maydi, ko'pchiligi ko'rinmay, "yo'qolib" qolardi
+// (masalan "Web Forms" yoki "Komissiya darajalari"ni hech kim topolmasdi).
+// Endi mantiqiy GURUHLARGA bo'lib, hammasi bir vaqtda, skrolsiz ko'rinadi —
+// tab state/click logikasi (setTab) O'ZGARMAGAN, faqat chizilishi guruhlangan.
+const TAB_GROUPS: { title: string; ids: string[] }[] = [
+  { title: 'Asosiy',        ids: ['general', 'profile', 'security'] },
+  { title: 'Kanallar',      ids: ['telegram', 'whatsapp', 'instagram', 'facebook', 'phone', 'operators'] },
+  { title: 'Sotuv jarayoni', ids: ['leads', 'autoreply', 'forms', 'kpi', 'templates'] },
+  { title: 'Jamoa va tizim', ids: ['team', 'api', 'webhooklogs'] },
 ];
 
 export default function SettingsPage() {
@@ -61,21 +73,37 @@ export default function SettingsPage() {
           Profil, kompaniya va integratsiyalarni boshqaring
         </p>
 
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-          {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              background: 'none', border: 'none', padding: '10px 14px',
-              color: tab === t.id ? 'var(--primary)' : 'var(--fg-2)',
-              cursor: 'pointer', fontSize: 13,
-              fontWeight: tab === t.id ? 600 : 500,
-              borderBottom: '2px solid ' + (tab === t.id ? 'var(--primary)' : 'transparent'),
-              marginBottom: -1, whiteSpace: 'nowrap',
-              display: 'inline-flex', alignItems: 'center', gap: 7,
-            }}>
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
+        <div style={{ marginBottom: 20 }}>
+          {TAB_GROUPS.map((group) => {
+            const visibleTabs = group.ids
+              .map((id) => TABS.find((t) => t.id === id)!)
+              .filter((t) => t && (!t.adminOnly || isAdmin));
+            if (visibleTabs.length === 0) return null;
+            return (
+              <div key={group.title} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--fg-4)', marginBottom: 6 }}>
+                  {group.title}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {visibleTabs.map((t) => (
+                    <button key={t.id} onClick={() => setTab(t.id)} style={{
+                      background: tab === t.id ? 'var(--primary)' : 'var(--bg-3)',
+                      border: '1px solid ' + (tab === t.id ? 'var(--primary)' : 'var(--border)'),
+                      borderRadius: 8, padding: '7px 13px',
+                      color: tab === t.id ? '#fff' : 'var(--fg-2)',
+                      cursor: 'pointer', fontSize: 12.5,
+                      fontWeight: tab === t.id ? 700 : 500,
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}>
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {tab === 'operators' && (
@@ -2904,7 +2932,7 @@ function KPITab() {
   return (
     <>
       <Card style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 15, marginBottom: 12 }}>💰 Commission Tiers</h3>
+        <h3 style={{ margin: 0, fontSize: 15, marginBottom: 12 }}>💰 Komissiya darajalari</h3>
         <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>
           Agent foizini daromad bo'yicha o'rnating. Misol: 0-2000 = 8%, 2000-4000 = 10%
         </p>
