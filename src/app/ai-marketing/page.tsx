@@ -609,13 +609,18 @@ export default function AiMarketingPage() {
     return true;
   };
 
-  // ── Rasm avtomatik qidirish (Pexels) — mavjud /ai-marketing/images endpointi ──
-  const doSearchImages = async () => {
-    if (!form.destination.trim()) { toast.error("Avval yo'nalishni kiriting"); return; }
+  // ── Rasm avtomatik qidirish (Pexels/Unsplash) — mavjud /ai-marketing/images
+  // endpointi. `queryOverride` berilsa (masalan "Mashhur yo'nalishlar"dan joy
+  // tanlanganda), shu matn bo'yicha qidiradi — forma hali yangilanmagan
+  // bo'lsa ham (setState asinxron) ESKI destination bilan qidirib
+  // qolmasligi uchun. Berilmasa, joriy formadagi destination ishlatiladi. ──
+  const doSearchImages = async (queryOverride?: string) => {
+    const query = (queryOverride ?? form.destination).trim();
+    if (!query) { toast.error("Avval yo'nalishni kiriting"); return; }
     setSearchingImages(true);
     setImageResults([]);
     try {
-      const res = await aiMarketingApi.images(form.destination.trim(), 20);
+      const res = await aiMarketingApi.images(query, 20);
       const imgs: string[] = res.data || [];
       setImageResults(imgs);
       if (!imgs.length) toast("Rasm topilmadi — URL'ni qo'lda kiriting", { icon: 'ℹ️' });
@@ -1137,9 +1142,18 @@ export default function AiMarketingPage() {
                           {group.places.map((place) => (
                             <button key={place} type="button"
                               onClick={() => {
-                                set('destination', `${place}, ${group.countryUz}`);
+                                const dest = `${place}, ${group.countryUz}`;
+                                set('destination', dest);
                                 setDestPickerOpen(false);
-                                toast.success(`${place} tanlandi — endi "🔍 Rasm topish" tugmasini bosing`);
+                                toast.success(`${place} tanlandi — rasmlar qidirilmoqda...`);
+                                // Joy tanlanishi bilan ZUDLIK BILAN o'sha joyga xos
+                                // rasmlarni qidiramiz (foydalanuvchi endi qo'shimcha
+                                // "🔍 Rasm topish" tugmasini bosishi shart emas).
+                                // `place` (masalan "Antalya") ni beramiz, chunki
+                                // backenddagi tanish-joy aniqlagichi ("matchKnownPlace")
+                                // aynan shu inglizcha nom bo'yicha ishlaydi va eng
+                                // aniq/mos rasmlarni shu orqali topadi.
+                                doSearchImages(place);
                               }}
                               style={{
                                 fontSize: 12, padding: '5px 11px', borderRadius: 999, border: '1px solid var(--border)',
