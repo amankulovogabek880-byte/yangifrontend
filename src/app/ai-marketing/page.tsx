@@ -1231,7 +1231,7 @@ export default function AiMarketingPage() {
                 <input className="form-input" placeholder="https://... (bo'sh qoldirsangiz avtomatik topiladi)"
                   value={form.imageUrl} onChange={e => set('imageUrl', e.target.value)} />
                 <button className="btn btn-md btn-secondary" style={{ flexShrink: 0 }}
-                  disabled={searchingImages} onClick={doSearchImages}>
+                  disabled={searchingImages} onClick={() => doSearchImages()}>
                   {searchingImages ? 'Qidirilmoqda...' : '🔍 Rasm topish'}
                 </button>
               </div>
