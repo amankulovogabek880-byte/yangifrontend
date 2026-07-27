@@ -377,12 +377,14 @@ export const callsApi = {
 export const aiMarketingApi = {
   // 1-bosqich: rasm + 3 ta tayyor post (Instagram/Telegram/Facebook)
   generate: (data: any) => api.post('/ai-marketing/generate', data),
-  // Faqat rasm qidirish (natijani almashtirish uchun)
-  images: (query: string, count?: number) =>
-    api.post('/ai-marketing/images', { query, count }),
+  // Faqat rasm qidirish (natijani almashtirish uchun). `hotelName` berilsa,
+  // agentlik shu mehmonxona uchun avval yuklagan (haqiqiy) suratlar ham
+  // stok-fotodan OLDIN qo'shib qaytariladi.
+  images: (query: string, count?: number, hotelName?: string) =>
+    api.post('/ai-marketing/images', { query, count, hotelName }),
   // Mashhur yo'nalishlar (davlat → joylar) — tanlagich uchun
   destinations: () => api.get('/ai-marketing/destinations'),
-  // 2-bosqich: tayyor 1080×1080 banner (PNG)
+  // 2-bosqich: tayyor banner (PNG) — kvadrat yoki Story o'lchamida
   banner: (data: any) => api.post('/ai-marketing/banner', data),
   // Shablon (agentlik nomi, kontakt, brend rangi)
   getTemplate: () => api.get('/ai-marketing/template'),
@@ -394,6 +396,17 @@ export const aiMarketingApi = {
     return api.post('/ai-marketing/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
   removeLogo: () => api.delete('/ai-marketing/logo'),
+  // Mehmonxona rasm kutubxonasi — agentlikning o'zi yuklagan haqiqiy suratlar
+  getHotelPhotos: (hotelName: string) =>
+    api.get('/ai-marketing/hotel-photos', { params: { hotelName } }),
+  uploadHotelPhoto: (hotelName: string, file: File) => {
+    const form = new FormData();
+    form.append('hotelName', hotelName);
+    form.append('file', file);
+    return api.post('/ai-marketing/hotel-photos', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  deleteHotelPhoto: (hotelName: string, url: string) =>
+    api.delete('/ai-marketing/hotel-photos', { data: { hotelName, url } }),
   // Telegram kanaliga yuborish
   sendTelegram: (data: { chatId: string; photoUrl: string; caption: string; telegramAccountId?: string }) =>
     api.post('/ai-marketing/send/telegram', data),

@@ -61,6 +61,11 @@ const emptyForm = {
   borderColor: '',
   borderWidth: 0,
 
+  // Banner o'lchami ("square" = Instagram post/Facebook, "story" = Instagram/Telegram Story)
+  bannerFormat: 'square' as 'square' | 'story',
+  // Tayyor dizayn uslubi ("classic" | "minimal" | "bold")
+  bannerTheme: 'classic' as 'classic' | 'minimal' | 'bold',
+
   // Erkin joylashtirish — har bir ELEMENTNING (bittalab, bir-biridan
   // mustaqil) standart joyidan foiz (%) siljishi. 0/0 = standart joy
   // (hech narsa sudralmagan).
@@ -293,7 +298,7 @@ function LivePreview({
       onPointerUp={endDrag}
       onPointerLeave={endDrag}
       style={{
-        position: 'relative', width: '100%', aspectRatio: '1 / 1', borderRadius: 16,
+        position: 'relative', width: '100%', aspectRatio: form.bannerFormat === 'story' ? '9 / 16' : '1 / 1', borderRadius: 16,
         overflow: 'hidden', border: form.borderWidth > 0 ? `${Math.min(form.borderWidth, 12)}px solid ${form.borderColor || accent}` : '1px solid var(--border)',
         background: bg ? '#111' : 'var(--gradient)', boxShadow: 'var(--shadow)', fontFamily,
       }}>
@@ -316,14 +321,18 @@ function LivePreview({
       }} />
 
       <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: '5%', color: '#fff' }}>
-        {/* ── Har biri MUSTAQIL sudraladigan alohida elementlar (guruhlanmagan) ── */}
+        {/* ── Har biri MUSTAQIL sudraladigan alohida elementlar (guruhlanmagan) ──
+            "minimal" temasida nishon/chiplar ko'rsatilmaydi (backend bilan bir xil) */}
+        {form.bannerTheme !== 'minimal' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
           <div
             onPointerDown={beginDrag('badge')}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'clamp(8.5px,1.7vw,10.5px)',
-              fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent,
-              background: 'rgba(255,255,255,0.12)', border: `1px solid ${accent}55`, backdropFilter: 'blur(6px)',
+              fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+              color: form.bannerTheme === 'bold' ? '#fff' : accent,
+              background: form.bannerTheme === 'bold' ? accent : 'rgba(255,255,255,0.12)',
+              border: `1px solid ${accent}55`, backdropFilter: 'blur(6px)',
               padding: '3px 9px', borderRadius: 999,
               transform: translateOf('badge'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'badge'),
             }}
@@ -347,6 +356,7 @@ function LivePreview({
             </div>
           )}
         </div>
+        )}
 
         {stars && (
           <div
@@ -472,6 +482,9 @@ function LivePreview({
       {generatedUrl && (
         <span className="badge badge-success" style={{ position: 'absolute', top: 10, right: 10 }}>✓ Tayyor banner</span>
       )}
+      {form.bannerTheme === 'bold' && (
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '0.8%', background: accent }} />
+      )}
       {!generatedUrl && !editMode && (
         <span className="badge badge-gray" style={{ position: 'absolute', top: 10, right: 10 }}>Jonli preview</span>
       )}
@@ -509,6 +522,48 @@ export default function AiMarketingPage() {
 
   const [searchingImages, setSearchingImages] = useState(false);
   const [imageResults, setImageResults] = useState<string[]>([]);
+
+  // ── Mehmonxona rasm kutubxonasi — agentlik biror mehmonxonaning O'ZINING
+  // haqiqiy suratini bir marta yuklasa, keyingi safar shu nom yozilganda
+  // avtomatik ko'rsatiladi (stok-fotodan ko'ra ancha ishonchli) ──
+  const [hotelPhotos, setHotelPhotos] = useState<string[]>([]);
+  const [uploadingHotelPhoto, setUploadingHotelPhoto] = useState(false);
+  useEffect(() => {
+    const hotelName = form.hotelName?.trim();
+    if (!hotelName) { setHotelPhotos([]); return; }
+    const t = setTimeout(() => {
+      aiMarketingApi.getHotelPhotos(hotelName)
+        .then((res: any) => setHotelPhotos(res.data || []))
+        .catch(() => setHotelPhotos([]));
+    }, 500); // yozib bo'lguncha kutamiz (har harfda so'rov yubormaslik uchun)
+    return () => clearTimeout(t);
+  }, [form.hotelName]);
+
+  const doUploadHotelPhoto = async (file: File) => {
+    const hotelName = form.hotelName?.trim();
+    if (!hotelName) { toast.error("Avval mehmonxona nomini kiriting"); return; }
+    setUploadingHotelPhoto(true);
+    try {
+      const res = await aiMarketingApi.uploadHotelPhoto(hotelName, file);
+      setHotelPhotos(res.data || []);
+      toast.success("Rasm mehmonxona kutubxonasiga saqlandi — keyingi safar avtomatik chiqadi");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "Rasmni yuklab bo'lmadi");
+    } finally {
+      setUploadingHotelPhoto(false);
+    }
+  };
+
+  const doDeleteHotelPhoto = async (url: string) => {
+    const hotelName = form.hotelName?.trim();
+    if (!hotelName) return;
+    try {
+      const res = await aiMarketingApi.deleteHotelPhoto(hotelName, url);
+      setHotelPhotos(res.data || []);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || "O'chirib bo'lmadi");
+    }
+  };
 
   // ── Mashhur yo'nalishlar (davlat → joylar) — TurMaker uslubidagi
   // tanlagich, aniq joy nomi tanlansa rasm qidiruvi ancha aniqroq bo'ladi ──
@@ -600,6 +655,8 @@ export default function AiMarketingPage() {
     overlayDarkness: Number(form.overlayDarkness) || undefined,
     borderColor: form.borderWidth > 0 ? (form.borderColor || undefined) : undefined,
     borderWidth: Number(form.borderWidth) || undefined,
+    bannerFormat: form.bannerFormat || 'square',
+    bannerTheme: form.bannerTheme || 'classic',
     layout: form.layout || undefined,
   });
 
@@ -620,7 +677,7 @@ export default function AiMarketingPage() {
     setSearchingImages(true);
     setImageResults([]);
     try {
-      const res = await aiMarketingApi.images(query, 20);
+      const res = await aiMarketingApi.images(query, 20, form.hotelName?.trim() || undefined);
       const imgs: string[] = res.data || [];
       setImageResults(imgs);
       if (!imgs.length) toast("Rasm topilmadi — URL'ni qo'lda kiriting", { icon: 'ℹ️' });
@@ -899,11 +956,22 @@ export default function AiMarketingPage() {
   };
 
   const doLoadHistoryItem = (item: any) => {
-    setForm((f: any) => ({ ...f, ...item.input, layout: normalizeLegacyLayout(item.input?.layout) }));
+    setForm((f: any) => ({
+      ...f,
+      ...item.input,
+      // Eski (Story/tema qo'shilishidan oldingi) tarix yozuvlarida bu
+      // maydonlar bo'lmasligi mumkin — shunday holatda standart qiymatga
+      // qaytaramiz (aks holda ekrandagi eski tanlov bilan aralashib qolardi)
+      bannerFormat: item.input?.bannerFormat || 'square',
+      bannerTheme: item.input?.bannerTheme || 'classic',
+      layout: normalizeLegacyLayout(item.input?.layout),
+    }));
     setBannerUrl(item.bannerUrl || '');
     setResult(item.posts ? { posts: item.posts } : null);
     setHistoryOpen(false);
-    toast.success("Yuklandi — pastda tahrirlab qayta yuborishingiz mumkin");
+    toast.success(item.bannerUrl
+      ? "Yuklandi — bu ilgari saqlangan banner. O'zgartirsangiz, qayta chiqarish uchun \"Banner yaratish\"ni bosing"
+      : "Yuklandi — pastda tahrirlab qayta yuborishingiz mumkin");
   };
 
   const doDeleteHistoryItem = async (id: string) => {
@@ -1173,6 +1241,33 @@ export default function AiMarketingPage() {
                 <label className="form-label">Mehmonxona nomi</label>
                 <input className="form-input" placeholder="Rixos Premium" value={form.hotelName}
                   onChange={e => set('hotelName', e.target.value)} />
+                {/* ── Mehmonxona rasm kutubxonasi — agentlikning O'ZI yuklagan
+                    haqiqiy suratlari, mavjud bo'lsa avtomatik ko'rsatiladi ── */}
+                {form.hotelName.trim() && (
+                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                    {hotelPhotos.map((url, i) => (
+                      <div key={i} style={{ position: 'relative', width: 52, height: 52, borderRadius: 8, overflow: 'hidden', border: form.imageUrl === url ? '2px solid var(--primary)' : '1px solid var(--border)' }}>
+                        <img src={url} alt="" onClick={() => { set('imageUrl', url); toast.success('Rasm tanlandi'); }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }} />
+                        <button type="button" onClick={() => doDeleteHotelPhoto(url)}
+                          title="Kutubxonadan o'chirish"
+                          style={{ position: 'absolute', top: 1, right: 1, width: 16, height: 16, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', fontSize: 9, cursor: 'pointer', lineHeight: '16px', padding: 0 }}>✕</button>
+                      </div>
+                    ))}
+                    <label style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', width: 52, height: 52,
+                      borderRadius: 8, border: '1px dashed var(--border)', cursor: 'pointer', fontSize: 18,
+                      color: 'var(--fg-muted)', flexShrink: 0,
+                    }} title="Bu mehmonxona uchun o'z suratingizni yuklang">
+                      {uploadingHotelPhoto ? '…' : '+'}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingHotelPhoto}
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) doUploadHotelPhoto(f); e.target.value = ''; }} />
+                    </label>
+                    {hotelPhotos.length > 0 && (
+                      <span style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>🏨 saqlangan suratlar — bosib tanlang</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Yulduz</label>
@@ -1231,7 +1326,7 @@ export default function AiMarketingPage() {
                 <input className="form-input" placeholder="https://... (bo'sh qoldirsangiz avtomatik topiladi)"
                   value={form.imageUrl} onChange={e => set('imageUrl', e.target.value)} />
                 <button className="btn btn-md btn-secondary" style={{ flexShrink: 0 }}
-                  disabled={searchingImages} onClick={() => doSearchImages()}>
+                  disabled={searchingImages} onClick={doSearchImages}>
                   {searchingImages ? 'Qidirilmoqda...' : '🔍 Rasm topish'}
                 </button>
               </div>
@@ -1377,6 +1472,42 @@ export default function AiMarketingPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 16 }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Banner o'lchami</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {([
+                    { v: 'square', label: '⬛ Kvadrat (1080×1080)', hint: 'Instagram post / Facebook' },
+                    { v: 'story', label: '📱 Story (1080×1920)', hint: 'Instagram / Telegram Story' },
+                  ] as const).map((opt) => (
+                    <button key={opt.v} type="button" title={opt.hint}
+                      onClick={() => set('bannerFormat', opt.v)}
+                      className={`btn btn-sm ${form.bannerFormat === opt.v ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ flex: 1, whiteSpace: 'nowrap' }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Dizayn uslubi</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {([
+                    { v: 'classic', label: '✨ Klassik' },
+                    { v: 'minimal', label: '◻ Minimal' },
+                    { v: 'bold', label: '🔶 Bold' },
+                  ] as const).map((opt) => (
+                    <button key={opt.v} type="button"
+                      onClick={() => set('bannerTheme', opt.v)}
+                      className={`btn btn-sm ${form.bannerTheme === opt.v ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ flex: 1 }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <details style={{ marginTop: 16 }}>
