@@ -484,7 +484,25 @@ function InboxPageInner() {
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading && <div style={{ padding: 14 }}><Skeleton height={60} count={5} /></div>}
-            {!loading && convs.length === 0 && <Empty title={t('inbox.noConv')} icon="💬" />}
+            {!loading && convs.length === 0 && (
+              hasPersonalAccount ? (
+                <Empty title={t('inbox.noConv')} icon="💬" />
+              ) : (
+                // v29: Telegram ulanmagan bo'lsa — sabab va yechim darhol ko'rinsin,
+                // shunchaki "suhbat yo'q" deb bo'sh qoldirilmasin.
+                <Empty
+                  title="Hali Telegram ulanmagan"
+                  description="Mijozlar bilan yozishmalar shu yerda ko'rinishi uchun avval Telegram akkauntingizni ulang"
+                  icon="📨"
+                  action={
+                    <button
+                      onClick={() => router.push('/settings?tab=telegram')}
+                      className="btn btn-primary btn-md"
+                    >Telegram ulash →</button>
+                  }
+                />
+              )
+            )}
             {(() => {
               const q = searchQuery.trim().toLowerCase().replace(/^@/, '');
               const filtered = !q ? convs : convs.filter((c: any) => {

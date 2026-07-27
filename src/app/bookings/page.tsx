@@ -49,7 +49,12 @@ export default function BookingsPage() {
         {!loading && data && (
           <>
             {data.data.length === 0 ? (
-              <Empty icon="✈" title="Booking yo'q" />
+              <Empty
+                icon="✈"
+                title="Booking yo'q"
+                description="Mijozga taklif yuborib 'Sotildi' belgilang — booking avtomatik yaratiladi, yoki to'g'ridan-to'g'ri qo'shing"
+                action={<button onClick={() => setShowAdd(true)} className="btn btn-primary btn-md">+ Yangi booking</button>}
+              />
             ) : (
               <Card style={{ padding: 0 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>

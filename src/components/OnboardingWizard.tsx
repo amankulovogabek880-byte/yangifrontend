@@ -194,18 +194,34 @@ export default function OnboardingWizard({ tenantName, onComplete }: Props) {
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: 'var(--fg-2)', fontSize: 15, lineHeight: 1.7, margin: '0 0 20px' }}>
                 Ajoyib! Omon CRM ishga tayyor.<br/>
-                Endi mijozlar qo'shishni boshlashingiz mumkin.
+                Endi quyidagi qadamlardan birini tanlang:
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left', background: 'var(--bg-3)', borderRadius: 12, padding: 16 }}>
+              {/* v29: bu havolalar ilgari oddiy matn edi — bosib bo'lmasdi.
+                  Endi to'g'ridan-to'g'ri o'sha sahifaga olib boradi va oynani
+                  yopadi, shunda foydalanuvchi darhol harakatga o'tadi. */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left' }}>
                 {[
-                  { icon: '◍', text: 'Mijozlar → Yangi mijoz', href: '/clients' },
-                  { icon: '✈', text: 'Bookinglar → Yangi booking', href: '/bookings' },
-                  { icon: '⚙', text: 'Sozlamalar → Round Robin', href: '/settings' },
+                  { icon: '📨', text: 'Telegram ulash', sub: "Mijozlar bilan yozishmalar shu yerdan boradi", href: '/settings?tab=telegram', primary: true },
+                  { icon: '◍', text: 'Birinchi mijozni qo\'shish', sub: "Qo'lda yoki Facebook/Instagram orqali", href: '/clients?new=1' },
+                  { icon: '✈', text: 'Bookinglar bo\'limi', sub: "To'g'ridan-to'g'ri booking yaratish", href: '/bookings' },
                 ].map(item => (
-                  <div key={item.href} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--fg-2)' }}>
-                    <span>{item.icon}</span>
-                    <span>{item.text}</span>
-                  </div>
+                  <button
+                    key={item.href}
+                    onClick={() => { onComplete(); router.push(item.href); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
+                      padding: '12px 14px', borderRadius: 10, cursor: 'pointer', width: '100%',
+                      border: item.primary ? '1px solid #3d7eff' : '1px solid var(--border)',
+                      background: item.primary ? 'rgba(61,126,255,0.08)' : 'var(--bg-3)',
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>{item.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{item.text}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-4)' }}>{item.sub}</div>
+                    </div>
+                    <span style={{ color: 'var(--fg-4)' }}>→</span>
+                  </button>
                 ))}
               </div>
             </div>
