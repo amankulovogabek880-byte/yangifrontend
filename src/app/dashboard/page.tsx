@@ -126,7 +126,15 @@ export default function DashboardPage() {
       setStats(s?.data || null);
       setRevenueChart(Array.isArray(rc?.data) ? rc.data : (rc?.data?.data || []));
       const fuArr = Array.isArray(fu?.data) ? fu.data : (fu?.data?.data || []);
-      setTodayTasks(fuArr.slice(0, 6));
+      // Backend /followups har qanday bajarilmagan eslatmani (kelajakdagilarini
+      // ham) qaytaradi va `limit` parametrini e'tiborga olmaydi — shuning
+      // uchun "Bugungi eslatmalar" bo'limida faqat bugungi kunga (yoki undan
+      // oldingi, muddati o'tgan) eslatmalarni ko'rsatamiz, kelajakdagilarini
+      // filtrlab tashlaymiz.
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+      const todayOnly = fuArr.filter((f: any) => f?.dueAt && new Date(f.dueAt) <= endOfToday);
+      setTodayTasks(todayOnly.slice(0, 6));
       if (ag) setAgentsList(Array.isArray(ag.data) ? ag.data : (ag?.data?.agents || []));
     }).finally(() => setLoading(false));
   };
