@@ -2,6 +2,7 @@
 import KalendarTab from './KalendarTab';
 import dynamic from 'next/dynamic';
 const OnboardingWizard = dynamic(() => import('@/components/OnboardingWizard'), { ssr: false });
+import GettingStartedCard from '@/components/GettingStartedCard';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -228,7 +229,7 @@ export default function DashboardPage() {
           {loading ? <Skeleton height={400} /> : (
             <>
               {activeTab === 'overview' && (
-                <OverviewTab stats={stats} isAgent={isAgent} revenueChart={revenueChart} todayTasks={todayTasks} totalRevenue={totalRevenue} router={router} />
+                <OverviewTab stats={stats} isAgent={isAgent} revenueChart={revenueChart} todayTasks={todayTasks} totalRevenue={totalRevenue} router={router} tenantId={user?.tenantId} />
               )}
               {activeTab === 'revenue' && !isAgent && (
                 <RevenueTab stats={stats} revenueChart={revenueChart} from={dateFrom} to={dateTo} />
@@ -253,7 +254,7 @@ export default function DashboardPage() {
   );
 }
 
-function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, router }: any) {
+function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, router, tenantId }: any) {
   const { t } = useI18n();
   // Agent salary loaded separately
   const [mySalary, setMySalary] = useState<any>(null);
@@ -311,6 +312,15 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* v29: "Boshlash uchun qadamlar" — faqat admin/manager ko'radi (Telegram/FB
+          ulash agentga tegishli sozlama emas). Hammasi bajarilganda o'zi yashiradi. */}
+      {!isAgent && (
+        <GettingStartedCard
+          tenantId={tenantId}
+          hasClients={(stats?.leads?.total ?? 0) > 0}
+          hasOffers={(stats?.bookings?.total ?? 0) > 0}
+        />
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
         {kpis.map((k: any, i) => (
           <StatCard key={i} label={k.label} value={k.value} color={k.color} sub={k.sub}

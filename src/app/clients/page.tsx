@@ -53,6 +53,12 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', source: '', stage: '', sortBy: 'recent' });
   const [showAdd, setShowAdd] = useState(false);
+  // v29: Dashboard'dagi "Boshlash uchun qadamlar" kartasidan "/clients?new=1"
+  // orqali kelinsa, mijoz qo'shish oynasi avtomatik ochiladi — foydalanuvchi
+  // yana "Yangi mijoz" tugmasini qidirib yurishi shart emas.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === '1') setShowAdd(true);
+  }, []);
   // v18: "Yo'qotilgan leadlar" endi alohida sahifa emas — shu yerdan modal
   // sifatida ochiladi.
   const [showLostLeads, setShowLostLeads] = useState(false);

@@ -127,18 +127,16 @@ const NAV = [
   { href: '/owner',     labelKey: 'nav.owner',     label: 'Owner',        Icon: Icons.Owner,     roles: ['PLATFORM_OWNER'] },
   { href: '/dashboard', labelKey: 'nav.dashboard', label: 'Dashboard',    Icon: Icons.Dashboard, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/inbox',     labelKey: 'nav.inbox',     label: 'Inbox',        Icon: Icons.Inbox,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  { href: '/pipeline',  labelKey: 'nav.pipeline',  label: 'Pipeline',     Icon: Icons.Pipeline,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  // v29: "Pipeline" — inglizcha atama, ko'p agentlar tushunmaydi. amoCRM'dan
+  // kelgan foydalanuvchilar "voronka" so'ziga o'rganib qolgan — shu tanish
+  // atamani ishlatamiz, bu yangi mijozlar uchun o'tishni osonlashtiradi.
+  { href: '/pipeline',  labelKey: 'nav.pipeline',  label: 'Voronka',     Icon: Icons.Pipeline,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/clients',   labelKey: 'nav.clients',   label: 'Mijozlar',     Icon: Icons.Clients,   roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/tasks',     labelKey: 'nav.tasks',     label: 'Vazifalar',    Icon: Icons.Tasks,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/bookings',  labelKey: 'nav.bookings',  label: 'Bookinglar',   Icon: Icons.Bookings,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   // v12.1: Turlar bozori — har bir kompaniya O'Z operatorlarini qo'shadi.
   // Turlarni hamma ko'radi va shu yerdan to'g'ridan-to'g'ri booking qiladi.
   { href: '/marketplace',          labelKey: 'nav.marketplace',   label: 'Turlar bozori', Icon: Icons.Marketplace, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  // v14: JONLI qidiruv. Ilgari backendda /tour-search endpointi bor edi,
-  // lekin frontendda unga hech qanday sahifa ham, havola ham yo'q edi —
-  // ya'ni yagona ishlaydigan operator integratsiyasi foydalanuvchi uchun
-  // umuman mavjud emasdi.
-  { href: '/tour-search',          labelKey: 'nav.tourSearch',    label: 'Tur qidirish',  Icon: Icons.TourSearch,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   // v19: AI Marketing — TurMaker-uslubidagi reklama generatori.
   // Tur ma'lumotlaridan avtomatik banner + Instagram/Telegram/Facebook posti yasaydi.
   { href: '/ai-marketing',         labelKey: 'nav.aiMarketing',   label: 'Tur yaratish', Icon: Icons.AiMarketing, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
@@ -146,7 +144,11 @@ const NAV = [
   // sahifasidagi "Yo'qotilgan mijozlar" tugmasi orqali modal sifatida ochiladi.
   // Qo'ng'iroqlar asosiy menyudan olib tashlandi — Dashboard ichida alohida bo'lim bor.
   // (kerak bo'lsa /calls sahifasi hali ham to'g'ridan-to'g'ri URL orqali ochiladi)
-  { href: '/settings',  labelKey: 'nav.settings',  label: 'Sozlamalar',   Icon: Icons.Settings,  roles: ['*'] },
+  // v29: "Tur qidirish" OLIB TASHLANDI — "Turlar bozori" bilan bir xil vazifani
+  // bajarardi (ikkalasi ham tur/operator qidirish), ikkitasi chalkashtirardi.
+  // "Sozlamalar" ham asosiy menyudan OLIB TASHLANDI — u allaqachon yuqorida,
+  // foydalanuvchi ismini bosganda ochiladigan menyuda bor (pastroqda ko'ring),
+  // shu yerda dublikat sifatida turishi shart emas edi.
 ];
 
 const MOBILE_NAV_KEYS = ['/dashboard', '/clients', '/bookings', '/inbox', '/pipeline'];
