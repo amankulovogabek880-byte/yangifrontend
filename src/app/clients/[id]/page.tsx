@@ -745,11 +745,19 @@ function ClientCalls({ clientId }: { clientId: string }) {
           const missed = ['NO_ANSWER', 'MISSED', 'BUSY', 'FAILED'].includes(c.status);
           const when = c.startedAt || c.createdAt;
           // Suhbat bo'lgan (davomiyligi bor), lekin yozuv HALI kelmagan —
-          // odatiy holat, chunki MoiZvonki yozuvni qo'ng'iroqdan keyin
-          // qayta ishlab, biroz kechikib yuboradi. Bunda "yozuv yo'q" deb
-          // emas, "tayyorlanmoqda" deb ko'rsatamiz — foydalanuvchi
-          // tashvishlanmasin.
-          const recordingPending = !c.recordingUrl && !missed && (c.duration || 0) > 0;
+          // odatiy holat, chunki MoiZvonki/OnlinePBX yozuvni qo'ng'iroqdan
+          // keyin qayta ishlab, biroz kechikib yuboradi. Bunda "yozuv yo'q"
+          // deb emas, "tayyorlanmoqda" deb ko'rsatamiz.
+          //
+          // 🩹 TUZATISH: avval bu holat CHEKSIZ davom etardi — hatto
+          // hafta oldingi qo'ng'iroq ham abadiy "tayyorlanmoqda" bo'lib
+          // qolardi (masalan integratsiya uzilib qolgan bo'lsa). Endi
+          // 6 soatdan keyin ham yozuv kelmasa, "tayyorlanmoqda" emas —
+          // "yozuv kelmadi" deb ko'rsatamiz, shunda muammo yashirin
+          // qolib ketmaydi.
+          const ageHours = when ? (Date.now() - new Date(when).getTime()) / 3600000 : 0;
+          const recordingStillWaiting = !c.recordingUrl && !missed && (c.duration || 0) > 0 && ageHours < 6;
+          const recordingTimedOut = !c.recordingUrl && !missed && (c.duration || 0) > 0 && ageHours >= 6;
 
           return (
             <div key={c.id} style={{
@@ -792,9 +800,17 @@ function ClientCalls({ clientId }: { clientId: string }) {
                   </div>
                 </div>
 
-                {recordingPending && (
+                {recordingStillWaiting && (
                   <span style={{ fontSize: 10.5, color: 'var(--fg-4)', whiteSpace: 'nowrap', fontStyle: 'italic' }}>
                     ⏳ yozuv tayyorlanmoqda
+                  </span>
+                )}
+                {recordingTimedOut && (
+                  <span
+                    title="Integratsiya sozlamalarini (Sozlamalar → Integratsiya) tekshiring — yozuv 6 soatdan ortiq kelmadi"
+                    style={{ fontSize: 10.5, color: '#ef4444', whiteSpace: 'nowrap', fontStyle: 'italic' }}
+                  >
+                    ⚠️ yozuv kelmadi
                   </span>
                 )}
               </div>
