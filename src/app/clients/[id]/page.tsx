@@ -224,7 +224,7 @@ export default function Client360Page() {
         </div>
 
         {/* ═══ MAIN LAYOUT: chap — mijoz kartasi | markaz — tablar | o'ng — bog'langan obyektlar ═══ */}
-        <div className="c360-grid" style={{ display: 'grid', gridTemplateColumns: '260px minmax(0,1fr) 280px', gap: 22, alignItems: 'start' }}>
+        <div className="c360-grid" style={{ display: 'grid', gridTemplateColumns: '260px minmax(0,1fr)', gap: 22, alignItems: 'start' }}>
 
           {/* ── CHAP: mijoz kartasi (doim ko'rinadi) ── */}
           <div style={{ position: 'sticky', top: 76, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto', paddingRight: 2 }}>
@@ -562,68 +562,6 @@ export default function Client360Page() {
             )}
           </div>
 
-          {/* ── O'NG: bog'langan obyektlar (HubSpot uslubida — Companies/Deals/Tickets kabi) ── */}
-          <div style={{ position: 'sticky', top: 76, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <AssocCard
-              title="Bookinglar" icon="✈️" count={bookings.length} storageKey="bookings"
-              onAdd={() => setShowBooking(true)}
-              onViewAll={bookings.length > 0 ? () => setActiveTab('bookings') : undefined}
-            >
-              {bookings.length === 0 ? (
-                <AssocEmpty text="Hozircha booking yo'q" />
-              ) : (
-                bookings.slice(0, 3).map((b: any) => (
-                  <AssocRow
-                    key={b.id}
-                    title={b.tourName}
-                    subtitle={`${b.currency} ${(b.totalPrice || 0).toLocaleString()}`}
-                    onClick={() => router.push(`/bookings/${b.id}`)}
-                  />
-                ))
-              )}
-            </AssocCard>
-
-            <AssocCard
-              title="Takliflar" icon="📨" count={offers.length} storageKey="offers"
-              onAdd={() => setShowOfferCreate(true)}
-              onViewAll={offers.length > 0 ? () => setActiveTab('offers') : undefined}
-            >
-              {offers.length === 0 ? (
-                <AssocEmpty text="Hozircha taklif yo'q" />
-              ) : (
-                offers.slice(0, 3).map((o: any) => (
-                  <AssocRow
-                    key={o.id}
-                    title={o.tourName || o.destination || 'Taklif'}
-                    subtitle={`$${(o.clientPrice || 0).toLocaleString()} · ${o.status}`}
-                    onClick={() => setActiveTab('offers')}
-                  />
-                ))
-              )}
-            </AssocCard>
-
-            <AssocCard
-              title="Hujjatlar" icon="📁" count={documents.length} storageKey="documents"
-              onViewAll={documents.length > 0 ? () => setActiveTab('documents') : undefined}
-            >
-              {documents.length === 0 ? (
-                <AssocEmpty text="Hozircha hujjat yo'q" />
-              ) : (
-                documents.slice(0, 3).map((d: any) => (
-                  <AssocRow
-                    key={d.id}
-                    title={d.fileName || 'Fayl'}
-                    subtitle={d.createdAt ? fmtDate(d.createdAt) : ''}
-                    onClick={() => setActiveTab('documents')}
-                  />
-                ))
-              )}
-            </AssocCard>
-
-            <AssocCard title="Qo'ng'iroqlar" icon="📞" storageKey="calls" onViewAll={() => setActiveTab('calls')}>
-              <AssocEmpty text="Barcha qo'ng'iroqlarni ko'rish uchun bosing" />
-            </AssocCard>
-          </div>
         </div>
       </div>
 
@@ -666,90 +604,6 @@ export default function Client360Page() {
     </CrmLayout>
   );
 }
-
-// ─── v30: O'ng paneldagi "bog'langan obyektlar" kartasi — HubSpot'dagi
-// Companies/Deals/Tickets bloklariga o'xshab: sarlavha + son + "Barchasi"
-// tugmasi, ichida esa qisqa ro'yxat. Bosilganda mos tabga o'tkazadi. ─────
-// v31: HubSpot'dagi Companies/Deals/Tickets kartalariga o'xshab —
-// chevron bilan yig'iladigan, KICHIK va ixcham. Holat brauzerda saqlanadi,
-// shu bilan mijoz kartasiga har kirganingizda avvalgi ko'rinish saqlanadi.
-function AssocCard({ title, icon, count, onAdd, onViewAll, children, storageKey }: {
-  title: string; icon: string; count?: number;
-  onAdd?: () => void; onViewAll?: () => void; children: any; storageKey: string;
-}) {
-  const [open, setOpen] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const saved = window.localStorage.getItem(`cf_assoc_${storageKey}`);
-    return saved === null ? true : saved === '1';
-  });
-  function toggle() {
-    setOpen((prev: boolean) => {
-      const next = !prev;
-      window.localStorage.setItem(`cf_assoc_${storageKey}`, next ? '1' : '0');
-      return next;
-    });
-  }
-  return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-2)', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px' }}>
-        <button
-          onClick={toggle}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700,
-            cursor: 'pointer', background: 'none', border: 'none', padding: 0, color: 'var(--fg)',
-          }}
-        >
-          <span style={{ fontSize: 9, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .15s ease', color: 'var(--fg-4)' }}>▼</span>
-          <span>{title}</span>
-          {typeof count === 'number' && (
-            <span style={{ color: 'var(--fg-4)', fontWeight: 600 }}>({count})</span>
-          )}
-        </button>
-        {onAdd && (
-          <button onClick={onAdd} title={`Yangi ${title.toLowerCase()}`} style={{
-            width: 18, height: 18, borderRadius: 5, border: '1px solid var(--border)', background: 'none',
-            color: 'var(--fg-2)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>+</button>
-        )}
-      </div>
-      {open && (
-        <div style={{ padding: '0 6px 6px', display: 'flex', flexDirection: 'column', gap: 1, borderTop: '1px solid var(--border)' }}>
-          <div style={{ paddingTop: 4 }} />
-          {children}
-          {onViewAll && (
-            <button onClick={onViewAll} style={{
-              marginTop: 1, fontSize: 10.5, padding: '5px 4px', background: 'none', border: 'none',
-              color: 'var(--primary, #3d7eff)', cursor: 'pointer', fontWeight: 600, textAlign: 'left',
-            }}>Barchasini ko'rish →</button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AssocRow({ title, subtitle, onClick }: { title: string; subtitle?: string; onClick?: () => void }) {
-  return (
-    <div onClick={onClick} style={{
-      padding: '5px 6px', borderRadius: 6, cursor: onClick ? 'pointer' : 'default',
-      display: 'flex', flexDirection: 'column', gap: 0,
-    }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-3)')}
-      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-    >
-      <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-      {subtitle && <span style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>{subtitle}</span>}
-    </div>
-  );
-}
-
-function AssocEmpty({ text }: { text: string }) {
-  return <div style={{ fontSize: 11, color: 'var(--fg-4)', padding: '5px 6px', fontStyle: 'italic' }}>{text}</div>;
-}
-
-
-
-
 
 /**
  * QO'NG'IROQLAR VA YOZUVLAR — mijoz kartochkasi ichida.

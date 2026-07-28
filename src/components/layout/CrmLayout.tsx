@@ -180,6 +180,21 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
     hydrate();
   }, [hydrate, isMobile]);
 
+  // v33: Mijoz kartochkasi (/clients/{id}) ochilganda chap menyu ekranda
+  // ortiqcha joy band qilmasligi uchun avtomatik ravishda ixcham (faqat
+  // ikonkalar) holatga o'tadi — foydalanuvchining o'zi tanlagan holatidan
+  // qat'i nazar. Boshqa har qanday sahifaga qaytilganda (masalan "← Klientlar"
+  // tugmasi bosilganda) menyu foydalanuvchi saqlagan odatiy holatiga qaytadi.
+  const isClientDetail = /^\/clients\/[^/]+$/.test(pathname);
+  useEffect(() => {
+    if (isMobile) return;
+    if (isClientDetail) {
+      setCollapsed(true);
+    } else {
+      setCollapsed(localStorage.getItem('sidebarCollapsed') === '1');
+    }
+  }, [pathname, isMobile, isClientDetail]);
+
   useEffect(() => {
     if (hydrated && !user) router.replace('/login');
   }, [hydrated, user, router]);
