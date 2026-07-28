@@ -898,9 +898,32 @@ function KeyInfoBlock({ client }: any) {
 }
 
 // ─── Mijoz qo'shimcha ma'lumotlari (chiroyli ko'rinish + tahrirlash) ──────────
+// v29: amoCRM uslubida — maydon NOMINI agent har safar o'zi o'ylab
+// yozmaydi (natijada "dfdf", "asd" kabi mazmunsiz yozuvlar chiqardi).
+// Buning o'rniga tayyor, sayohat agentligiga xos nomlar ro'yxatidan
+// tanlanadi; kerak bo'lsa "Boshqa..." orqali o'zi ham kiritishi mumkin.
+const PRESET_FIELD_LABELS = [
+  "Pasport seriyasi",
+  "Pasport amal qilish muddati",
+  "Tug'ilgan sana",
+  "Viza holati",
+  "Necha kishi safar qiladi",
+  "Bolalar yoshi",
+  "Otel darajasi (masalan: 5*)",
+  "Ovqatlanish turi",
+  "Uy manzili",
+  "Qo'shimcha telefon raqami",
+  "Izoh",
+];
+
 function CustomFields({ client }: any) {
   const initial = Array.isArray(client?.preferences?.customFields) ? client.preferences.customFields : [];
   const [fields, setFields] = useState<{ key: string; value: string }[]>(initial);
+  // v29: qaysi qatorlar "erkin nom" rejimida ekanini kuzatib boradi (preset
+  // ro'yxatida bo'lmagan, eski saqlangan nomlar uchun).
+  const [customKeyMode, setCustomKeyMode] = useState<Set<number>>(() => new Set(
+    initial.map((f: any, i: number) => (f.key && !PRESET_FIELD_LABELS.includes(f.key) ? i : -1)).filter((i: number) => i >= 0)
+  ));
   const [baseline, setBaseline] = useState<{ key: string; value: string }[]>(initial);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -909,9 +932,12 @@ function CustomFields({ client }: any) {
     setFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, [k]: v } : f)));
   const add = () => setFields((prev) => [...prev, { key: '', value: '' }]);
   const remove = (i: number) => setFields((prev) => prev.filter((_, idx) => idx !== i));
+  const markCustom = (i: number) => setCustomKeyMode((prev) => new Set(prev).add(i));
 
   function startEdit() {
-    setFields(baseline.length ? baseline : [{ key: '', value: '' }]);
+    const base = baseline.length ? baseline : [{ key: '', value: '' }];
+    setFields(base);
+    setCustomKeyMode(new Set(base.map((f, i) => (f.key && !PRESET_FIELD_LABELS.includes(f.key) ? i : -1)).filter((i) => i >= 0)));
     setEditing(true);
   }
   function cancel() {
@@ -972,21 +998,49 @@ function CustomFields({ client }: any) {
         )
       )}
 
-      {/* TAHRIRLASH REJIMI */}
+      {/* TAHRIRLASH REJIMI — v29: "Nomi" endi erkin matn emas, tayyor
+          ro'yxatdan tanlanadi (amoCRM uslubida) — mazmunsiz yozuvlarning
+          oldi olinadi. Kerak bo'lsa "Boshqa..." bilan o'zi ham yozadi. */}
       {editing && (
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-            {fields.map((f, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input style={inp} placeholder="Nomi (masalan: Qayerga)" value={f.key} onChange={(e) => upd(i, 'key', e.target.value)} />
-                <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
-                <input style={inp} placeholder="Qiymati (masalan: Istanbul)" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} />
-                <button onClick={() => remove(i)} title="O'chirish" style={{
-                  border: 'none', background: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer',
-                  padding: '4px 6px', display: 'flex', alignItems: 'center',
-                }}><FaTrash size={11} /></button>
-              </div>
-            ))}
+            {fields.map((f, i) => {
+              const isCustomKey = customKeyMode.has(i);
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {isCustomKey ? (
+                    <input
+                      style={inp}
+                      placeholder="Maydon nomi"
+                      value={f.key}
+                      onChange={(e) => upd(i, 'key', e.target.value)}
+                      autoFocus
+                    />
+                  ) : (
+                    <select
+                      style={inp}
+                      value={f.key}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') { upd(i, 'key', ''); markCustom(i); }
+                        else upd(i, 'key', e.target.value);
+                      }}
+                    >
+                      <option value="">— Nomini tanlang —</option>
+                      {PRESET_FIELD_LABELS.map((label) => (
+                        <option key={label} value={label}>{label}</option>
+                      ))}
+                      <option value="__custom__">✏️ Boshqa (o'zim yozaman)</option>
+                    </select>
+                  )}
+                  <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
+                  <input style={inp} placeholder="Qiymati" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} />
+                  <button onClick={() => remove(i)} title="O'chirish" style={{
+                    border: 'none', background: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer',
+                    padding: '4px 6px', display: 'flex', alignItems: 'center',
+                  }}><FaTrash size={11} /></button>
+                </div>
+              );
+            })}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={add} style={{ fontSize: 12, padding: '5px 0', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
