@@ -19,8 +19,6 @@ import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-ico
 const ICON = 15;
 const TABS = [
   { id: 'general',     label: 'Umumiy',            icon: <Settings size={ICON} /> },
-  { id: 'profile',     label: 'Profil',            icon: <User size={ICON} /> },
-  { id: 'security',    label: 'Xavfsizlik',        icon: <Lock size={ICON} /> },
   { id: 'phone',       label: 'Telefon',           icon: <PhoneCall size={ICON} /> },
   { id: 'operators',   label: 'Tur operatorlar',   icon: <Building2 size={ICON} />, adminOnly: true },
   { id: 'whatsapp',    label: 'WhatsApp',          icon: <FaWhatsapp size={ICON} /> },
@@ -30,23 +28,13 @@ const TABS = [
   { id: 'templates',   label: 'Shablonlar',        icon: <FileText size={ICON} />, adminOnly: true },
   { id: 'api',         label: 'API Keys',          icon: <Key size={ICON} />, adminOnly: true },
   { id: 'webhooklogs', label: 'Webhook Logs',      icon: <List size={ICON} />, adminOnly: true },
+  { id: 'profile',     label: 'Profil',            icon: <User size={ICON} /> },
   { id: 'team',        label: 'Jamoa',             icon: <Users size={ICON} />, adminOnly: true },
   { id: 'leads',       label: 'Lead taqsimlash',   icon: <Target size={ICON} />, adminOnly: true },
   { id: 'autoreply',   label: 'Auto-Reply',        icon: <Bot size={ICON} />, adminOnly: true },
   { id: 'forms',       label: 'Web Forms',         icon: <ClipboardList size={ICON} />, adminOnly: true },
-  { id: 'kpi',         label: "Komissiya darajalari", icon: <DollarSign size={ICON} />, adminOnly: true },
-];
-
-// v29: Ilgari TABS bitta gorizontal-skroll qator sifatida chizilardi — 17 ta
-// element ekranga sig'maydi, ko'pchiligi ko'rinmay, "yo'qolib" qolardi
-// (masalan "Web Forms" yoki "Komissiya darajalari"ni hech kim topolmasdi).
-// Endi mantiqiy GURUHLARGA bo'lib, hammasi bir vaqtda, skrolsiz ko'rinadi —
-// tab state/click logikasi (setTab) O'ZGARMAGAN, faqat chizilishi guruhlangan.
-const TAB_GROUPS: { title: string; ids: string[] }[] = [
-  { title: 'Asosiy',        ids: ['general', 'profile', 'security'] },
-  { title: 'Kanallar',      ids: ['telegram', 'whatsapp', 'instagram', 'facebook', 'phone', 'operators'] },
-  { title: 'Sotuv jarayoni', ids: ['leads', 'autoreply', 'forms', 'kpi', 'templates'] },
-  { title: 'Jamoa va tizim', ids: ['team', 'api', 'webhooklogs'] },
+  { id: 'kpi',         label: 'Commission Tiers',  icon: <DollarSign size={ICON} />, adminOnly: true },
+  { id: 'security',    label: 'Xavfsizlik',        icon: <Lock size={ICON} /> },
 ];
 
 export default function SettingsPage() {
@@ -73,37 +61,21 @@ export default function SettingsPage() {
           Profil, kompaniya va integratsiyalarni boshqaring
         </p>
 
-        <div style={{ marginBottom: 20 }}>
-          {TAB_GROUPS.map((group) => {
-            const visibleTabs = group.ids
-              .map((id) => TABS.find((t) => t.id === id)!)
-              .filter((t) => t && (!t.adminOnly || isAdmin));
-            if (visibleTabs.length === 0) return null;
-            return (
-              <div key={group.title} style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--fg-4)', marginBottom: 6 }}>
-                  {group.title}
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {visibleTabs.map((t) => (
-                    <button key={t.id} onClick={() => setTab(t.id)} style={{
-                      background: tab === t.id ? 'var(--primary)' : 'var(--bg-3)',
-                      border: '1px solid ' + (tab === t.id ? 'var(--primary)' : 'var(--border)'),
-                      borderRadius: 8, padding: '7px 13px',
-                      color: tab === t.id ? '#fff' : 'var(--fg-2)',
-                      cursor: 'pointer', fontSize: 12.5,
-                      fontWeight: tab === t.id ? 700 : 500,
-                      whiteSpace: 'nowrap',
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                    }}>
-                      {t.icon}
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+          {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              background: 'none', border: 'none', padding: '10px 14px',
+              color: tab === t.id ? 'var(--primary)' : 'var(--fg-2)',
+              cursor: 'pointer', fontSize: 13,
+              fontWeight: tab === t.id ? 600 : 500,
+              borderBottom: '2px solid ' + (tab === t.id ? 'var(--primary)' : 'transparent'),
+              marginBottom: -1, whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+            }}>
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {tab === 'operators' && (
@@ -157,11 +129,28 @@ export default function SettingsPage() {
 }
 
 // ─── Agent Extensions Card (admin uchun) ─────────────────────────────────────
-function AgentExtensionsCard() {
+// `provider`/`config`/`setConfig` — PhoneTab'dan keladi. OnlinePBX uchun
+// "Extension (ATS)" ustuni ko'rsatiladi (admin ATS ichki raqamini kiritadi).
+// MOIZVONKI uchun bu ustun KERAK EMAS (u extension emas, EMAIL orqali
+// ishlaydi) — shuning uchun o'rniga ixtiyoriy "MoiZvonki email" ustuni
+// chiqadi, va u CRM'ning o'z email/parol tizimidan farqli — Tenant
+// darajasidagi `phoneConfig.moizvonki.employeeEmailMap`ga saqlanadi.
+function AgentExtensionsCard({
+  provider = 'STUB',
+  config,
+  setConfig,
+}: {
+  provider?: string;
+  config?: any;
+  setConfig?: (c: any) => void;
+}) {
+  const isMoiZvonki = provider === 'MOIZVONKI';
   const [agents, setAgents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [vals, setVals] = useState<Record<string, { callbackPhone: string; extension: string }>>({});
+  // MoiZvonki uchun: agentId → moizvonki.ru'dagi email (bo'sh bo'lsa CRM email o'zi ishlatiladi)
+  const [mzEmails, setMzEmails] = useState<Record<string, string>>({});
 
   useEffect(() => {
     usersApi.list()
@@ -170,14 +159,19 @@ function AgentExtensionsCard() {
         const agents = list.filter((u: any) => ['AGENT', 'MANAGER'].includes(u.role));
         setAgents(agents);
         const init: Record<string, { callbackPhone: string; extension: string }> = {};
+        const mzInit: Record<string, string> = {};
+        const map = config?.moizvonki?.employeeEmailMap || {};
         agents.forEach((a: any) => {
           init[a.id] = { callbackPhone: a.callbackPhone || '', extension: a.extension || '' };
+          mzInit[a.id] = map[a.email] || '';
         });
         setVals(init);
+        setMzEmails(mzInit);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.moizvonki?.employeeEmailMap]);
 
   async function saveAgent(agentId: string) {
     setSaving(s => ({ ...s, [agentId]: true }));
@@ -186,6 +180,30 @@ function AgentExtensionsCard() {
         callbackPhone: vals[agentId]?.callbackPhone || '',
         extension: vals[agentId]?.extension || '',
       });
+      toast.success('Saqlandi');
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(s => ({ ...s, [agentId]: false }));
+    }
+  }
+
+  // MoiZvonki email moslashtirishni saqlash — bu Tenant darajasida
+  // (phoneConfig.moizvonki.employeeEmailMap), shuning uchun boshqa
+  // endpoint (/tenants/phone-provider) orqali, alohida saqlanadi.
+  async function saveMoiZvonkiEmail(agentId: string, agentCrmEmail: string) {
+    if (!setConfig) return;
+    setSaving(s => ({ ...s, [agentId]: true }));
+    try {
+      const overrideEmail = (mzEmails[agentId] || '').trim();
+      const prevMap = config?.moizvonki?.employeeEmailMap || {};
+      const nextMap = { ...prevMap };
+      if (overrideEmail) nextMap[agentCrmEmail] = overrideEmail;
+      else delete nextMap[agentCrmEmail];
+
+      const nextConfig = { ...config, moizvonki: { ...(config?.moizvonki || {}), employeeEmailMap: nextMap } };
+      await api.patch('/tenants/phone-provider', { provider: 'MOIZVONKI', config: nextConfig });
+      setConfig(nextConfig);
       toast.success('Saqlandi');
     } catch (e: any) {
       toast.error(errMsg(e));
@@ -209,10 +227,20 @@ function AgentExtensionsCard() {
   return (
     <Card style={{ marginBottom: 16 }}>
       <h3 style={{ marginTop: 0, fontSize: 15 }}>👥 Agentlar telefon raqamlari</h3>
-      <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '0 0 14px' }}>
-        Har bir agent uchun OnlinePBX extension va telefon raqamini belgilang.
-        Extension — ATS ichki raqam (masalan: 101, 102...).
-      </p>
+      {isMoiZvonki ? (
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '0 0 14px' }}>
+          Мои Звонки uchun <b>extension shart emas</b> — u agent Android
+          ilovasiga kirgan <b>email</b> orqali ishlaydi. Agar agent
+          moizvonki.ru ilovasiga xuddi shu CRM email'i bilan kirgan bo'lsa —
+          bu yerda hech narsa qilish shart emas, avtomatik ishlaydi.
+          Faqat email'lar FARQLI bo'lsa, pastda moslang.
+        </p>
+      ) : (
+        <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '0 0 14px' }}>
+          Har bir agent uchun OnlinePBX extension va telefon raqamini belgilang.
+          Extension — ATS ichki raqam (masalan: 101, 102...).
+        </p>
+      )}
 
       {loading ? (
         <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)' }}>Yuklanmoqda...</div>
@@ -223,8 +251,8 @@ function AgentExtensionsCard() {
           {/* Header */}
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 2fr auto', gap: 10, padding: '6px 10px', fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
             <div>Agent</div>
-            <div>Telefon raqami</div>
-            <div>Extension (ATS)</div>
+            {isMoiZvonki ? <div>CRM Email (avtomatik)</div> : <div>Telefon raqami</div>}
+            <div>{isMoiZvonki ? "MoiZvonki email (farqli bo'lsa)" : 'Extension (ATS)'}</div>
             <div></div>
           </div>
 
@@ -246,36 +274,69 @@ function AgentExtensionsCard() {
                 </div>
               </div>
 
-              {/* Phone */}
-              <input
-                style={inp}
-                value={vals[a.id]?.callbackPhone || ''}
-                onChange={e => setAgentVal(a.id, 'callbackPhone', e.target.value)}
-                placeholder="+998901234567"
-              />
+              {isMoiZvonki ? (
+                <>
+                  {/* CRM email — faqat ko'rsatiladi, o'zgartirilmaydi (Profil bo'limidan o'zgaradi) */}
+                  <div style={{ fontSize: 13, color: 'var(--fg-2)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {a.email || '—'}
+                  </div>
 
-              {/* Extension */}
-              <input
-                style={{ ...inp, fontFamily: 'monospace', fontWeight: 700 }}
-                value={vals[a.id]?.extension || ''}
-                onChange={e => setAgentVal(a.id, 'extension', e.target.value)}
-                placeholder="101"
-                maxLength={6}
-              />
+                  {/* MoiZvonki email override */}
+                  <input
+                    style={inp}
+                    value={mzEmails[a.id] || ''}
+                    onChange={e => setMzEmails(v => ({ ...v, [a.id]: e.target.value }))}
+                    placeholder={a.email || 'bo\u2019sh = CRM email ishlatiladi'}
+                  />
 
-              {/* Save */}
-              <button
-                onClick={() => saveAgent(a.id)}
-                disabled={saving[a.id]}
-                style={{
-                  padding: '7px 14px', borderRadius: 8, border: 'none',
-                  background: saving[a.id] ? '#94a3b8' : '#3d7eff',
-                  color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {saving[a.id] ? '...' : 'Saqlash'}
-              </button>
+                  {/* Save */}
+                  <button
+                    onClick={() => saveMoiZvonkiEmail(a.id, a.email)}
+                    disabled={saving[a.id]}
+                    style={{
+                      padding: '7px 14px', borderRadius: 8, border: 'none',
+                      background: saving[a.id] ? '#94a3b8' : '#3d7eff',
+                      color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {saving[a.id] ? '...' : 'Saqlash'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Phone */}
+                  <input
+                    style={inp}
+                    value={vals[a.id]?.callbackPhone || ''}
+                    onChange={e => setAgentVal(a.id, 'callbackPhone', e.target.value)}
+                    placeholder="+998901234567"
+                  />
+
+                  {/* Extension */}
+                  <input
+                    style={{ ...inp, fontFamily: 'monospace', fontWeight: 700 }}
+                    value={vals[a.id]?.extension || ''}
+                    onChange={e => setAgentVal(a.id, 'extension', e.target.value)}
+                    placeholder="101"
+                    maxLength={6}
+                  />
+
+                  {/* Save */}
+                  <button
+                    onClick={() => saveAgent(a.id)}
+                    disabled={saving[a.id]}
+                    style={{
+                      padding: '7px 14px', borderRadius: 8, border: 'none',
+                      background: saving[a.id] ? '#94a3b8' : '#3d7eff',
+                      color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {saving[a.id] ? '...' : 'Saqlash'}
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -329,8 +390,8 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <>
-      {/* Admin: barcha agentlar uchun raqam/extension boshqaruvi */}
-      {isAdmin && <AgentExtensionsCard />}
+      {/* Admin: barcha agentlar uchun raqam/extension (yoki MoiZvonki uchun email) boshqaruvi */}
+      {isAdmin && <AgentExtensionsCard provider={provider} config={config} setConfig={setConfig} />}
 
       {isAdmin && (
         <Card>
@@ -3031,7 +3092,7 @@ function KPITab() {
   return (
     <>
       <Card style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 15, marginBottom: 12 }}>💰 Komissiya darajalari</h3>
+        <h3 style={{ margin: 0, fontSize: 15, marginBottom: 12 }}>💰 Commission Tiers</h3>
         <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>
           Agent foizini daromad bo'yicha o'rnating. Misol: 0-2000 = 8%, 2000-4000 = 10%
         </p>
