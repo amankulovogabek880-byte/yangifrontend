@@ -94,6 +94,10 @@ export default function Client360Page() {
   const [showPersonalMsg, setShowPersonalMsg] = useState(false);
   const [showClientEdit, setShowClientEdit] = useState(false);
   const [showMoreInfo, setShowMoreInfo] = useState(false);
+  // v32: chap panel endi bitta uzun ro'yxat emas — ichki segmentli tab
+  // (Umumiy / Maydonlar / Boshqa). Faqat bittasi ko'rinadi, shuning uchun
+  // tepada hammasi ustma-ust chiqib "chalkash" ko'rinmaydi.
+  const [sideTab, setSideTab] = useState<'general' | 'fields' | 'more'>('general');
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
   // ─── v30: HubSpot uslubidagi 3-ustunli tartib. O'ng va chap panel
@@ -224,25 +228,84 @@ export default function Client360Page() {
 
           {/* ── CHAP: mijoz kartasi (doim ko'rinadi) ── */}
           <div style={{ position: 'sticky', top: 76, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto', paddingRight: 2 }}>
-            {/* v29: eng birinchi ko'rinadigan narsa — mijoz qayerga bormoqchi
-                va qancha puli bor. */}
-            <KeyInfoBlock client={c} />
 
-            {/* v10.4: Jami / sotilgan */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 700 }}>${totalOffersSum.toLocaleString()}</div>
-                <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{offers.length} ta taklif yuborilgan</div>
+            {/* v32: eng dolzarb narsa — keyingi vazifa — endi tepada, lekin
+                ingichka bitta qatorli banner (butun blok emas), shuning
+                uchun joy band qilmaydi. */}
+            {(() => {
+              const nextTask = (data.tasks || [])[0];
+              const nextFollowUp = (data.followUps || [])[0];
+              const next = nextTask || nextFollowUp;
+              if (!next) return null;
+              return (
+                <div
+                  onClick={() => setShowTask(true)}
+                  title="Vazifani ko'rish"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                    padding: '8px 10px', marginBottom: 14, borderRadius: 8,
+                    background: 'var(--warning-soft, #f59e0b1a)', borderLeft: '3px solid var(--warning, #f59e0b)',
+                  }}
+                >
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>⏰</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--warning, #f59e0b)' }}>
+                      {next.dueAt ? fmtDateTime(next.dueAt) : 'Muddatsiz'}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--fg-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{next.title}</div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* v32: ikkita alohida blok o'rniga — yonma-yon KICHIK statistika
+                plitkalari. Kamroq joy egallaydi, bir qarashda o'qiladi. */}
+            <div style={{ display: 'grid', gridTemplateColumns: soldOffers.length > 0 ? '1fr 1fr' : '1fr', gap: 8, marginBottom: 14 }}>
+              <div style={{ padding: '10px 11px', borderRadius: 10, background: 'var(--bg-2)', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.1 }}>${totalOffersSum.toLocaleString()}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--fg-4)', marginTop: 2 }}>{offers.length} ta taklif</div>
               </div>
               {soldOffers.length > 0 && (
-                <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--success-soft)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>${soldSum.toLocaleString()}</div>
-                  <div style={{ fontSize: 11, color: 'var(--success)' }}>{soldOffers.length} ta sotildi</div>
+                <div style={{ padding: '10px 11px', borderRadius: 10, background: 'var(--success-soft)' }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.1, color: 'var(--success)' }}>${soldSum.toLocaleString()}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--success)', marginTop: 2 }}>{soldOffers.length} ta sotildi</div>
                 </div>
               )}
             </div>
 
-            <CollapsibleSection title="Umumiy ma'lumot" storageKey="client-general-info" defaultOpen={true}>
+            {/* Mijoz qayerga bormoqchi + byudjet — ajralib turadigan kartа */}
+            <KeyInfoBlock client={c} />
+
+            {/* v32: SEGMENTLI TAB — Umumiy / Maydonlar / Boshqa. Faqat
+                bittasi ko'rinadi, tepada hamma narsa ustma-ust chiqmaydi. */}
+            <div style={{
+              display: 'flex', gap: 3, padding: 3, borderRadius: 9, background: 'var(--bg-3)', marginBottom: 12,
+            }}>
+              {([
+                ['general', "Umumiy"],
+                ['fields', "Maydonlar"],
+                ['more', "Boshqa"],
+              ] as [typeof sideTab, string][]).map(([key, label]) => {
+                const active = sideTab === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSideTab(key)}
+                    style={{
+                      flex: 1, padding: '6px 4px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      fontSize: 11.5, fontWeight: active ? 700 : 500,
+                      background: active ? 'var(--bg-2)' : 'none',
+                      color: active ? 'var(--fg)' : 'var(--fg-4)',
+                      boxShadow: active ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
+                      transition: 'all .15s ease',
+                    }}
+                  >{label}</button>
+                );
+              })}
+            </div>
+
+            {/* ── UMUMIY ── */}
+            {sideTab === 'general' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
                 {c.assignedAgent && (
                   <div>
@@ -276,43 +339,21 @@ export default function Client360Page() {
                     </div>
                   );
                 })()}
+
+                <div style={{ paddingTop: 4 }}>
+                  <button onClick={() => setShowTask(true)} style={{ fontSize: 12, padding: '5px 0', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Vazifa qo'shish</button>
+                </div>
               </div>
-            </CollapsibleSection>
+            )}
 
-            {/* v14: mijozning ixtiyoriy ma'lumotlari (key = value) */}
-            <CustomFields client={c} />
+            {/* ── MAYDONLAR (custom fields) ── */}
+            {sideTab === 'fields' && (
+              <CustomFields client={c} />
+            )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
-              {/* Keyingi vazifa */}
-              {(() => {
-                const nextTask = (data.tasks || [])[0];
-                const nextFollowUp = (data.followUps || [])[0];
-                const next = nextTask || nextFollowUp;
-                if (!next) {
-                  return (
-                    <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                      <button onClick={() => setShowTask(true)} style={{ fontSize: 12, padding: '5px 0', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Vazifa qo'shish</button>
-                    </div>
-                  );
-                }
-                return (
-                  <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                    <div style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                      ⏰ {next.dueAt ? fmtDateTime(next.dueAt) : ''}
-                    </div>
-                    <div style={{ color: 'var(--fg-3)', fontSize: 12, marginTop: 2 }}>{next.title}</div>
-                    <button onClick={() => setShowTask(true)} style={{ fontSize: 11, padding: '4px 0', color: 'var(--fg-4)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 2 }}>+ Yana vazifa</button>
-                  </div>
-                );
-              })()}
-
-              <button onClick={() => setShowMoreInfo((v) => !v)} style={{ fontSize: 11, color: 'var(--fg-4)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, marginTop: 4 }}>
-                {showMoreInfo ? '– Kamroq ma\'lumot' : '+ Batafsil ma\'lumot'}
-              </button>
-            </div>
-
-            {showMoreInfo && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+            {/* ── BOSHQA (kengaytirilgan ma'lumot) ── */}
+            {sideTab === 'more' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
                 <Info label="Email" value={c.email} />
                 <Info label="Telefon 2" value={c.phone2} />
                 <Info label="Tug'ilgan sana" value={c.dateOfBirth && fmtDate(c.dateOfBirth)} />
@@ -324,7 +365,7 @@ export default function Client360Page() {
                 <Info label="Yaratilgan" value={fmtDateTime(c.createdAt)} />
                 <Info label="Bosqichdan beri" value={c.pipelineStageAt && timeAgo(c.pipelineStageAt)} />
                 {c.utmSource && <Info label="UTM Source" value={c.utmSource} />}
-                <div>
+                <div style={{ marginTop: 4 }}>
                   <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>Lead score</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
