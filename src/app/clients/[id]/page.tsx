@@ -522,9 +522,9 @@ export default function Client360Page() {
           </div>
 
           {/* ── O'NG: bog'langan obyektlar (HubSpot uslubida — Companies/Deals/Tickets kabi) ── */}
-          <div style={{ position: 'sticky', top: 76, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ position: 'sticky', top: 76, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <AssocCard
-              title="Bookinglar" icon="✈️" count={bookings.length}
+              title="Bookinglar" icon="✈️" count={bookings.length} storageKey="bookings"
               onAdd={() => setShowBooking(true)}
               onViewAll={bookings.length > 0 ? () => setActiveTab('bookings') : undefined}
             >
@@ -543,7 +543,7 @@ export default function Client360Page() {
             </AssocCard>
 
             <AssocCard
-              title="Takliflar" icon="📨" count={offers.length}
+              title="Takliflar" icon="📨" count={offers.length} storageKey="offers"
               onAdd={() => setShowOfferCreate(true)}
               onViewAll={offers.length > 0 ? () => setActiveTab('offers') : undefined}
             >
@@ -562,7 +562,7 @@ export default function Client360Page() {
             </AssocCard>
 
             <AssocCard
-              title="Hujjatlar" icon="📁" count={documents.length}
+              title="Hujjatlar" icon="📁" count={documents.length} storageKey="documents"
               onViewAll={documents.length > 0 ? () => setActiveTab('documents') : undefined}
             >
               {documents.length === 0 ? (
@@ -579,7 +579,7 @@ export default function Client360Page() {
               )}
             </AssocCard>
 
-            <AssocCard title="Qo'ng'iroqlar" icon="📞" onViewAll={() => setActiveTab('calls')}>
+            <AssocCard title="Qo'ng'iroqlar" icon="📞" storageKey="calls" onViewAll={() => setActiveTab('calls')}>
               <AssocEmpty text="Barcha qo'ng'iroqlarni ko'rish uchun bosing" />
             </AssocCard>
           </div>
@@ -629,39 +629,60 @@ export default function Client360Page() {
 // ─── v30: O'ng paneldagi "bog'langan obyektlar" kartasi — HubSpot'dagi
 // Companies/Deals/Tickets bloklariga o'xshab: sarlavha + son + "Barchasi"
 // tugmasi, ichida esa qisqa ro'yxat. Bosilganda mos tabga o'tkazadi. ─────
-function AssocCard({ title, icon, count, onAdd, onViewAll, children }: {
+// v31: HubSpot'dagi Companies/Deals/Tickets kartalariga o'xshab —
+// chevron bilan yig'iladigan, KICHIK va ixcham. Holat brauzerda saqlanadi,
+// shu bilan mijoz kartasiga har kirganingizda avvalgi ko'rinish saqlanadi.
+function AssocCard({ title, icon, count, onAdd, onViewAll, children, storageKey }: {
   title: string; icon: string; count?: number;
-  onAdd?: () => void; onViewAll?: () => void; children: any;
+  onAdd?: () => void; onViewAll?: () => void; children: any; storageKey: string;
 }) {
+  const [open, setOpen] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const saved = window.localStorage.getItem(`cf_assoc_${storageKey}`);
+    return saved === null ? true : saved === '1';
+  });
+  function toggle() {
+    setOpen((prev: boolean) => {
+      const next = !prev;
+      window.localStorage.setItem(`cf_assoc_${storageKey}`, next ? '1' : '0');
+      return next;
+    });
+  }
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-2)', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
-        <div
-          onClick={onViewAll}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, cursor: onViewAll ? 'pointer' : 'default' }}
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-2)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px' }}>
+        <button
+          onClick={toggle}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700,
+            cursor: 'pointer', background: 'none', border: 'none', padding: 0, color: 'var(--fg)',
+          }}
         >
-          <span>{icon}</span>
+          <span style={{ fontSize: 9, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .15s ease', color: 'var(--fg-4)' }}>▼</span>
           <span>{title}</span>
           {typeof count === 'number' && (
-            <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--fg-3)' }}>({count})</span>
+            <span style={{ color: 'var(--fg-4)', fontWeight: 600 }}>({count})</span>
           )}
-        </div>
+        </button>
         {onAdd && (
           <button onClick={onAdd} title={`Yangi ${title.toLowerCase()}`} style={{
-            width: 22, height: 22, borderRadius: 6, border: '1px solid var(--border)', background: 'none',
-            color: 'var(--fg-2)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 18, height: 18, borderRadius: 5, border: '1px solid var(--border)', background: 'none',
+            color: 'var(--fg-2)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>+</button>
         )}
       </div>
-      <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {children}
-        {onViewAll && (
-          <button onClick={onViewAll} style={{
-            marginTop: 2, fontSize: 11.5, padding: '6px 4px', background: 'none', border: 'none',
-            color: 'var(--primary, #3d7eff)', cursor: 'pointer', fontWeight: 600, textAlign: 'left',
-          }}>Barchasini ko'rish →</button>
-        )}
-      </div>
+      {open && (
+        <div style={{ padding: '0 6px 6px', display: 'flex', flexDirection: 'column', gap: 1, borderTop: '1px solid var(--border)' }}>
+          <div style={{ paddingTop: 4 }} />
+          {children}
+          {onViewAll && (
+            <button onClick={onViewAll} style={{
+              marginTop: 1, fontSize: 10.5, padding: '5px 4px', background: 'none', border: 'none',
+              color: 'var(--primary, #3d7eff)', cursor: 'pointer', fontWeight: 600, textAlign: 'left',
+            }}>Barchasini ko'rish →</button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -669,21 +690,23 @@ function AssocCard({ title, icon, count, onAdd, onViewAll, children }: {
 function AssocRow({ title, subtitle, onClick }: { title: string; subtitle?: string; onClick?: () => void }) {
   return (
     <div onClick={onClick} style={{
-      padding: '7px 8px', borderRadius: 7, cursor: onClick ? 'pointer' : 'default',
-      display: 'flex', flexDirection: 'column', gap: 1,
+      padding: '5px 6px', borderRadius: 6, cursor: onClick ? 'pointer' : 'default',
+      display: 'flex', flexDirection: 'column', gap: 0,
     }}
       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-3)')}
       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
     >
-      <span style={{ fontSize: 12.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-      {subtitle && <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>{subtitle}</span>}
+      <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+      {subtitle && <span style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>{subtitle}</span>}
     </div>
   );
 }
 
 function AssocEmpty({ text }: { text: string }) {
-  return <div style={{ fontSize: 11.5, color: 'var(--fg-4)', padding: '6px 8px', fontStyle: 'italic' }}>{text}</div>;
+  return <div style={{ fontSize: 11, color: 'var(--fg-4)', padding: '5px 6px', fontStyle: 'italic' }}>{text}</div>;
 }
+
+
 
 
 
@@ -1214,17 +1237,19 @@ function CustomFields({ client }: any) {
         )}
       </div>
 
-      {/* KO'RISH REJIMI — chiroyli "yorliq: qiymat" ro'yxati */}
+      {/* KO'RISH REJIMI — v31: HubSpot "Key information" uslubi — yorliq
+          ustida kichik va xira, qiymat pastda aniq, oralarida ingichka
+          chiziq. Endi qutichalar/fon yo'q — toza, vertikal ro'yxat. */}
       {!editing && (
         saved.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div>
             {saved.map((f, i) => (
               <div key={i} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12,
-                padding: '9px 11px', background: 'var(--bg-3)', borderRadius: 8,
+                padding: '9px 0',
+                borderBottom: i === saved.length - 1 ? 'none' : '1px solid var(--border)',
               }}>
-                <span style={{ fontSize: 12, color: 'var(--fg-3)', fontWeight: 500, flexShrink: 0 }}>{f.key || '—'}</span>
-                <span style={{ fontSize: 12.5, color: 'var(--fg)', fontWeight: 600, textAlign: 'right', wordBreak: 'break-word' }}>{f.value || '—'}</span>
+                <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>{f.key || '—'}</div>
+                <div style={{ fontSize: 13, color: 'var(--fg)', fontWeight: 500, wordBreak: 'break-word' }}>{f.value || '—'}</div>
               </div>
             ))}
           </div>
