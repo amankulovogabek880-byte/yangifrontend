@@ -323,18 +323,26 @@ export default function Client360Page() {
                 Umumiy/Maydonlar/Boshqa segmentli tab saqlanib qoladi. */}
             <div style={{ border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-2)', marginBottom: 12, overflow: 'hidden' }}>
               <div
-                onClick={() => setKeyInfoOpen(v => !v)}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 12px', cursor: 'pointer', userSelect: 'none',
+                  padding: '10px 8px 10px 4px', userSelect: 'none',
                   borderBottom: keyInfoOpen ? '1px solid var(--border)' : 'none',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div
+                  onClick={() => setKeyInfoOpen(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', flex: 1, minWidth: 0 }}
+                >
+                  <span style={{ fontSize: 11, color: 'var(--fg-4)', letterSpacing: -1, cursor: 'grab' }}>⠿</span>
                   <span style={{ fontSize: 9, color: 'var(--fg-4)', transform: keyInfoOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .15s ease' }}>▼</span>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--fg)' }}>Asosiy ma'lumot</span>
                 </div>
-                <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>⚙</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}>
+                    Actions <span style={{ fontSize: 8 }}>▾</span>
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--fg-4)', cursor: 'pointer' }}>⚙</span>
+                </div>
               </div>
 
               {keyInfoOpen && (
@@ -1305,6 +1313,11 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
   // v14: sahifa pastga scroll qilinganda yozishmalar paneli KICHRAYADI (headerga
   // taqalib faqat yozish maydoni qoladi) — shunda pastdagi ma'lumotlar oson topiladi.
   const [collapsed, setCollapsed] = useState(false);
+  // v34: HubSpot'dagi "Search activities" va "Collapse all" — endi HAQIQIY
+  // ishlaydi: qidiruv sarlavha/tavsif bo'yicha filtrlaydi, "Yig'ish" esa
+  // har bir yozuvni bitta qatorga siqadi (tafsilot qatori yashiriladi).
+  const [searchQuery, setSearchQuery] = useState('');
+  const [collapseAll, setCollapseAll] = useState(false);
   useEffect(() => {
     const onScroll = () => setCollapsed((window.scrollY || document.documentElement.scrollTop || 0) > 120);
     window.addEventListener('scroll', onScroll, true);
@@ -1389,6 +1402,13 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
     }),
   ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 
+  // v34: qidiruv so'zi bo'yicha filtrlangan oqim — barcha son va ro'yxatlar
+  // shundan hisoblanadi, shu bilan "Hammasi (N)" ham qidiruvga mos yangilanadi.
+  const q = searchQuery.trim().toLowerCase();
+  const searchedFeed = q
+    ? feed.filter((x: any) => (x.title || '').toLowerCase().includes(q) || (x.subtitle || '').toLowerCase().includes(q))
+    : feed;
+
   // v14: yozish/izoh maydoni endi kattaroq va ko'rinarli
   const inp: any = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 14, resize: 'vertical', minHeight: 64, maxHeight: 160, lineHeight: 1.4 };
 
@@ -1403,12 +1423,39 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
           {chatLoading && <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>Yuklanmoqda...</span>}
         </div>
 
+        {/* v34: HubSpot'dagi "Search activities ... Collapse all" qatoriga
+            o'xshab — chapda qidiruv (icon bilan), o'ngda "Yig'ish"/"Yoyish"
+            almashinadigan tugma. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--fg-4)', pointerEvents: 'none' }}>🔍</span>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Faoliyatdan qidirish..."
+              style={{
+                width: '100%', padding: '7px 10px 7px 30px', borderRadius: 8,
+                border: '1px solid var(--border)', background: 'var(--bg-2)',
+                color: 'var(--fg)', fontSize: 12.5, outline: 'none',
+              }}
+            />
+          </div>
+          <button
+            onClick={() => setCollapseAll((v) => !v)}
+            style={{
+              flexShrink: 0, fontSize: 11.5, fontWeight: 600, padding: '7px 11px',
+              borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)',
+              color: 'var(--fg-2)', cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >{collapseAll ? '↕ Yoyish' : '↑ Yig\'ish'}</button>
+        </div>
+
         {/* v29: HubSpot'dagi "About/Activities/Revenue" tab qatoriga o'xshab —
             pastki chiziq bilan, kattaroq. Ilgari kichik "pill" tugmalar edi,
             bu esa asosiy tab navigatsiyasi ekanini yetarlicha ko'rsatmasdi. */}
         <div style={{ display: 'flex', gap: 18, borderBottom: '1px solid var(--border)' }}>
           {([
-            ['all', `Hammasi (${feed.length})`],
+            ['all', `Hammasi (${searchedFeed.length})`],
             ['chat', '💬 Chat'],
             ['offer', '📨 Takliflar'],
             ['note', '🔒 Izohlar'],
@@ -1448,7 +1495,7 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
       {/* Inline yozishmalar oynasi — ichida scroll bo'ladi (yangi xabar tepada,
           yozish maydoniga eng yaqin). */}
       {(() => {
-        const filtered = feedFilter === 'all' ? feed : feed.filter((x: any) => x.kind === feedFilter);
+        const filtered = feedFilter === 'all' ? searchedFeed : searchedFeed.filter((x: any) => x.kind === feedFilter);
         // v14: "Takliflar" tanlanganda inline jurnal EMAS — pastda haqiqiy
         // taklif kartalari ko'rsatiladi (2-rasmdagidek). Shu yerda faqat ishorat.
         if (feedFilter === 'offer') {
@@ -1491,10 +1538,12 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
                 <div key={item.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 0', color: 'var(--fg-3)' }}>
                   <span style={{ fontSize: 13, flexShrink: 0, opacity: 0.8 }}>{item.isNote ? '🔒' : item.icon}</span>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{item.title}</div>
-                    <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 1 }}>
-                      {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
-                    </div>
+                    <div style={{ wordBreak: 'break-word', overflow: collapseAll ? 'hidden' : 'visible', textOverflow: collapseAll ? 'ellipsis' : 'clip', whiteSpace: collapseAll ? 'nowrap' : 'pre-wrap' }}>{item.title}</div>
+                    {!collapseAll && (
+                      <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 1 }}>
+                        {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
