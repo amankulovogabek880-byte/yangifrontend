@@ -19,8 +19,6 @@ import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-ico
 const ICON = 15;
 const TABS = [
   { id: 'general',     label: 'Umumiy',            icon: <Settings size={ICON} /> },
-  { id: 'profile',     label: 'Profil',            icon: <User size={ICON} /> },
-  { id: 'security',    label: 'Xavfsizlik',        icon: <Lock size={ICON} /> },
   { id: 'phone',       label: 'Telefon',           icon: <PhoneCall size={ICON} /> },
   { id: 'operators',   label: 'Tur operatorlar',   icon: <Building2 size={ICON} />, adminOnly: true },
   { id: 'whatsapp',    label: 'WhatsApp',          icon: <FaWhatsapp size={ICON} /> },
@@ -30,23 +28,13 @@ const TABS = [
   { id: 'templates',   label: 'Shablonlar',        icon: <FileText size={ICON} />, adminOnly: true },
   { id: 'api',         label: 'API Keys',          icon: <Key size={ICON} />, adminOnly: true },
   { id: 'webhooklogs', label: 'Webhook Logs',      icon: <List size={ICON} />, adminOnly: true },
+  { id: 'profile',     label: 'Profil',            icon: <User size={ICON} /> },
   { id: 'team',        label: 'Jamoa',             icon: <Users size={ICON} />, adminOnly: true },
   { id: 'leads',       label: 'Lead taqsimlash',   icon: <Target size={ICON} />, adminOnly: true },
   { id: 'autoreply',   label: 'Auto-Reply',        icon: <Bot size={ICON} />, adminOnly: true },
   { id: 'forms',       label: 'Web Forms',         icon: <ClipboardList size={ICON} />, adminOnly: true },
-  { id: 'kpi',         label: "Komissiya darajalari", icon: <DollarSign size={ICON} />, adminOnly: true },
-];
-
-// v29: Ilgari TABS bitta gorizontal-skroll qator sifatida chizilardi — 17 ta
-// element ekranga sig'maydi, ko'pchiligi ko'rinmay, "yo'qolib" qolardi
-// (masalan "Web Forms" yoki "Komissiya darajalari"ni hech kim topolmasdi).
-// Endi mantiqiy GURUHLARGA bo'lib, hammasi bir vaqtda, skrolsiz ko'rinadi —
-// tab state/click logikasi (setTab) O'ZGARMAGAN, faqat chizilishi guruhlangan.
-const TAB_GROUPS: { title: string; ids: string[] }[] = [
-  { title: 'Asosiy',        ids: ['general', 'profile', 'security'] },
-  { title: 'Kanallar',      ids: ['telegram', 'whatsapp', 'instagram', 'facebook', 'phone', 'operators'] },
-  { title: 'Sotuv jarayoni', ids: ['leads', 'autoreply', 'forms', 'kpi', 'templates'] },
-  { title: 'Jamoa va tizim', ids: ['team', 'api', 'webhooklogs'] },
+  { id: 'kpi',         label: 'Commission Tiers',  icon: <DollarSign size={ICON} />, adminOnly: true },
+  { id: 'security',    label: 'Xavfsizlik',        icon: <Lock size={ICON} /> },
 ];
 
 export default function SettingsPage() {
@@ -73,37 +61,21 @@ export default function SettingsPage() {
           Profil, kompaniya va integratsiyalarni boshqaring
         </p>
 
-        <div style={{ marginBottom: 20 }}>
-          {TAB_GROUPS.map((group) => {
-            const visibleTabs = group.ids
-              .map((id) => TABS.find((t) => t.id === id)!)
-              .filter((t) => t && (!t.adminOnly || isAdmin));
-            if (visibleTabs.length === 0) return null;
-            return (
-              <div key={group.title} style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--fg-4)', marginBottom: 6 }}>
-                  {group.title}
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {visibleTabs.map((t) => (
-                    <button key={t.id} onClick={() => setTab(t.id)} style={{
-                      background: tab === t.id ? 'var(--primary)' : 'var(--bg-3)',
-                      border: '1px solid ' + (tab === t.id ? 'var(--primary)' : 'var(--border)'),
-                      borderRadius: 8, padding: '7px 13px',
-                      color: tab === t.id ? '#fff' : 'var(--fg-2)',
-                      cursor: 'pointer', fontSize: 12.5,
-                      fontWeight: tab === t.id ? 700 : 500,
-                      whiteSpace: 'nowrap',
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                    }}>
-                      {t.icon}
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+          {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              background: 'none', border: 'none', padding: '10px 14px',
+              color: tab === t.id ? 'var(--primary)' : 'var(--fg-2)',
+              cursor: 'pointer', fontSize: 13,
+              fontWeight: tab === t.id ? 600 : 500,
+              borderBottom: '2px solid ' + (tab === t.id ? 'var(--primary)' : 'transparent'),
+              marginBottom: -1, whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+            }}>
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {tab === 'operators' && (
@@ -341,7 +313,9 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
             <option value="STUB">STUB (simulyatsiya - demo uchun)</option>
             <option value="TEL_LINK">tel: link (bepul, agent telefoni)</option>
             <option value="ONLINEPBX">OnlinePBX.uz (O'zbek raqami + recording)</option>
+            <option value="MOIZVONKI">Мои Звонки (arzon, Android telefon orqali)</option>
             <option value="TWILIO">Twilio (xalqaro)</option>
+            <option value="CUSTOM_SIP">Shaxsiy server (Asterisk/FreePBX)</option>
           </Select>
 
           {provider === 'CUSTOM_SIP' && (
@@ -500,6 +474,103 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
                 <code style={{ background: 'var(--bg-2)', padding: '2px 6px', borderRadius: 4, fontSize: 11 }}>
                   {window.location.origin}/api/v1/calls/webhook
                 </code>
+              </div>
+            </div>
+          )}
+
+          {provider === 'MOIZVONKI' && (
+            <div style={{ padding: 14, background: 'var(--bg-3)', borderRadius: 10, marginBottom: 14 }}>
+              <h4 style={{ marginTop: 0, fontSize: 13 }}>Мои Звонки sozlamalari</h4>
+              <div style={{ padding: '10px 12px', background: '#3d7eff12', borderRadius: 8, marginBottom: 12, fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.8 }}>
+                <b>Qanday ishlaydi:</b> qo'ng'iroqning o'zi agentning shaxsiy Android
+                telefoni orqali (mobil tarif bo'yicha) amalga oshadi. CRM faqat
+                terishni boshlab beradi va natijani (yozuv+davomiylik) qabul qiladi.<br /><br />
+                <b>Sozlash tartibi:</b><br />
+                1. <a href="https://www.moizvonki.ru/accounts/create/" target="_blank" style={{color:'#3d7eff'}}>Bepul hisob oching</a> (20 kun, kartasiz)<br />
+                2. Har bir agentning Android telefoniga ilova o'rnating va shu hisobga kiritilgan email bilan ro'yxatdan o'tkazing<br />
+                3. Shaxsiy kabinet → Sozlamalar → Integratsiya sahifasidagi <b>"API manzili"</b> va <b>"API kaliti"</b>ni pastga kiriting<br />
+                4. Pastdagi <b>Webhook URL</b>ni xuddi shu Integratsiya sahifasiga qo'ying<br />
+                5. Kiritgach <b>"Ulanishni tekshirish"</b> tugmasini bosing
+              </div>
+              <Label>Hisob subdomeni</Label>
+              <Input
+                placeholder="kompaniyam (https://kompaniyam.moizvonki.ru)"
+                value={config.moizvonki?.subdomain || ''}
+                onChange={(e) => setConfig({ ...config, moizvonki: { ...(config.moizvonki || {}), subdomain: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <Label>API kaliti</Label>
+              <Input
+                type="password"
+                placeholder="..."
+                value={config.moizvonki?.apiKey || ''}
+                onChange={(e) => setConfig({ ...config, moizvonki: { ...(config.moizvonki || {}), apiKey: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <Label>Admin email (hisob egasi)</Label>
+              <Input
+                placeholder="admin@kompaniya.uz"
+                value={config.moizvonki?.adminEmail || ''}
+                onChange={(e) => setConfig({ ...config, moizvonki: { ...(config.moizvonki || {}), adminEmail: e.target.value } })}
+                style={{ marginBottom: 10 }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <input type="checkbox"
+                  checked={config.moizvonki?.recordingEnabled !== false}
+                  onChange={(e) => setConfig({ ...config, moizvonki: { ...(config.moizvonki || {}), recordingEnabled: e.target.checked } })}
+                />
+                <span>Qo'ng'iroqlarni yozib olish (Мои Звонки'da "Запись" tarifi kerak — 230₽/qurilma/oy)</span>
+              </div>
+
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                <Btn
+                  variant="secondary"
+                  onClick={async () => {
+                    setPbxTest({ loading: true, ok: null, msg: '' });
+                    try {
+                      const r = await callsApi.testConnection();
+                      const d = r.data || {};
+                      setPbxTest({ loading: false, ok: !!d.success, msg: d.message || '' });
+                      if (d.success) toast.success(d.message || 'Ulanish muvaffaqiyatli');
+                      else toast.error(d.message || 'Ulanmadi');
+                    } catch (e: any) {
+                      const m = e?.response?.data?.message || 'Tekshirib bo\'lmadi';
+                      setPbxTest({ loading: false, ok: false, msg: m });
+                      toast.error(m);
+                    }
+                  }}
+                  loading={pbxTest.loading}
+                >
+                  🔌 Ulanishni tekshirish
+                </Btn>
+
+                {pbxTest.ok !== null && (
+                  <div style={{
+                    marginTop: 10, padding: '10px 12px', borderRadius: 8, fontSize: 12,
+                    background: pbxTest.ok ? '#10b98118' : '#ef444418',
+                    color: pbxTest.ok ? '#10b981' : '#ef4444',
+                  }}>
+                    {pbxTest.ok ? '✅ ' : '❌ '}{pbxTest.msg}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--fg-3)' }}>
+                  Avval sozlamalarni <b>saqlang</b>, keyin tekshiring. Agar javob
+                  "moslik topilmadi" desa — yuqoridagi natijadagi xom server
+                  javobini menga yuboring, aniq maydon nomlarini moslashtirib beraman.
+                </div>
+              </div>
+
+              <div style={{ marginTop: 12, padding: '10px 12px', background: '#10b98112', borderRadius: 8, fontSize: 12 }}>
+                <b>Webhook URL (moizvonki.ru → Sozlamalar → Integratsiya sahifasiga qo'ying):</b><br />
+                <code style={{ background: 'var(--bg-2)', padding: '2px 6px', borderRadius: 4, fontSize: 11, wordBreak: 'break-all' }}>
+                  {window.location.origin}/api/v1/calls/webhook/moizvonki/{me?.tenantId || '{tenantId}'}
+                </code>
+                {!me?.tenantId && (
+                  <div style={{ marginTop: 6, color: 'var(--fg-3)' }}>
+                    (Sahifa yuklanayotganda tenantId vaqtincha ko'rinmasligi mumkin — bir necha soniyadan so'ng yangilanadi)
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2932,7 +3003,7 @@ function KPITab() {
   return (
     <>
       <Card style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 15, marginBottom: 12 }}>💰 Komissiya darajalari</h3>
+        <h3 style={{ margin: 0, fontSize: 15, marginBottom: 12 }}>💰 Commission Tiers</h3>
         <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>
           Agent foizini daromad bo'yicha o'rnating. Misol: 0-2000 = 8%, 2000-4000 = 10%
         </p>
