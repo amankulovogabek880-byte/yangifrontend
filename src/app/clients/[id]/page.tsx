@@ -96,6 +96,12 @@ export default function Client360Page() {
   const [showMoreInfo, setShowMoreInfo] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
+  // ─── v30: HubSpot uslubidagi 3-ustunli tartib. O'ng va chap panel
+  // doim ko'rinadi (mijoz kartasi + bog'langan obyektlar), markazda esa
+  // TABLAR bor — bir vaqtning o'zida faqat bitta bo'lim ochiq turadi,
+  // boshqasini bossangiz o'sha ochilib, avvalgisi yopiladi. ────────────
+  const [activeTab, setActiveTab] = useState<'activity' | 'offers' | 'bookings' | 'calls' | 'documents' | 'payments'>('activity');
+
   const isAdmin = user?.role !== 'AGENT';
 
   const load = () => {
@@ -135,10 +141,25 @@ export default function Client360Page() {
 
   const c = data.client;
   const f = data.financial || {};
+  const documents = data.documents || [];
+  const bookings = c.bookings || [];
+
+  const totalOffersSum = offers.reduce((s: number, o: any) => s + (o.clientPrice || 0), 0);
+  const soldOffers = offers.filter((o: any) => o.status === 'SOLD');
+  const soldSum = soldOffers.reduce((s: number, o: any) => s + (o.clientPrice || 0), 0);
+
+  const TABS: { key: typeof activeTab; label: string; icon: string; count?: number }[] = [
+    { key: 'activity', label: 'Faoliyat', icon: '💬' },
+    { key: 'offers', label: 'Takliflar', icon: '📨', count: offers.length },
+    { key: 'bookings', label: 'Bookinglar', icon: '✈️', count: bookings.length },
+    { key: 'calls', label: "Qo'ng'iroqlar", icon: '📞' },
+    { key: 'documents', label: 'Hujjatlar', icon: '📁', count: documents.length },
+    { key: 'payments', label: "To'lovlar", icon: '💳' },
+  ];
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: '20px 24px', maxWidth: 1520, margin: '0 auto' }}>
         {/* ═══ HEADER ═══ */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
@@ -198,80 +219,67 @@ export default function Client360Page() {
           </div>
         </div>
 
-        {/* ═══ MAIN LAYOUT: chap — mijoz ma'lumoti, o'ng — takliflar + faoliyat ═══ */}
-        <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 28, alignItems: 'start' }}>
+        {/* ═══ MAIN LAYOUT: chap — mijoz kartasi | markaz — tablar | o'ng — bog'langan obyektlar ═══ */}
+        <div className="c360-grid" style={{ display: 'grid', gridTemplateColumns: '260px minmax(0,1fr) 280px', gap: 22, alignItems: 'start' }}>
 
-          {/* ── CHAP: mijoz ma'lumoti ── */}
-          <div>
+          {/* ── CHAP: mijoz kartasi (doim ko'rinadi) ── */}
+          <div style={{ position: 'sticky', top: 76, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto', paddingRight: 2 }}>
             {/* v29: eng birinchi ko'rinadigan narsa — mijoz qayerga bormoqchi
-                va qancha puli bor. Bu ma'lumot ilgari umuman ko'rinmasdi
-                (offer/booking yaratilmaguncha) yoki erkin eslatmalar ichida
-                yo'qolib qolardi. */}
+                va qancha puli bor. */}
             <KeyInfoBlock client={c} />
 
-            {/* v10.4: Jami / sotilgan — avval faqat "sotilmagan" takliflar
-                yig'indisi umumiy summa sifatida ko'rsatilardi, bu ro'yxatdagi
-                raqamlar bilan mos kelmasdi. Endi ikkalasi ham aniq ko'rsatiladi. */}
-            {(() => {
-              const totalSum = offers.reduce((s: number, o: any) => s + (o.clientPrice || 0), 0);
-              const soldOffers = offers.filter((o: any) => o.status === 'SOLD');
-              const soldSum = soldOffers.reduce((s: number, o: any) => s + (o.clientPrice || 0), 0);
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-                  <div>
-                    <div style={{ fontSize: 22, fontWeight: 700 }}>${totalSum.toLocaleString()}</div>
-                    <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{offers.length} ta taklif yuborilgan</div>
-                  </div>
-                  {soldOffers.length > 0 && (
-                    <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--success-soft)' }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>${soldSum.toLocaleString()}</div>
-                      <div style={{ fontSize: 11, color: 'var(--success)' }}>{soldOffers.length} ta sotildi</div>
-                    </div>
-                  )}
+            {/* v10.4: Jami / sotilgan */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 700 }}>${totalOffersSum.toLocaleString()}</div>
+                <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{offers.length} ta taklif yuborilgan</div>
+              </div>
+              {soldOffers.length > 0 && (
+                <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--success-soft)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>${soldSum.toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: 'var(--success)' }}>{soldOffers.length} ta sotildi</div>
                 </div>
-              );
-            })()}
+              )}
+            </div>
 
             <CollapsibleSection title="Umumiy ma'lumot" storageKey="client-general-info" defaultOpen={true}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
-              {c.assignedAgent && (
-                <div>
-                  <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Mas'ul agent</div>
-                  <div>{c.assignedAgent.name}</div>
-                </div>
-              )}
-              {c.firstContactAt && (
-                <div>
-                  <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Birinchi murojaat</div>
-                  <div>{fmtDate(c.firstContactAt)}</div>
-                </div>
-              )}
-              <div>
-                <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Manba</div>
-                <div>{c.source}{c.tier ? ' · ' + c.tier : ''}</div>
-              </div>
-
-              {/* v15: So'nggi booking qisqacha — agent bir qarashda mijoz
-                  hozir qanday bosqichda ekanini (tur, holat, to'lov) ko'radi,
-                  pastga tushib Bookinglar bo'limini qidirishi shart emas. */}
-              {c.bookings?.length > 0 && (() => {
-                const latest = c.bookings[0];
-                return (
-                  <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border)' }}>
-                    <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>So'nggi booking</div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{latest.tourName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{latest.status}{latest.destination ? ' · ' + latest.destination : ''}</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{latest.currency} {latest.paidAmount || 0} / {latest.totalPrice}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
+                {c.assignedAgent && (
+                  <div>
+                    <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Mas'ul agent</div>
+                    <div>{c.assignedAgent.name}</div>
                   </div>
-                );
-              })()}
-            </div>
+                )}
+                {c.firstContactAt && (
+                  <div>
+                    <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Birinchi murojaat</div>
+                    <div>{fmtDate(c.firstContactAt)}</div>
+                  </div>
+                )}
+                <div>
+                  <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Manba</div>
+                  <div>{c.source}{c.tier ? ' · ' + c.tier : ''}</div>
+                </div>
+
+                {/* v15: So'nggi booking qisqacha */}
+                {bookings.length > 0 && (() => {
+                  const latest = bookings[0];
+                  return (
+                    <div
+                      onClick={() => setActiveTab('bookings')}
+                      style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                    >
+                      <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>So'nggi booking</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{latest.tourName}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{latest.status}{latest.destination ? ' · ' + latest.destination : ''}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{latest.currency} {latest.paidAmount || 0} / {latest.totalPrice}</div>
+                    </div>
+                  );
+                })()}
+              </div>
             </CollapsibleSection>
 
-            {/* v14: mijozning ixtiyoriy ma'lumotlari (key = value) —
-                CustomFields o'zining sarlavhasi/Tahrirlash tugmasini o'zi
-                boshqaradi, shuning uchun qo'shimcha CollapsibleSection bilan
-                o'ralmaydi (aks holda ikki sarlavha ustma-ust chiqib qolardi). */}
+            {/* v14: mijozning ixtiyoriy ma'lumotlari (key = value) */}
             <CustomFields client={c} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
@@ -329,120 +337,158 @@ export default function Client360Page() {
             )}
           </div>
 
-          {/* ── O'NG: faoliyat (chat) tepada qotib turadi + takliflar + bookinglar pastda aylanadi ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 26, minWidth: 0 }}>
-
-            {/* v15: Faoliyat (chat) ENDI ENG TEPADA — agent sahifaga kirgan
-                zahoti chatni ko'radi va yoza oladi, uni qidirib pastga
-                tushirishi shart emas. "sticky" bo'lgani uchun Takliflar/
-                Bookinglar ro'yxatini pastga aylantirsa ham, chat ekranning
-                yuqorisida QOTIB turadi. */}
+          {/* ── MARKAZ: tablar — bir vaqtda faqat bittasi ochiq turadi ── */}
+          <div style={{ minWidth: 0 }}>
+            {/* v30: HubSpot uslubidagi tab qatori — qaysi tab bosilsa, o'sha
+                ochilib keladi, qolganlari yopiladi. Sarlavha yonida son
+                bo'lsa (masalan Takliflar (3)) — badge sifatida chiqadi. */}
             <div style={{
-              position: 'sticky', top: 70, zIndex: 5,
-              maxHeight: 'calc(100vh - 90px)', overflowY: 'auto',
-              background: 'var(--bg)', borderRadius: 12,
+              display: 'flex', gap: 2, borderBottom: '1px solid var(--border)',
+              marginBottom: 18, overflowX: 'auto',
             }}>
-              <ActivityFeed
-                client={c}
-                conversation={data.activeConversation}
-                chatMsgs={chatMsgs}
-                chatLoading={chatLoading}
-                onStartChat={() => setShowPersonalMsg(true)}
-                onRefresh={load}
-                filter={activeFilter}
-                onFilterChange={setActiveFilter}
-              />
-            </div>
-
-            {/* Takliflar — v14: faqat "Hammasi" yoki "Takliflar" filtrida ko'rinadi
-                (Chat/Izohlar tanlanganda yashiriladi — orqada chiqib turmaydi) */}
-            {(activeFilter === 'all' || activeFilter === 'offer') && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Takliflar</span>
-                <button onClick={() => setShowOfferCreate(true)} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer' }}>+ Yangi</button>
-              </div>
-
-              {offers.length === 0 ? (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13, border: '1px solid var(--border)', borderRadius: 8 }}>
-                  Hali taklif yuborilmagan
-                </div>
-              ) : (() => {
-                // v14: booking'ga aylangan (sotilgan) takliflar ro'yxatning ENG PASTIDA
-                const isSold = (o: any) => o?.status === 'SOLD' || o?.status === 'CONVERTED' || !!o?.bookingId;
-                const offersSorted = [...offers].sort((a: any, b: any) => (isSold(a) ? 1 : 0) - (isSold(b) ? 1 : 0));
-                const groups = groupDuplicateOffers(offersSorted);
+              {TABS.map((t) => {
+                const active = activeTab === t.key;
                 return (
-                <div style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-                  {groups.map((group: any[], gi: number) => (
-                    <OfferGroupRow
-                      key={group[0].id}
-                      group={group}
-                      isLast={gi === groups.length - 1}
-                      clientId={id}
-                      clientPhone={c.phone}
-                      clientUsername={c.telegramUsername}
-                      onSent={(offerId: string) => setOffers((prev: any[]) => prev.map((x: any) => x.id === offerId ? { ...x, status: 'SENT' } : x))}
-                      onEdit={(o: any) => setEditingOffer(o)}
-                      onDuplicate={(o: any) => setDuplicatingOffer(o)}
-                      onSold={(o: any) => setOfferBooking(o)}
-                      sellingOfferId={sellingOfferId}
-                    />
-                  ))}
-                </div>
+                  <button
+                    key={t.key}
+                    onClick={() => setActiveTab(t.key)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                      padding: '9px 14px', cursor: 'pointer', fontSize: 13,
+                      background: 'none', border: 'none',
+                      borderBottom: '2px solid ' + (active ? '#3d7eff' : 'transparent'),
+                      marginBottom: -1,
+                      color: active ? 'var(--fg)' : 'var(--fg-3)',
+                      fontWeight: active ? 700 : 500,
+                      transition: 'color .15s ease, border-color .15s ease',
+                    }}
+                  >
+                    <span>{t.icon}</span>
+                    <span>{t.label}</span>
+                    {typeof t.count === 'number' && t.count > 0 && (
+                      <span style={{
+                        fontSize: 10.5, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
+                        background: active ? '#3d7eff20' : 'var(--bg-3)',
+                        color: active ? '#3d7eff' : 'var(--fg-3)',
+                      }}>{t.count}</span>
+                    )}
+                  </button>
                 );
-              })()}
-
-              <button onClick={() => setShowBooking(true)} style={{ fontSize: 11, color: 'var(--fg-4)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 0' }}>
-                yoki to'g'ridan-to'g'ri booking yarating →
-              </button>
-
-              {offerBooking && (
-                <OfferBookingModal
-                  offer={offerBooking}
-                  clientId={id}
-                  onClose={() => setOfferBooking(null)}
-                  onSaved={() => { setOfferBooking(null); load(); }}
-                />
-              )}
-              {showOfferCreate && (
-                <OfferCreateModal
-                  clientId={id}
-                  onClose={() => setShowOfferCreate(false)}
-                  onSaved={(o: any) => { setOffers((prev: any[]) => [o, ...prev]); setShowOfferCreate(false); }}
-                />
-              )}
-              {editingOffer && (
-                <OfferCreateModal
-                  clientId={id}
-                  existingOffer={editingOffer}
-                  onClose={() => setEditingOffer(null)}
-                  onSaved={(o: any) => { setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? o : x)); setEditingOffer(null); }}
-                />
-              )}
-              {/* v29: Nusxalash — eski taklif asosida YANGI taklif yaratadi (POST, PUT emas) */}
-              {duplicatingOffer && (
-                <OfferCreateModal
-                  clientId={id}
-                  duplicateOffer={duplicatingOffer}
-                  onClose={() => setDuplicatingOffer(null)}
-                  onSaved={(o: any) => { setOffers((prev: any[]) => [o, ...prev]); setDuplicatingOffer(null); }}
-                />
-              )}
+              })}
             </div>
+
+            {/* ═══ FAOLIYAT ═══ */}
+            {activeTab === 'activity' && (
+              <div style={{
+                position: 'sticky', top: 76, zIndex: 5,
+                maxHeight: 'calc(100vh - 130px)', overflowY: 'auto',
+                background: 'var(--bg)', borderRadius: 12,
+              }}>
+                <ActivityFeed
+                  client={c}
+                  conversation={data.activeConversation}
+                  chatMsgs={chatMsgs}
+                  chatLoading={chatLoading}
+                  onStartChat={() => setShowPersonalMsg(true)}
+                  onRefresh={load}
+                  filter={activeFilter}
+                  onFilterChange={setActiveFilter}
+                />
+              </div>
             )}
 
-            {/* Sotilgandan keyin: booking / to'lov / hujjatlar shu yerda ochiladi */}
-            {c.bookings?.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 18, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>✅ Bookinglar</span>
-                    <button onClick={() => setShowBooking(true)} style={{ fontSize: 11, padding: '4px 8px', color: 'var(--fg-4)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Yana booking</button>
+            {/* ═══ TAKLIFLAR ═══ */}
+            {activeTab === 'offers' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>Takliflar</span>
+                  <button onClick={() => setShowOfferCreate(true)} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--fg-2)', cursor: 'pointer' }}>+ Yangi</button>
+                </div>
+
+                {offers.length === 0 ? (
+                  <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13, border: '1px solid var(--border)', borderRadius: 8 }}>
+                    Hali taklif yuborilmagan
                   </div>
+                ) : (() => {
+                  // v14: booking'ga aylangan (sotilgan) takliflar ro'yxatning ENG PASTIDA
+                  const isSold = (o: any) => o?.status === 'SOLD' || o?.status === 'CONVERTED' || !!o?.bookingId;
+                  const offersSorted = [...offers].sort((a: any, b: any) => (isSold(a) ? 1 : 0) - (isSold(b) ? 1 : 0));
+                  const groups = groupDuplicateOffers(offersSorted);
+                  return (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
+                      {groups.map((group: any[], gi: number) => (
+                        <OfferGroupRow
+                          key={group[0].id}
+                          group={group}
+                          isLast={gi === groups.length - 1}
+                          clientId={id}
+                          clientPhone={c.phone}
+                          clientUsername={c.telegramUsername}
+                          onSent={(offerId: string) => setOffers((prev: any[]) => prev.map((x: any) => x.id === offerId ? { ...x, status: 'SENT' } : x))}
+                          onEdit={(o: any) => setEditingOffer(o)}
+                          onDuplicate={(o: any) => setDuplicatingOffer(o)}
+                          onSold={(o: any) => setOfferBooking(o)}
+                          sellingOfferId={sellingOfferId}
+                        />
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                <button onClick={() => setShowBooking(true)} style={{ fontSize: 11, color: 'var(--fg-4)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 0' }}>
+                  yoki to'g'ridan-to'g'ri booking yarating →
+                </button>
+
+                {offerBooking && (
+                  <OfferBookingModal
+                    offer={offerBooking}
+                    clientId={id}
+                    onClose={() => setOfferBooking(null)}
+                    onSaved={() => { setOfferBooking(null); load(); }}
+                  />
+                )}
+                {showOfferCreate && (
+                  <OfferCreateModal
+                    clientId={id}
+                    onClose={() => setShowOfferCreate(false)}
+                    onSaved={(o: any) => { setOffers((prev: any[]) => [o, ...prev]); setShowOfferCreate(false); }}
+                  />
+                )}
+                {editingOffer && (
+                  <OfferCreateModal
+                    clientId={id}
+                    existingOffer={editingOffer}
+                    onClose={() => setEditingOffer(null)}
+                    onSaved={(o: any) => { setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? o : x)); setEditingOffer(null); }}
+                  />
+                )}
+                {/* v29: Nusxalash — eski taklif asosida YANGI taklif yaratadi (POST, PUT emas) */}
+                {duplicatingOffer && (
+                  <OfferCreateModal
+                    clientId={id}
+                    duplicateOffer={duplicatingOffer}
+                    onClose={() => setDuplicatingOffer(null)}
+                    onSaved={(o: any) => { setOffers((prev: any[]) => [o, ...prev]); setDuplicatingOffer(null); }}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* ═══ BOOKINGLAR ═══ */}
+            {activeTab === 'bookings' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>✅ Bookinglar</span>
+                  <button onClick={() => setShowBooking(true)} style={{ fontSize: 11, padding: '4px 8px', color: 'var(--fg-4)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Yana booking</button>
+                </div>
+                {bookings.length === 0 ? (
+                  <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--fg-4)', fontSize: 13, border: '1px solid var(--border)', borderRadius: 8 }}>
+                    Hali booking yaratilmagan
+                  </div>
+                ) : (
                   <div style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-                    {c.bookings.map((b: any, i: number) => (
-                      <div key={b.id} onClick={() => router.push(`/bookings/${b.id}`)} style={{ padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: i === c.bookings.length - 1 ? 'none' : '1px solid var(--border)' }}>
+                    {bookings.map((b: any, i: number) => (
+                      <div key={b.id} onClick={() => router.push(`/bookings/${b.id}`)} style={{ padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', borderBottom: i === bookings.length - 1 ? 'none' : '1px solid var(--border)' }}>
                         <div>
                           <div style={{ fontSize: 13 }}>{b.tourName} <span style={{ color: 'var(--fg-4)', fontFamily: 'monospace', fontSize: 11 }}>· {b.bookingRef}</span></div>
                           <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{b.status} · {b.destination}</div>
@@ -457,13 +503,85 @@ export default function Client360Page() {
                       </div>
                     ))}
                   </div>
-                </div>
-
+                )}
               </div>
             )}
 
-            {/* Qo'ng'iroqlar va ovoz yozuvlari — booking bo'lmasa ham ko'rinadi */}
-            <ClientCalls clientId={c.id} />
+            {/* ═══ QO'NG'IROQLAR ═══ */}
+            {activeTab === 'calls' && <ClientCalls clientId={c.id} />}
+
+            {/* ═══ HUJJATLAR ═══ */}
+            {activeTab === 'documents' && (
+              <ClientDocumentsTab clientId={id as string} initialDocs={documents} onUploaded={load} />
+            )}
+
+            {/* ═══ TO'LOVLAR ═══ */}
+            {activeTab === 'payments' && (
+              <ClientPaymentsInvoiceTab client={c} bookings={bookings} onRefresh={load} />
+            )}
+          </div>
+
+          {/* ── O'NG: bog'langan obyektlar (HubSpot uslubida — Companies/Deals/Tickets kabi) ── */}
+          <div style={{ position: 'sticky', top: 76, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <AssocCard
+              title="Bookinglar" icon="✈️" count={bookings.length}
+              onAdd={() => setShowBooking(true)}
+              onViewAll={bookings.length > 0 ? () => setActiveTab('bookings') : undefined}
+            >
+              {bookings.length === 0 ? (
+                <AssocEmpty text="Hozircha booking yo'q" />
+              ) : (
+                bookings.slice(0, 3).map((b: any) => (
+                  <AssocRow
+                    key={b.id}
+                    title={b.tourName}
+                    subtitle={`${b.currency} ${(b.totalPrice || 0).toLocaleString()}`}
+                    onClick={() => router.push(`/bookings/${b.id}`)}
+                  />
+                ))
+              )}
+            </AssocCard>
+
+            <AssocCard
+              title="Takliflar" icon="📨" count={offers.length}
+              onAdd={() => setShowOfferCreate(true)}
+              onViewAll={offers.length > 0 ? () => setActiveTab('offers') : undefined}
+            >
+              {offers.length === 0 ? (
+                <AssocEmpty text="Hozircha taklif yo'q" />
+              ) : (
+                offers.slice(0, 3).map((o: any) => (
+                  <AssocRow
+                    key={o.id}
+                    title={o.tourName || o.destination || 'Taklif'}
+                    subtitle={`$${(o.clientPrice || 0).toLocaleString()} · ${o.status}`}
+                    onClick={() => setActiveTab('offers')}
+                  />
+                ))
+              )}
+            </AssocCard>
+
+            <AssocCard
+              title="Hujjatlar" icon="📁" count={documents.length}
+              onViewAll={documents.length > 0 ? () => setActiveTab('documents') : undefined}
+            >
+              {documents.length === 0 ? (
+                <AssocEmpty text="Hozircha hujjat yo'q" />
+              ) : (
+                documents.slice(0, 3).map((d: any) => (
+                  <AssocRow
+                    key={d.id}
+                    title={d.fileName || 'Fayl'}
+                    subtitle={d.createdAt ? fmtDate(d.createdAt) : ''}
+                    onClick={() => setActiveTab('documents')}
+                  />
+                ))
+              )}
+            </AssocCard>
+
+            <AssocCard title="Qo'ng'iroqlar" icon="📞" onViewAll={() => setActiveTab('calls')}>
+              <AssocEmpty text="Barcha qo'ng'iroqlarni ko'rish uchun bosing" />
+            </AssocCard>
           </div>
         </div>
       </div>
@@ -507,6 +625,66 @@ export default function Client360Page() {
     </CrmLayout>
   );
 }
+
+// ─── v30: O'ng paneldagi "bog'langan obyektlar" kartasi — HubSpot'dagi
+// Companies/Deals/Tickets bloklariga o'xshab: sarlavha + son + "Barchasi"
+// tugmasi, ichida esa qisqa ro'yxat. Bosilganda mos tabga o'tkazadi. ─────
+function AssocCard({ title, icon, count, onAdd, onViewAll, children }: {
+  title: string; icon: string; count?: number;
+  onAdd?: () => void; onViewAll?: () => void; children: any;
+}) {
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-2)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+        <div
+          onClick={onViewAll}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, cursor: onViewAll ? 'pointer' : 'default' }}
+        >
+          <span>{icon}</span>
+          <span>{title}</span>
+          {typeof count === 'number' && (
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--fg-3)' }}>({count})</span>
+          )}
+        </div>
+        {onAdd && (
+          <button onClick={onAdd} title={`Yangi ${title.toLowerCase()}`} style={{
+            width: 22, height: 22, borderRadius: 6, border: '1px solid var(--border)', background: 'none',
+            color: 'var(--fg-2)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>+</button>
+        )}
+      </div>
+      <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {children}
+        {onViewAll && (
+          <button onClick={onViewAll} style={{
+            marginTop: 2, fontSize: 11.5, padding: '6px 4px', background: 'none', border: 'none',
+            color: 'var(--primary, #3d7eff)', cursor: 'pointer', fontWeight: 600, textAlign: 'left',
+          }}>Barchasini ko'rish →</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AssocRow({ title, subtitle, onClick }: { title: string; subtitle?: string; onClick?: () => void }) {
+  return (
+    <div onClick={onClick} style={{
+      padding: '7px 8px', borderRadius: 7, cursor: onClick ? 'pointer' : 'default',
+      display: 'flex', flexDirection: 'column', gap: 1,
+    }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-3)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      <span style={{ fontSize: 12.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+      {subtitle && <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>{subtitle}</span>}
+    </div>
+  );
+}
+
+function AssocEmpty({ text }: { text: string }) {
+  return <div style={{ fontSize: 11.5, color: 'var(--fg-4)', padding: '6px 8px', fontStyle: 'italic' }}>{text}</div>;
+}
+
 
 
 /**
