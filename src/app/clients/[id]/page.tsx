@@ -84,6 +84,8 @@ export default function Client360Page() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'chat' | 'offer' | 'note'>('all');
   const [showOfferCreate, setShowOfferCreate] = useState(false);
   const [editingOffer, setEditingOffer] = useState<any>(null);
+  // v29: "Nusxalash" — eski taklifni asos qilib, YANGI taklif ochadi (tahrirlash emas)
+  const [duplicatingOffer, setDuplicatingOffer] = useState<any>(null);
   const [sellingOfferId, setSellingOfferId] = useState<string | null>(null);
   // v10.3: Taklifdan booking yaratish modali (6-rasm ko'rinishida, prefilled)
   const [offerBooking, setOfferBooking] = useState<any>(null);
@@ -201,6 +203,12 @@ export default function Client360Page() {
 
           {/* ── CHAP: mijoz ma'lumoti ── */}
           <div>
+            {/* v29: eng birinchi ko'rinadigan narsa — mijoz qayerga bormoqchi
+                va qancha puli bor. Bu ma'lumot ilgari umuman ko'rinmasdi
+                (offer/booking yaratilmaguncha) yoki erkin eslatmalar ichida
+                yo'qolib qolardi. */}
+            <KeyInfoBlock client={c} />
+
             {/* v10.4: Jami / sotilgan — avval faqat "sotilmagan" takliflar
                 yig'indisi umumiy summa sifatida ko'rsatilardi, bu ro'yxatdagi
                 raqamlar bilan mos kelmasdi. Endi ikkalasi ham aniq ko'rsatiladi. */}
@@ -224,6 +232,7 @@ export default function Client360Page() {
               );
             })()}
 
+            <CollapsibleSection title="Umumiy ma'lumot" storageKey="client-general-info" defaultOpen={true}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
               {c.assignedAgent && (
                 <div>
@@ -256,10 +265,16 @@ export default function Client360Page() {
                   </div>
                 );
               })()}
+            </div>
+            </CollapsibleSection>
 
-              {/* v14: mijozning ixtiyoriy ma'lumotlari (key = value) */}
-              <CustomFields client={c} />
+            {/* v14: mijozning ixtiyoriy ma'lumotlari (key = value) —
+                CustomFields o'zining sarlavhasi/Tahrirlash tugmasini o'zi
+                boshqaradi, shuning uchun qo'shimcha CollapsibleSection bilan
+                o'ralmaydi (aks holda ikki sarlavha ustma-ust chiqib qolardi). */}
+            <CustomFields client={c} />
 
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
               {/* Keyingi vazifa */}
               {(() => {
                 const nextTask = (data.tasks || [])[0];
@@ -369,6 +384,7 @@ export default function Client360Page() {
                       clientUsername={c.telegramUsername}
                       onSent={(offerId: string) => setOffers((prev: any[]) => prev.map((x: any) => x.id === offerId ? { ...x, status: 'SENT' } : x))}
                       onEdit={(o: any) => setEditingOffer(o)}
+                      onDuplicate={(o: any) => setDuplicatingOffer(o)}
                       onSold={(o: any) => setOfferBooking(o)}
                       sellingOfferId={sellingOfferId}
                     />
@@ -402,6 +418,15 @@ export default function Client360Page() {
                   existingOffer={editingOffer}
                   onClose={() => setEditingOffer(null)}
                   onSaved={(o: any) => { setOffers((prev: any[]) => prev.map((x: any) => x.id === o.id ? o : x)); setEditingOffer(null); }}
+                />
+              )}
+              {/* v29: Nusxalash — eski taklif asosida YANGI taklif yaratadi (POST, PUT emas) */}
+              {duplicatingOffer && (
+                <OfferCreateModal
+                  clientId={id}
+                  duplicateOffer={duplicatingOffer}
+                  onClose={() => setDuplicatingOffer(null)}
+                  onSaved={(o: any) => { setOffers((prev: any[]) => [o, ...prev]); setDuplicatingOffer(null); }}
                 />
               )}
             </div>
@@ -804,10 +829,160 @@ function StagePill({ clientId, stage, onChanged }: any) {
   );
 }
 
+// ─── v29: HubSpot uslubidagi yig'iladigan bo'lim — sarlavha bosilsa
+// ichidagi kontent yashiriladi/ko'rsatiladi, holat brauzerda eslab qolinadi
+// (sahifani qayta ochganda ham saqlanadi). Chap paneldagi ma'lumotlarni
+// tartibli, kerak bo'lganda yig'ib qo'yish mumkin qilib beradi. ──────────
+function CollapsibleSection({ title, defaultOpen = true, storageKey, children }: any) {
+  const [open, setOpen] = useState(() => {
+    if (typeof window === 'undefined') return defaultOpen;
+    const saved = window.localStorage.getItem(`cf_section_${storageKey}`);
+    return saved === null ? defaultOpen : saved === '1';
+  });
+  function toggle() {
+    setOpen((prev: boolean) => {
+      const next = !prev;
+      window.localStorage.setItem(`cf_section_${storageKey}`, next ? '1' : '0');
+      return next;
+    });
+  }
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <button
+        onClick={toggle}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+          background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 6px',
+          color: 'var(--fg-3)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4,
+        }}
+      >
+        <span>{title}</span>
+        <span style={{ fontSize: 10, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s ease' }}>▼</span>
+      </button>
+      {open && <div>{children}</div>}
+    </div>
+  );
+}
+
 // ─── Mijoz qo'shimcha ma'lumotlari (chiroyli ko'rinish + tahrirlash) ──────────
+// ─── v29: "Nima xohlaydi" — Yo'nalish + Byudjet. Har bir mijozda BIR XIL
+// joyda, bir xil nom bilan turadi (CustomFields'dagi kabi erkin nom emas).
+// Agent kartaga kirgan zahoti — hatto pastga tushmasdan — mijoz qayerga
+// bormoqchi va qancha puli borligini ko'radi. ────────────────────────────
+function KeyInfoBlock({ client }: any) {
+  const initial = client?.preferences?.keyInfo || { destination: '', budget: '', budgetCurrency: 'USD' };
+  const [val, setVal] = useState(initial);
+  const [baseline, setBaseline] = useState(initial);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const hasData = !!(baseline.destination || baseline.budget);
+
+  function startEdit() { setVal(baseline); setEditing(true); }
+  function cancel() { setVal(baseline); setEditing(false); }
+  async function save() {
+    setSaving(true);
+    try {
+      await clientsApi.setKeyInfo(client.id, val);
+      setBaseline(val);
+      setEditing(false);
+      toast.success('Saqlandi');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+  const inp: any = { width: '100%', padding: '7px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
+
+  if (editing) {
+    return (
+      <div style={{ padding: 12, borderRadius: 10, background: 'var(--bg-3)', border: '1px solid var(--border)', marginBottom: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>🎯 Qayerga borishni xohlaydi</div>
+            <input style={inp} placeholder="masalan: Antalya, Turkiya" value={val.destination} onChange={e => setVal((v: any) => ({ ...v, destination: e.target.value }))} autoFocus />
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>💰 Taxminiy byudjet</div>
+              <input style={inp} placeholder="masalan: 2000" value={val.budget} onChange={e => setVal((v: any) => ({ ...v, budget: e.target.value }))} />
+            </div>
+            <div style={{ width: 78 }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>Valyuta</div>
+              <select style={inp} value={val.budgetCurrency} onChange={e => setVal((v: any) => ({ ...v, budgetCurrency: e.target.value }))}>
+                <option value="USD">USD</option>
+                <option value="UZS">UZS</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={cancel} disabled={saving} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer' }}>Bekor</button>
+          <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '6px 16px', borderRadius: 7, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: saving ? 0.6 : 1, fontWeight: 600 }}>{saving ? '...' : 'Saqlash'}</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={startEdit}
+      title="Bosib tahrirlash"
+      style={{
+        padding: 12, borderRadius: 10, marginBottom: 18, cursor: 'pointer',
+        background: hasData ? 'rgba(61,126,255,0.07)' : 'var(--bg-3)',
+        border: '1px solid ' + (hasData ? 'rgba(61,126,255,0.25)' : 'var(--border)'),
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <span style={{ fontSize: 16 }}>🎯</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Yo'nalish</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: baseline.destination ? 'var(--fg)' : 'var(--fg-4)' }}>
+            {baseline.destination || 'Kiritilmagan — bosing'}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <span style={{ fontSize: 16 }}>💰</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Taxminiy byudjet</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: baseline.budget ? 'var(--fg)' : 'var(--fg-4)' }}>
+            {baseline.budget ? `${baseline.budget} ${baseline.budgetCurrency}` : 'Kiritilmagan — bosing'}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// v29: amoCRM uslubida — maydon NOMINI agent har safar o'zi o'ylab
+// yozmaydi (natijada "dfdf", "asd" kabi mazmunsiz yozuvlar chiqardi).
+// Buning o'rniga tayyor, sayohat agentligiga xos nomlar ro'yxatidan
+// tanlanadi; kerak bo'lsa "Boshqa..." orqali o'zi ham kiritishi mumkin.
+const PRESET_FIELD_LABELS = [
+  "Pasport seriyasi",
+  "Pasport amal qilish muddati",
+  "Tug'ilgan sana",
+  "Viza holati",
+  "Necha kishi safar qiladi",
+  "Bolalar yoshi",
+  "Otel darajasi (masalan: 5*)",
+  "Ovqatlanish turi",
+  "Uy manzili",
+  "Qo'shimcha telefon raqami",
+  "Izoh",
+];
+
 function CustomFields({ client }: any) {
   const initial = Array.isArray(client?.preferences?.customFields) ? client.preferences.customFields : [];
   const [fields, setFields] = useState<{ key: string; value: string }[]>(initial);
+  // v29: qaysi qatorlar "erkin nom" rejimida ekanini kuzatib boradi (preset
+  // ro'yxatida bo'lmagan, eski saqlangan nomlar uchun).
+  const [customKeyMode, setCustomKeyMode] = useState<Set<number>>(() => new Set(
+    initial.map((f: any, i: number) => (f.key && !PRESET_FIELD_LABELS.includes(f.key) ? i : -1)).filter((i: number) => i >= 0)
+  ));
   const [baseline, setBaseline] = useState<{ key: string; value: string }[]>(initial);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -816,9 +991,12 @@ function CustomFields({ client }: any) {
     setFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, [k]: v } : f)));
   const add = () => setFields((prev) => [...prev, { key: '', value: '' }]);
   const remove = (i: number) => setFields((prev) => prev.filter((_, idx) => idx !== i));
+  const markCustom = (i: number) => setCustomKeyMode((prev) => new Set(prev).add(i));
 
   function startEdit() {
-    setFields(baseline.length ? baseline : [{ key: '', value: '' }]);
+    const base = baseline.length ? baseline : [{ key: '', value: '' }];
+    setFields(base);
+    setCustomKeyMode(new Set(base.map((f, i) => (f.key && !PRESET_FIELD_LABELS.includes(f.key) ? i : -1)).filter((i) => i >= 0)));
     setEditing(true);
   }
   function cancel() {
@@ -879,21 +1057,49 @@ function CustomFields({ client }: any) {
         )
       )}
 
-      {/* TAHRIRLASH REJIMI */}
+      {/* TAHRIRLASH REJIMI — v29: "Nomi" endi erkin matn emas, tayyor
+          ro'yxatdan tanlanadi (amoCRM uslubida) — mazmunsiz yozuvlarning
+          oldi olinadi. Kerak bo'lsa "Boshqa..." bilan o'zi ham yozadi. */}
       {editing && (
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-            {fields.map((f, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input style={inp} placeholder="Nomi (masalan: Qayerga)" value={f.key} onChange={(e) => upd(i, 'key', e.target.value)} />
-                <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
-                <input style={inp} placeholder="Qiymati (masalan: Istanbul)" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} />
-                <button onClick={() => remove(i)} title="O'chirish" style={{
-                  border: 'none', background: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer',
-                  padding: '4px 6px', display: 'flex', alignItems: 'center',
-                }}><FaTrash size={11} /></button>
-              </div>
-            ))}
+            {fields.map((f, i) => {
+              const isCustomKey = customKeyMode.has(i);
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {isCustomKey ? (
+                    <input
+                      style={inp}
+                      placeholder="Maydon nomi"
+                      value={f.key}
+                      onChange={(e) => upd(i, 'key', e.target.value)}
+                      autoFocus
+                    />
+                  ) : (
+                    <select
+                      style={inp}
+                      value={f.key}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') { upd(i, 'key', ''); markCustom(i); }
+                        else upd(i, 'key', e.target.value);
+                      }}
+                    >
+                      <option value="">— Nomini tanlang —</option>
+                      {PRESET_FIELD_LABELS.map((label) => (
+                        <option key={label} value={label}>{label}</option>
+                      ))}
+                      <option value="__custom__">✏️ Boshqa (o'zim yozaman)</option>
+                    </select>
+                  )}
+                  <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
+                  <input style={inp} placeholder="Qiymati" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} />
+                  <button onClick={() => remove(i)} title="O'chirish" style={{
+                    border: 'none', background: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer',
+                    padding: '4px 6px', display: 'flex', alignItems: 'center',
+                  }}><FaTrash size={11} /></button>
+                </div>
+              );
+            })}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={add} style={{ fontSize: 12, padding: '5px 0', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
@@ -1031,8 +1237,10 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
           {chatLoading && <span style={{ fontSize: 10, color: 'var(--fg-4)' }}>Yuklanmoqda...</span>}
         </div>
 
-        {/* v15: Filter tablari DOIM tepada. Tanlangan tur pastda ochiladi. */}
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+        {/* v29: HubSpot'dagi "About/Activities/Revenue" tab qatoriga o'xshab —
+            pastki chiziq bilan, kattaroq. Ilgari kichik "pill" tugmalar edi,
+            bu esa asosiy tab navigatsiyasi ekanini yetarlicha ko'rsatmasdi. */}
+        <div style={{ display: 'flex', gap: 18, borderBottom: '1px solid var(--border)' }}>
           {([
             ['all', `Hammasi (${feed.length})`],
             ['chat', '💬 Chat'],
@@ -1042,10 +1250,10 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
             const active = feedFilter === id;
             return (
               <button key={id} onClick={() => setFeedFilter(id)} style={{
-                padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontSize: 11,
-                border: active ? 'none' : '1px solid var(--border)',
-                background: active ? '#3d7eff' : 'none',
-                color: active ? 'white' : 'var(--fg-2)', fontWeight: active ? 700 : 500,
+                padding: '0 0 9px', cursor: 'pointer', fontSize: 13, background: 'none',
+                border: 'none', borderBottom: '2px solid ' + (active ? '#3d7eff' : 'transparent'),
+                marginBottom: -1,
+                color: active ? 'var(--fg)' : 'var(--fg-3)', fontWeight: active ? 700 : 500,
               }}>{label}</button>
             );
           })}
@@ -1133,7 +1341,7 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
 }
 
 // ─── Offer Row (ro'yxat ko'rinishidagi taklif qatori, "..." menyu bilan) ───────
-function OfferGroupRow({ group, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onSold, sellingOfferId }: any) {
+function OfferGroupRow({ group, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onDuplicate, onSold, sellingOfferId }: any) {
   const [expanded, setExpanded] = useState(false);
   const primary = group[0];
   const extra = group.length - 1;
@@ -1148,6 +1356,7 @@ function OfferGroupRow({ group, isLast, clientId, clientPhone, clientUsername, o
         clientUsername={clientUsername}
         onSent={() => onSent(primary.id)}
         onEdit={() => onEdit(primary)}
+        onDuplicate={() => onDuplicate(primary)}
         onSold={() => onSold(primary)}
         selling={sellingOfferId === primary.id}
         noBorder
@@ -1172,6 +1381,7 @@ function OfferGroupRow({ group, isLast, clientId, clientPhone, clientUsername, o
                     clientUsername={clientUsername}
                     onSent={() => onSent(o.id)}
                     onEdit={() => onEdit(o)}
+                    onDuplicate={() => onDuplicate(o)}
                     onSold={() => onSold(o)}
                     selling={sellingOfferId === o.id}
                     noBorder
@@ -1228,7 +1438,7 @@ function HotelPhotoBlock({ name, stars, photos }: { name: string; stars?: number
   );
 }
 
-function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onSold, selling, noBorder }: any) {
+function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onSent, onEdit, onDuplicate, onSold, selling, noBorder }: any) {
   const hotels = Array.isArray(o.hotels) && o.hotels.length ? o.hotels : (o.hotelName ? [{ name: o.hotelName, stars: o.hotelStars }] : []);
   const mealLabel: Record<string, string> = { BREAKFAST: '🍳 Nonushta', FULL_BOARD: '🍽 3 mahal' };
   const tags = [
@@ -1309,6 +1519,19 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
           >
             ✏️ Tahrirlash
           </button>
+          {/* v29: shu taklifni asos qilib, tez YANGI taklif yaratish (masalan bir mijozga 2-3 xil variant) */}
+          <button
+            onClick={onDuplicate}
+            title="Shu taklif asosida yangi taklif yaratish"
+            style={{
+              padding: '7px 10px', borderRadius: 8, cursor: 'pointer',
+              border: '1px solid var(--border)', background: 'var(--bg-3)',
+              color: 'var(--fg-2)', fontSize: 12, fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            ⧉ Nusxalash
+          </button>
         </div>
       )}
     </div>
@@ -1316,46 +1539,52 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
 }
 
 // ─── Offer Create Modal ───────────────────────────────────────────────────────
-function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
+function OfferCreateModal({ clientId, onClose, onSaved, existingOffer, duplicateOffer }: any) {
   const isEdit = !!existingOffer;
+  // v29: Tahrirlashda `existingOffer` ishlatiladi (PUT), nusxalashda esa
+  // `duplicateOffer` (POST — yangi taklif sifatida saqlanadi). Ikkalasi ham
+  // bir xil shaklda bo'lgani uchun bitta manba sifatida birlashtiramiz.
+  const prefillSource = existingOffer || duplicateOffer;
   const [f, setF] = useState(() => {
-    if (existingOffer) {
+    if (prefillSource) {
       // v14: narxlar endi 1 KISHI uchun kiritiladi. Saqlangan qiymatlar JAMI —
       // shuning uchun tahrirlashda kishi soniga bo'lib, 1 kishilik narxni ko'rsatamiz.
-      const exPax = Math.max(1, existingOffer.adults ?? existingOffer.pax ?? 1);
+      const exPax = Math.max(1, prefillSource.adults ?? prefillSource.pax ?? 1);
       const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-      const opTotal = Number(existingOffer.originalActualPrice ?? existingOffer.actualPrice ?? 0);
-      const mkTotal = Number(existingOffer.originalMarkup ?? existingOffer.markup ?? 0);
+      const opTotal = Number(prefillSource.originalActualPrice ?? prefillSource.actualPrice ?? 0);
+      const mkTotal = Number(prefillSource.originalMarkup ?? prefillSource.markup ?? 0);
       return {
-        tourName: existingOffer.tourName || '',
-        destination: existingOffer.destination || '',
+        tourName: prefillSource.tourName || '',
+        destination: prefillSource.destination || '',
         // v14: pax = KATTALAR soni (eski takliflarda pax = jami odam, bola yo'q edi)
-        pax: existingOffer.adults ?? existingOffer.pax ?? 1,
+        pax: prefillSource.adults ?? prefillSource.pax ?? 1,
         // v14: bolalar (alohida, arzonroq narx)
-        children: existingOffer.children || 0,
-        departDate: existingOffer.departDate ? existingOffer.departDate.slice(0, 10) : '',
-        returnDate: existingOffer.returnDate ? existingOffer.returnDate.slice(0, 10) : '',
-        departFlightTime: existingOffer.departFlightTime || '',
-        returnFlightTime: existingOffer.returnFlightTime || '',
+        children: prefillSource.children || 0,
+        // v29: nusxalashda sana ko'chirilmaydi — yangi mijoz/sana uchun bo'sh
+        // qoldiriladi, aks holda eski (o'tib ketgan) sana bilan yuborilib qolishi mumkin.
+        departDate: existingOffer && prefillSource.departDate ? prefillSource.departDate.slice(0, 10) : '',
+        returnDate: existingOffer && prefillSource.returnDate ? prefillSource.returnDate.slice(0, 10) : '',
+        departFlightTime: prefillSource.departFlightTime || '',
+        returnFlightTime: prefillSource.returnFlightTime || '',
         // 1 KATTA uchun narx — yangi takliflarda alohida saqlangan; eskilarda
         // jami/kishi soniga bo'lib chiqaramiz.
-        actualPrice: existingOffer.adultActualPrice != null ? String(existingOffer.adultActualPrice) : (opTotal ? String(r2(opTotal / exPax)) : ''),
-        markup: existingOffer.adultMarkup != null ? String(existingOffer.adultMarkup) : (mkTotal ? String(r2(mkTotal / exPax)) : ''),
+        actualPrice: prefillSource.adultActualPrice != null ? String(prefillSource.adultActualPrice) : (opTotal ? String(r2(opTotal / exPax)) : ''),
+        markup: prefillSource.adultMarkup != null ? String(prefillSource.adultMarkup) : (mkTotal ? String(r2(mkTotal / exPax)) : ''),
         // 1 BOLA uchun narx
-        childActualPrice: existingOffer.childActualPrice != null ? String(existingOffer.childActualPrice) : '',
-        childMarkup: existingOffer.childMarkup != null ? String(existingOffer.childMarkup) : '',
-        currency: existingOffer.originalCurrency || existingOffer.currency || 'USD',
-        bookingLink: existingOffer.bookingLink || '',
-        hotels: Array.isArray(existingOffer.hotels) && existingOffer.hotels.length
-          ? existingOffer.hotels.map((h: any) => ({ name: h.name || '', stars: h.stars || '', photos: h.photos || [] }))
-          : [{ name: existingOffer.hotelName || '', stars: existingOffer.hotelStars || '', photos: [] as string[] }],
-        mealPlan: existingOffer.mealPlan || 'NONE',
-        includesVisa: !!existingOffer.includesVisa,
-        includesFlight: existingOffer.includesFlight !== false,
-        includesHotel: existingOffer.includesHotel !== false,
-        includesTransfer: !!existingOffer.includesTransfer,
-        includesInsurance: !!existingOffer.includesInsurance,
-        notes: existingOffer.notes || '',
+        childActualPrice: prefillSource.childActualPrice != null ? String(prefillSource.childActualPrice) : '',
+        childMarkup: prefillSource.childMarkup != null ? String(prefillSource.childMarkup) : '',
+        currency: prefillSource.originalCurrency || prefillSource.currency || 'USD',
+        bookingLink: prefillSource.bookingLink || '',
+        hotels: Array.isArray(prefillSource.hotels) && prefillSource.hotels.length
+          ? prefillSource.hotels.map((h: any) => ({ name: h.name || '', stars: h.stars || '', photos: h.photos || [] }))
+          : [{ name: prefillSource.hotelName || '', stars: prefillSource.hotelStars || '', photos: [] as string[] }],
+        mealPlan: prefillSource.mealPlan || 'NONE',
+        includesVisa: !!prefillSource.includesVisa,
+        includesFlight: prefillSource.includesFlight !== false,
+        includesHotel: prefillSource.includesHotel !== false,
+        includesTransfer: !!prefillSource.includesTransfer,
+        includesInsurance: !!prefillSource.includesInsurance,
+        notes: prefillSource.notes || '',
       };
     }
     return {
@@ -1375,6 +1604,59 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
   });
   const [saving, setSaving] = useState(false);
   const [sendNow, setSendNow] = useState(false);
+  // v29: Taklif shablonlari — faqat yangi/nusxalangan takliflarda ko'rsatiladi
+  // (haqiqiy tahrirlashda emas, u yerda maqsad boshqa).
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  useEffect(() => {
+    if (isEdit) return;
+    api.get('/offers/templates')
+      .then((r: any) => setTemplates(Array.isArray(r.data) ? r.data : []))
+      .catch(() => {})
+      .finally(() => setTemplatesLoaded(true));
+  }, [isEdit]);
+
+  function applyTemplate(t: any) {
+    setF(prev => ({
+      ...prev,
+      tourName: t.tourName || '',
+      destination: t.destination || '',
+      pax: t.pax ?? 1,
+      children: t.children ?? 0,
+      departFlightTime: t.departFlightTime || '',
+      returnFlightTime: t.returnFlightTime || '',
+      actualPrice: t.actualPrice != null ? String(t.actualPrice) : '',
+      markup: t.markup != null ? String(t.markup) : '',
+      childActualPrice: t.childActualPrice != null ? String(t.childActualPrice) : '',
+      childMarkup: t.childMarkup != null ? String(t.childMarkup) : '',
+      currency: t.currency || 'USD',
+      bookingLink: t.bookingLink || '',
+      hotels: Array.isArray(t.hotels) && t.hotels.length ? t.hotels : prev.hotels,
+      mealPlan: t.mealPlan || 'NONE',
+      includesVisa: !!t.includesVisa,
+      includesFlight: t.includesFlight !== false,
+      includesHotel: t.includesHotel !== false,
+      includesTransfer: !!t.includesTransfer,
+      includesInsurance: !!t.includesInsurance,
+      notes: t.notes || '',
+      // Sana va kishi soni mijozga xos — shablon bilan kelmaydi, agent o'zi kiritadi.
+    }));
+    toast.success(`"${t.name}" shabloni qo'llanildi`);
+  }
+
+  async function saveAsTemplate() {
+    if (!f.tourName.trim()) { toast.error('Avval tur nomini kiriting'); return; }
+    const name = window.prompt('Shablon nomi (masalan: "Antalya, Rixos 5*")', f.tourName)?.trim();
+    if (!name) return;
+    setSavingTemplate(true);
+    try {
+      const r = await api.post('/offers/templates', { ...f, name });
+      setTemplates(prev => [r.data, ...prev]);
+      toast.success('Shablon saqlandi — endi tez qo\'llash mumkin');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSavingTemplate(false); }
+  }
   const set = (k: string, v: any) => setF(prev => ({ ...prev, [k]: v }));
   const setHotels = (hotels: any[]) => setF(prev => ({ ...prev, hotels }));
   // v14: narxlar 1 KISHI uchun. Kattalar va bolalar ALOHIDA hisoblanadi:
@@ -1447,7 +1729,39 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
           }}
         >✕</button>
         <div style={{ overflowY: 'auto', padding: 24 }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, paddingLeft: 38 }}>{isEdit ? '✏️ Taklifni tahrirlash' : '📨 Yangi taklif'}</h2>
+        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, paddingLeft: 38 }}>
+          {isEdit ? '✏️ Taklifni tahrirlash' : duplicateOffer ? '⧉ Nusxadan yangi taklif' : '📨 Yangi taklif'}
+        </h2>
+
+        {/* v29: Shablonlar — bir bosishda butun formani to'ldiradi (mehmonxona, narx,
+            ovqatlanish va h.k). Faqat yangi/nusxalangan taklifda ko'rinadi.
+            Hali birorta shablon yo'q bo'lsa ham — jim qolib "ishlamayapti"
+            taassurotini qoldirmaslik uchun, nima qilish kerakligini aytamiz. */}
+        {!isEdit && templatesLoaded && (
+          templates.length > 0 ? (
+            <div style={{ marginBottom: 16, padding: 10, borderRadius: 9, border: '1px dashed var(--border)', background: 'var(--bg-3)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', marginBottom: 7 }}>⚡ Shablondan boshlash</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {templates.map((t: any) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => applyTemplate(t)}
+                    title={`${t.tourName || ''} — bosilsa forma to'liq to'ldiriladi`}
+                    style={{
+                      padding: '5px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                      border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)',
+                    }}
+                  >{t.name}</button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 16, padding: '9px 12px', borderRadius: 9, background: 'rgba(61,126,255,0.07)', border: '1px solid rgba(61,126,255,0.2)', fontSize: 12, color: 'var(--fg-2)' }}>
+              💡 Hali shablon yo'q. Shu taklifni to'ldirib, pastdagi <b>"⭐ Shablon qilib saqlash"</b> tugmasini bosing — keyingi safar shu yerdan 1 bosishda qo'llaysiz.
+            </div>
+          )
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Tur nomi *</label><input style={inp} value={f.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Turkiya — Antalya 7 kun" /></div>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Yo'nalish</label><input style={inp} value={f.destination} onChange={e => set('destination', e.target.value)} /></div>
@@ -1522,7 +1836,18 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer }: any) {
             ))}
           </div>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Izoh</label><textarea style={{ ...inp, minHeight: 60, resize: 'vertical' }} value={f.notes} onChange={e => set('notes', e.target.value)} /></div>
-          <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+          <div style={{ gridColumn: '1/-1', display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+            {!isEdit && (
+              <button
+                type="button"
+                onClick={saveAsTemplate}
+                disabled={savingTemplate}
+                title="Shu turni shablon sifatida saqlab qo'yish — keyingi mijozlarga tez qo'llash uchun"
+                style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg-2)', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
+              >
+                {savingTemplate ? '...' : '⭐ Shablon qilib saqlash'}
+              </button>
+            )}
             {!isEdit && (
               <label style={{ fontSize: 13, cursor: 'pointer', display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input type="checkbox" checked={sendNow} onChange={e => setSendNow(e.target.checked)} /> Darhol yuborish
