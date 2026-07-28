@@ -98,6 +98,7 @@ export default function Client360Page() {
   // (Umumiy / Maydonlar / Boshqa). Faqat bittasi ko'rinadi, shuning uchun
   // tepada hammasi ustma-ust chiqib "chalkash" ko'rinmaydi.
   const [sideTab, setSideTab] = useState<'general' | 'fields' | 'more'>('general');
+  const [keyInfoOpen, setKeyInfoOpen] = useState(true);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
   // ─── v30: HubSpot uslubidagi 3-ustunli tartib. O'ng va chap panel
@@ -229,6 +230,46 @@ export default function Client360Page() {
           {/* ── CHAP: mijoz kartasi (doim ko'rinadi) ── */}
           <div style={{ position: 'sticky', top: 76, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto', paddingRight: 2 }}>
 
+            {/* v33: HubSpot'dagi kontakt sahifasi tepasidagi doiraviy
+                tezkor-amal tugmalari qatoriga o'xshab — Note/Email/Call/
+                Task/Follow-up/Xabar. Har biri allaqachon mavjud modal yoki
+                funksiyani ochadi, faqat ko'rinishi HubSpot uslubida. */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', gap: 4,
+              padding: '10px 4px 16px', marginBottom: 4,
+              borderBottom: '1px solid var(--border)',
+            }}>
+              {([
+                ['📝', 'Note', () => setShowNote(true)],
+                ['✉️', 'Email', () => c.email ? window.open(`mailto:${c.email}`, '_blank') : toast.error('Email manzil kiritilmagan')],
+                ['📞', 'Call', () => c.phone ? callClient(c.id, c.fullName, c.phone) : toast.error("Telefon raqami kiritilmagan")],
+                ['✅', 'Task', () => setShowTask(true)],
+                ['📅', 'Follow-up', () => setShowFollowUp(true)],
+                ['💬', 'Xabar', () => setShowPersonalMsg(true)],
+              ] as [string, string, () => void][]).map(([icon, label, onClick]) => (
+                <button
+                  key={label}
+                  onClick={onClick}
+                  title={label}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', flex: 1,
+                  }}
+                >
+                  <span style={{
+                    width: 34, height: 34, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, background: 'var(--bg-3)', border: '1px solid var(--border)',
+                    transition: 'all .15s ease',
+                  }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary-soft)'; e.currentTarget.style.borderColor = 'var(--primary, #3d7eff)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-3)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; }}
+                  >{icon}</span>
+                  <span style={{ fontSize: 9.5, color: 'var(--fg-3)', fontWeight: 600, whiteSpace: 'nowrap' }}>{label}</span>
+                </button>
+              ))}
+            </div>
+
             {/* v32: eng dolzarb narsa — keyingi vazifa — endi tepada, lekin
                 ingichka bitta qatorli banner (butun blok emas), shuning
                 uchun joy band qilmaydi. */}
@@ -276,115 +317,141 @@ export default function Client360Page() {
             {/* Mijoz qayerga bormoqchi + byudjet — ajralib turadigan kartа */}
             <KeyInfoBlock client={c} />
 
-            {/* v32: SEGMENTLI TAB — Umumiy / Maydonlar / Boshqa. Faqat
-                bittasi ko'rinadi, tepada hamma narsa ustma-ust chiqmaydi. */}
-            <div style={{
-              display: 'flex', gap: 3, padding: 3, borderRadius: 9, background: 'var(--bg-3)', marginBottom: 12,
-            }}>
-              {([
-                ['general', "Umumiy"],
-                ['fields', "Maydonlar"],
-                ['more', "Boshqa"],
-              ] as [typeof sideTab, string][]).map(([key, label]) => {
-                const active = sideTab === key;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setSideTab(key)}
-                    style={{
-                      flex: 1, padding: '6px 4px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                      fontSize: 11.5, fontWeight: active ? 700 : 500,
-                      background: active ? 'var(--bg-2)' : 'none',
-                      color: active ? 'var(--fg)' : 'var(--fg-4)',
-                      boxShadow: active ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
-                      transition: 'all .15s ease',
-                    }}
-                  >{label}</button>
-                );
-              })}
+            {/* v33: HubSpot'dagi chap paneldagi "Key information" kartasiga
+                o'xshab — chegaralangan, boshi bilan (chevron + sarlavha +
+                ⚙) yig'iladigan/kengaytiriladigan karta. Ichida — avvalgi
+                Umumiy/Maydonlar/Boshqa segmentli tab saqlanib qoladi. */}
+            <div style={{ border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-2)', marginBottom: 12, overflow: 'hidden' }}>
+              <div
+                onClick={() => setKeyInfoOpen(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 12px', cursor: 'pointer', userSelect: 'none',
+                  borderBottom: keyInfoOpen ? '1px solid var(--border)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{ fontSize: 9, color: 'var(--fg-4)', transform: keyInfoOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .15s ease' }}>▼</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--fg)' }}>Asosiy ma'lumot</span>
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>⚙</span>
+              </div>
+
+              {keyInfoOpen && (
+                <div style={{ padding: '12px' }}>
+                  <div style={{
+                    display: 'flex', gap: 3, padding: 3, borderRadius: 9, background: 'var(--bg-3)', marginBottom: 12,
+                  }}>
+                    {([
+                      ['general', "Umumiy"],
+                      ['fields', "Maydonlar"],
+                      ['more', "Boshqa"],
+                    ] as [typeof sideTab, string][]).map(([key, label]) => {
+                      const active = sideTab === key;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setSideTab(key)}
+                          style={{
+                            flex: 1, padding: '6px 4px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                            fontSize: 11.5, fontWeight: active ? 700 : 500,
+                            background: active ? 'var(--bg-2)' : 'none',
+                            color: active ? 'var(--fg)' : 'var(--fg-4)',
+                            boxShadow: active ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
+                            transition: 'all .15s ease',
+                          }}
+                        >{label}</button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── UMUMIY ── */}
+                  {sideTab === 'general' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
+                      {c.assignedAgent && (
+                        <div>
+                          <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Mas'ul agent</div>
+                          <div>{c.assignedAgent.name}</div>
+                        </div>
+                      )}
+                      {c.firstContactAt && (
+                        <div>
+                          <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Birinchi murojaat</div>
+                          <div>{fmtDate(c.firstContactAt)}</div>
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Manba</div>
+                        <div>{c.source}{c.tier ? ' · ' + c.tier : ''}</div>
+                      </div>
+
+                      {/* v15: So'nggi booking qisqacha */}
+                      {bookings.length > 0 && (() => {
+                        const latest = bookings[0];
+                        return (
+                          <div
+                            onClick={() => setActiveTab('bookings')}
+                            style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-3)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                          >
+                            <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>So'nggi booking</div>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>{latest.tourName}</div>
+                            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{latest.status}{latest.destination ? ' · ' + latest.destination : ''}</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{latest.currency} {latest.paidAmount || 0} / {latest.totalPrice}</div>
+                          </div>
+                        );
+                      })()}
+
+                      <div style={{ paddingTop: 4 }}>
+                        <button onClick={() => setShowTask(true)} style={{ fontSize: 12, padding: '5px 0', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Vazifa qo'shish</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── MAYDONLAR (custom fields) ── */}
+                  {sideTab === 'fields' && (
+                    <CustomFields client={c} />
+                  )}
+
+                  {/* ── BOSHQA (kengaytirilgan ma'lumot) ── */}
+                  {sideTab === 'more' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+                      <Info label="Email" value={c.email} />
+                      <Info label="Telefon 2" value={c.phone2} />
+                      <Info label="Tug'ilgan sana" value={c.dateOfBirth && fmtDate(c.dateOfBirth)} />
+                      <Info label="Davlat / Shahar" value={[c.country, c.city].filter(Boolean).join(', ')} />
+                      <Info label="Manzil" value={c.address} />
+                      {(c.passportNo || c.passportExpiry) && <Info label="Passport" value={c.passportNo} mono />}
+                      {c.passportExpiry && <Info label="Passport amal qilish muddati" value={fmtDate(c.passportExpiry)} />}
+                      {c.nationality && <Info label="Millati" value={c.nationality} />}
+                      <Info label="Yaratilgan" value={fmtDateTime(c.createdAt)} />
+                      <Info label="Bosqichdan beri" value={c.pipelineStageAt && timeAgo(c.pipelineStageAt)} />
+                      {c.utmSource && <Info label="UTM Source" value={c.utmSource} />}
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>Lead score</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ flex: 1, height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${c.leadScore || 0}%`, background: c.leadScore >= 80 ? '#ef4444' : c.leadScore >= 50 ? '#eab308' : '#0ea5e9' }} />
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700 }}>{c.leadScore || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-
-            {/* ── UMUMIY ── */}
-            {sideTab === 'general' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
-                {c.assignedAgent && (
-                  <div>
-                    <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Mas'ul agent</div>
-                    <div>{c.assignedAgent.name}</div>
-                  </div>
-                )}
-                {c.firstContactAt && (
-                  <div>
-                    <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Birinchi murojaat</div>
-                    <div>{fmtDate(c.firstContactAt)}</div>
-                  </div>
-                )}
-                <div>
-                  <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Manba</div>
-                  <div>{c.source}{c.tier ? ' · ' + c.tier : ''}</div>
-                </div>
-
-                {/* v15: So'nggi booking qisqacha */}
-                {bookings.length > 0 && (() => {
-                  const latest = bookings[0];
-                  return (
-                    <div
-                      onClick={() => setActiveTab('bookings')}
-                      style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border)', cursor: 'pointer' }}
-                    >
-                      <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>So'nggi booking</div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{latest.tourName}</div>
-                      <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{latest.status}{latest.destination ? ' · ' + latest.destination : ''}</div>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{latest.currency} {latest.paidAmount || 0} / {latest.totalPrice}</div>
-                    </div>
-                  );
-                })()}
-
-                <div style={{ paddingTop: 4 }}>
-                  <button onClick={() => setShowTask(true)} style={{ fontSize: 12, padding: '5px 0', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Vazifa qo'shish</button>
-                </div>
-              </div>
-            )}
-
-            {/* ── MAYDONLAR (custom fields) ── */}
-            {sideTab === 'fields' && (
-              <CustomFields client={c} />
-            )}
-
-            {/* ── BOSHQA (kengaytirilgan ma'lumot) ── */}
-            {sideTab === 'more' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
-                <Info label="Email" value={c.email} />
-                <Info label="Telefon 2" value={c.phone2} />
-                <Info label="Tug'ilgan sana" value={c.dateOfBirth && fmtDate(c.dateOfBirth)} />
-                <Info label="Davlat / Shahar" value={[c.country, c.city].filter(Boolean).join(', ')} />
-                <Info label="Manzil" value={c.address} />
-                {(c.passportNo || c.passportExpiry) && <Info label="Passport" value={c.passportNo} mono />}
-                {c.passportExpiry && <Info label="Passport amal qilish muddati" value={fmtDate(c.passportExpiry)} />}
-                {c.nationality && <Info label="Millati" value={c.nationality} />}
-                <Info label="Yaratilgan" value={fmtDateTime(c.createdAt)} />
-                <Info label="Bosqichdan beri" value={c.pipelineStageAt && timeAgo(c.pipelineStageAt)} />
-                {c.utmSource && <Info label="UTM Source" value={c.utmSource} />}
-                <div style={{ marginTop: 4 }}>
-                  <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>Lead score</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1, height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${c.leadScore || 0}%`, background: c.leadScore >= 80 ? '#ef4444' : c.leadScore >= 50 ? '#eab308' : '#0ea5e9' }} />
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700 }}>{c.leadScore || 0}</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* ── MARKAZ: tablar — bir vaqtda faqat bittasi ochiq turadi ── */}
           <div style={{ minWidth: 0 }}>
-            {/* v30: HubSpot uslubidagi tab qatori — qaysi tab bosilsa, o'sha
-                ochilib keladi, qolganlari yopiladi. Sarlavha yonida son
-                bo'lsa (masalan Takliflar (3)) — badge sifatida chiqadi. */}
+            {/* v33: HubSpot'dagi "About | Activities | Revenue" tab qatoriga
+                o'xshab — yumshoq konteyner fonida, faol tab OQ/karta rangida
+                ko'tarilib chiqadi (soya bilan), qolganlari fon ichida tekis
+                turadi. Eski "pastki chiziq" uslubidan farqli — bu ancha
+                "premium" va zamonaviy ko'rinadi. */}
             <div style={{
-              display: 'flex', gap: 2, borderBottom: '1px solid var(--border)',
+              display: 'flex', gap: 3, padding: 4, borderRadius: 12,
+              background: 'var(--bg-3)', border: '1px solid var(--border)',
               marginBottom: 18, overflowX: 'auto',
             }}>
               {TABS.map((t) => {
@@ -395,21 +462,21 @@ export default function Client360Page() {
                     onClick={() => setActiveTab(t.key)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                      padding: '9px 14px', cursor: 'pointer', fontSize: 13,
-                      background: 'none', border: 'none',
-                      borderBottom: '2px solid ' + (active ? '#3d7eff' : 'transparent'),
-                      marginBottom: -1,
+                      padding: '8px 15px', cursor: 'pointer', fontSize: 12.5,
+                      borderRadius: 9, border: 'none',
+                      background: active ? 'var(--bg-2)' : 'transparent',
                       color: active ? 'var(--fg)' : 'var(--fg-3)',
                       fontWeight: active ? 700 : 500,
-                      transition: 'color .15s ease, border-color .15s ease',
+                      boxShadow: active ? '0 2px 8px rgba(0,0,0,.10), 0 0 0 1px var(--border)' : 'none',
+                      transition: 'all .16s ease',
                     }}
                   >
                     <span>{t.icon}</span>
                     <span>{t.label}</span>
                     {typeof t.count === 'number' && t.count > 0 && (
                       <span style={{
-                        fontSize: 10.5, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
-                        background: active ? '#3d7eff20' : 'var(--bg-3)',
+                        fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
+                        background: active ? '#3d7eff1a' : 'var(--bg-2)',
                         color: active ? '#3d7eff' : 'var(--fg-3)',
                       }}>{t.count}</span>
                     )}
@@ -417,6 +484,7 @@ export default function Client360Page() {
                 );
               })}
             </div>
+
 
             {/* ═══ FAOLIYAT ═══ */}
             {activeTab === 'activity' && (
