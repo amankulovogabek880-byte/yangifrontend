@@ -203,6 +203,11 @@ export default function Client360Page() {
 
           {/* ── CHAP: mijoz ma'lumoti ── */}
           <div>
+            {/* v29: eng birinchi ko'rinadigan narsa — mijoz qayerga bormoqchi
+                va qancha puli bor. Bu ma'lumot ilgari umuman ko'rinmasdi
+                (offer/booking yaratilmaguncha) yoki erkin eslatmalar ichida
+                yo'qolib qolardi. */}
+            <KeyInfoBlock client={c} />
             {/* v10.4: Jami / sotilgan — avval faqat "sotilmagan" takliflar
                 yig'indisi umumiy summa sifatida ko'rsatilardi, bu ro'yxatdagi
                 raqamlar bilan mos kelmasdi. Endi ikkalasi ham aniq ko'rsatiladi. */}
@@ -796,6 +801,98 @@ function StagePill({ clientId, stage, onChanged }: any) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ─── v29: "Nima xohlaydi" — Yo'nalish + Byudjet. Har bir mijozda BIR XIL
+// joyda, bir xil nom bilan turadi (CustomFields'dagi kabi erkin nom emas).
+// Agent kartaga kirgan zahoti — hatto pastga tushmasdan — mijoz qayerga
+// bormoqchi va qancha puli borligini ko'radi. ────────────────────────────
+function KeyInfoBlock({ client }: any) {
+  const initial = client?.preferences?.keyInfo || { destination: '', budget: '', budgetCurrency: 'USD' };
+  const [val, setVal] = useState(initial);
+  const [baseline, setBaseline] = useState(initial);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const hasData = !!(baseline.destination || baseline.budget);
+
+  function startEdit() { setVal(baseline); setEditing(true); }
+  function cancel() { setVal(baseline); setEditing(false); }
+  async function save() {
+    setSaving(true);
+    try {
+      await clientsApi.setKeyInfo(client.id, val);
+      setBaseline(val);
+      setEditing(false);
+      toast.success('Saqlandi');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSaving(false); }
+  }
+
+  const inp: any = { width: '100%', padding: '7px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
+
+  if (editing) {
+    return (
+      <div style={{ padding: 12, borderRadius: 10, background: 'var(--bg-3)', border: '1px solid var(--border)', marginBottom: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>🎯 Qayerga borishni xohlaydi</div>
+            <input style={inp} placeholder="masalan: Antalya, Turkiya" value={val.destination} onChange={e => setVal((v: any) => ({ ...v, destination: e.target.value }))} autoFocus />
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>💰 Taxminiy byudjet</div>
+              <input style={inp} placeholder="masalan: 2000" value={val.budget} onChange={e => setVal((v: any) => ({ ...v, budget: e.target.value }))} />
+            </div>
+            <div style={{ width: 78 }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>Valyuta</div>
+              <select style={inp} value={val.budgetCurrency} onChange={e => setVal((v: any) => ({ ...v, budgetCurrency: e.target.value }))}>
+                <option value="USD">USD</option>
+                <option value="UZS">UZS</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={cancel} disabled={saving} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer' }}>Bekor</button>
+          <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '6px 16px', borderRadius: 7, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: saving ? 0.6 : 1, fontWeight: 600 }}>{saving ? '...' : 'Saqlash'}</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={startEdit}
+      title="Bosib tahrirlash"
+      style={{
+        padding: 12, borderRadius: 10, marginBottom: 18, cursor: 'pointer',
+        background: hasData ? 'rgba(61,126,255,0.07)' : 'var(--bg-3)',
+        border: '1px solid ' + (hasData ? 'rgba(61,126,255,0.25)' : 'var(--border)'),
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <span style={{ fontSize: 16 }}>🎯</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Yo'nalish</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: baseline.destination ? 'var(--fg)' : 'var(--fg-4)' }}>
+            {baseline.destination || 'Kiritilmagan — bosing'}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <span style={{ fontSize: 16 }}>💰</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Taxminiy byudjet</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: baseline.budget ? 'var(--fg)' : 'var(--fg-4)' }}>
+            {baseline.budget ? `${baseline.budget} ${baseline.budgetCurrency}` : 'Kiritilmagan — bosing'}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1522,25 +1619,33 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer, duplicate
         </h2>
 
         {/* v29: Shablonlar — bir bosishda butun formani to'ldiradi (mehmonxona, narx,
-            ovqatlanish va h.k). Faqat yangi/nusxalangan taklifda ko'rinadi. */}
-        {!isEdit && templatesLoaded && templates.length > 0 && (
-          <div style={{ marginBottom: 16, padding: 10, borderRadius: 9, border: '1px dashed var(--border)', background: 'var(--bg-3)' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', marginBottom: 7 }}>⚡ Shablondan boshlash</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {templates.map((t: any) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => applyTemplate(t)}
-                  title={`${t.tourName || ''} — bosilsa forma to'liq to'ldiriladi`}
-                  style={{
-                    padding: '5px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                    border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)',
-                  }}
-                >{t.name}</button>
-              ))}
+            ovqatlanish va h.k). Faqat yangi/nusxalangan taklifda ko'rinadi.
+            Hali birorta shablon yo'q bo'lsa ham — jim qolib "ishlamayapti"
+            taassurotini qoldirmaslik uchun, nima qilish kerakligini aytamiz. */}
+        {!isEdit && templatesLoaded && (
+          templates.length > 0 ? (
+            <div style={{ marginBottom: 16, padding: 10, borderRadius: 9, border: '1px dashed var(--border)', background: 'var(--bg-3)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', marginBottom: 7 }}>⚡ Shablondan boshlash</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {templates.map((t: any) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => applyTemplate(t)}
+                    title={`${t.tourName || ''} — bosilsa forma to'liq to'ldiriladi`}
+                    style={{
+                      padding: '5px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                      border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)',
+                    }}
+                  >{t.name}</button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ marginBottom: 16, padding: '9px 12px', borderRadius: 9, background: 'rgba(61,126,255,0.07)', border: '1px solid rgba(61,126,255,0.2)', fontSize: 12, color: 'var(--fg-2)' }}>
+              💡 Hali shablon yo'q. Shu taklifni to'ldirib, pastdagi <b>"⭐ Shablon qilib saqlash"</b> tugmasini bosing — keyingi safar shu yerdan 1 bosishda qo'llaysiz.
+            </div>
+          )
         )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Tur nomi *</label><input style={inp} value={f.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Turkiya — Antalya 7 kun" /></div>
