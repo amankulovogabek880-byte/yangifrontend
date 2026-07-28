@@ -697,7 +697,7 @@ function ClientCalls({ clientId }: { clientId: string }) {
   useEffect(() => {
     let alive = true;
     const load = () => {
-      callsApi.list(clientId)
+      callsApi.list({ clientId })
         .then((r: any) => { if (alive) setCalls(r.data?.data || r.data || []); })
         .catch(() => { /* telefoniya sozlanmagan bo'lishi mumkin — jim */ })
         .finally(() => { if (alive) setLoading(false); });

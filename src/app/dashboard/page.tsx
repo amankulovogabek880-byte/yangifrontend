@@ -658,7 +658,7 @@ function SalaryStatCard({ icon, label, value, color, sub }: any) {
 function CallsTab({ data, isAgent }: any) {
   const { t } = useI18n();
   if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
-  const { summary = {}, byDay = [] } = data;
+  const { summary = {}, byDay = [], byAgent = [] } = data;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
@@ -688,6 +688,134 @@ function CallsTab({ data, isAgent }: any) {
               <Legend />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* v14.2: admin/manager uchun — har bir agent qancha gaplashgani va
+          yozuvlari, alohida-alohida ko'rinadi */}
+      {!isAgent && byAgent.length > 0 && (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Agentlar bo'yicha (gaplashgan vaqt va yozuvlar)</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {byAgent.map((a: any) => (
+              <AgentCallsRow key={a.agentId} agent={a} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fmtDurLong(totalSec: number) {
+  const s = Math.max(0, Math.round(totalSec || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}s ${m}d`;
+  if (m > 0) return `${m}d ${sec}s`;
+  return `${sec}s`;
+}
+
+function AgentCallsRow({ agent }: any) {
+  const [open, setOpen] = useState(false);
+  const [calls, setCalls] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && calls === null) {
+      setLoading(true);
+      try {
+        const r: any = await callsApi.list({ agentId: agent.agentId === 'unassigned' ? undefined : agent.agentId, limit: 100 });
+        setCalls(r.data?.data || []);
+      } catch {
+        setCalls([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  const fmtShortDur = (sec: number) => {
+    const s = Math.max(0, Math.round(sec || 0));
+    const m = Math.floor(s / 60);
+    return m > 0 ? `${m}:${String(s % 60).padStart(2, '0')}` : `${s} son`;
+  };
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+      <button
+        onClick={toggle}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '11px 14px', background: 'transparent', border: 'none', cursor: 'pointer',
+          fontFamily: 'inherit', textAlign: 'left',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span style={{
+            width: 30, height: 30, borderRadius: '50%', flexShrink: 0, background: '#3d7eff18', color: '#3d7eff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700,
+          }}>
+            {(agent.agentName || '?').slice(0, 1).toUpperCase()}
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{agent.agentName}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>
+              {agent.totalCalls} qo'ng'iroq · {agent.answered} javob berildi · 🎙️ {agent.recordingsCount} yozuv
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>{fmtDurLong(agent.totalDurationSec)}</div>
+            <div style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>jami gaplashgan vaqt</div>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>{open ? '▲' : '▼'}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', background: 'var(--bg-3, #fafafa)' }}>
+          {loading ? (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 }}>Yuklanmoqda...</div>
+          ) : !calls || calls.length === 0 ? (
+            <div style={{ padding: 12, textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 }}>Qo'ng'iroq topilmadi</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
+              {calls.map((c: any) => {
+                const missed = ['NO_ANSWER', 'MISSED', 'BUSY', 'FAILED'].includes(c.status);
+                return (
+                  <div key={c.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px',
+                    background: 'var(--bg-2)', borderRadius: 8, border: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontSize: 12, color: missed ? '#ef4444' : (c.direction === 'INBOUND' ? '#10b981' : '#3d7eff') }}>
+                      {missed ? '✕' : (c.direction === 'INBOUND' ? '↙' : '↗')}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.client?.fullName || c.client?.phone || 'Noma\'lum mijoz'}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>
+                        {new Date(c.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        {c.duration > 0 && <> · ⏱ {fmtShortDur(c.duration)}</>}
+                      </div>
+                    </div>
+                    {c.recordingUrl ? (
+                      <audio controls src={c.recordingUrl} style={{ height: 30, maxWidth: 220 }} />
+                    ) : (
+                      <span style={{ fontSize: 10, color: 'var(--fg-4)', fontStyle: 'italic' }}>
+                        {missed ? '—' : '⏳ yozuvsiz'}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

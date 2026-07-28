@@ -363,7 +363,8 @@ export const auditApi = {
 
 // ── CALLS v6 ─────────────────────────────────────────────────
 export const callsApi = {
-  list: (clientId?: string) => api.get('/calls', { params: { clientId } }),
+  list: (params?: { clientId?: string; agentId?: string; limit?: number; page?: number; from?: string; to?: string }) =>
+    api.get('/calls', { params }),
   active: () => api.get('/calls/active'),
   stats: () => api.get('/calls/stats'),
   initiate: (data: { toPhone: string; clientId?: string; bookingId?: string }) =>
