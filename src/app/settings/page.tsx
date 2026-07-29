@@ -441,7 +441,7 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
                   </div>
                   <div>
                     <Label>AMI Password</Label>
-                    <Input type="password" value={config.customSip?.amiPassword||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),amiPassword:e.target.value}})} placeholder="secret" />
+                    <Input type="text" value={config.customSip?.amiPassword||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),amiPassword:e.target.value}})} placeholder="secret" autoComplete="off" name="sip-ami-password-field" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" />
                   </div>
                   <div>
                     <Label>Asterisk Context</Label>
@@ -454,7 +454,7 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
                   </div>
                   <div style={{ gridColumn: '1/-1' }}>
                     <Label>API Key / Token</Label>
-                    <Input type="password" value={config.customSip?.restKey||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),restKey:e.target.value}})} placeholder="api-key" />
+                    <Input type="text" value={config.customSip?.restKey||''} onChange={e => setConfig({...config,customSip:{...(config.customSip||{}),restKey:e.target.value}})} placeholder="api-key" autoComplete="off" name="sip-rest-key-field" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" />
                   </div>
                 </>)}
                 <div>
@@ -590,11 +590,20 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
               />
               <Label>API kaliti</Label>
               <Input
-                type="password"
+                type="text"
                 placeholder="..."
                 value={config.moizvonki?.apiKey || ''}
                 onChange={(e) => setConfig({ ...config, moizvonki: { ...(config.moizvonki || {}), apiKey: e.target.value } })}
                 style={{ marginBottom: 10 }}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                name="mz-api-key-field"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                data-form-type="other"
               />
               <Label>Admin email (hisob egasi)</Label>
               <Input
@@ -602,6 +611,10 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
                 value={config.moizvonki?.adminEmail || ''}
                 onChange={(e) => setConfig({ ...config, moizvonki: { ...(config.moizvonki || {}), adminEmail: e.target.value } })}
                 style={{ marginBottom: 10 }}
+                autoComplete="off"
+                name="mz-admin-email-field"
+                data-lpignore="true"
+                data-1p-ignore="true"
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                 <input type="checkbox"
@@ -675,10 +688,15 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
               />
               <Label>Auth Token</Label>
               <Input
-                type="password"
+                type="text"
                 value={config.twilio?.authToken || ''}
                 onChange={(e) => setConfig({ ...config, twilio: { ...(config.twilio || {}), authToken: e.target.value } })}
                 style={{ marginBottom: 10 }}
+                autoComplete="off"
+                name="twilio-auth-token-field"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
               />
               <Label>From Number</Label>
               <Input
