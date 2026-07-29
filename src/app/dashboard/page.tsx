@@ -658,7 +658,7 @@ function SalaryStatCard({ icon, label, value, color, sub }: any) {
 function CallsTab({ data, isAgent }: any) {
   const { t } = useI18n();
   if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
-  const { summary = {}, byDay = [], byAgent = [] } = data;
+  const { summary = {}, byDay = [], byAgent = [], aiAnalytics } = data;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
@@ -674,6 +674,43 @@ function CallsTab({ data, isAgent }: any) {
           </div>
         ))}
       </div>
+
+      {/* v15: AI tahlil — eng ko'p uchragan e'tirozlar, kayfiyat, agent bahosi */}
+      {aiAnalytics && aiAnalytics.analyzedCount > 0 && (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>🤖 AI tahlil — eng ko'p uchragan e'tirozlar</h3>
+            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+              {aiAnalytics.analyzedCount} ta qo'ng'iroq tahlil qilingan
+              {aiAnalytics.avgAgentScore != null && <> · O'rtacha agent bahosi: <b style={{ color: aiAnalytics.avgAgentScore >= 7 ? '#10b981' : aiAnalytics.avgAgentScore >= 5 ? '#f59e0b' : '#ef4444' }}>{aiAnalytics.avgAgentScore}/10</b></>}
+            </span>
+          </div>
+          {aiAnalytics.objections?.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {aiAnalytics.objections.slice(0, 6).map((o: any) => {
+                const max = aiAnalytics.objections[0].count || 1;
+                return (
+                  <div key={o.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 170, fontSize: 12, flexShrink: 0 }}>{o.label}</div>
+                    <div style={{ flex: 1, height: 8, background: 'var(--bg-3)', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(6, (o.count / max) * 100)}%`, height: '100%', background: '#f97316', borderRadius: 6 }} />
+                    </div>
+                    <div style={{ width: 28, fontSize: 12, fontWeight: 700, textAlign: 'right' }}>{o.count}</div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14 }}>Bu davrda e'tiroz aniqlanmadi.</div>
+          )}
+          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)' }}>
+            <span>😊 Ijobiy: <b style={{ color: '#10b981' }}>{aiAnalytics.sentiment?.positive || 0}</b></span>
+            <span>😐 Neytral: <b style={{ color: '#94a3b8' }}>{aiAnalytics.sentiment?.neutral || 0}</b></span>
+            <span>😟 Salbiy: <b style={{ color: '#ef4444' }}>{aiAnalytics.sentiment?.negative || 0}</b></span>
+          </div>
+        </div>
+      )}
+
       {byDay.length > 0 && (
         <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>{t('dash.daily')}</h3>

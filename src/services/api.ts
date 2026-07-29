@@ -378,6 +378,10 @@ export const callsApi = {
   log: (data: any) => api.post('/calls/log', data),
   // v12.3: telefoniya ulanishini tekshirish (OnlinePBX auth.json)
   testConnection: () => api.post('/calls/test-connection'),
+  // v15: AI qo'ng'iroq tahlili — xulosa, e'tirozlar, keyingi qadam, agent bahosi
+  setTranscript: (id: string, transcript: string) => api.post(`/calls/${id}/transcript`, { transcript }),
+  analyze: (id: string) => api.post(`/calls/${id}/analyze`),
+  objectionsStats: (days = 30, agentId?: string) => api.get('/calls/objections-stats', { params: { days, agentId } }),
 };
 
 // ── AI MARKETING (Reklama generatori — TurMaker-uslubida) ────
