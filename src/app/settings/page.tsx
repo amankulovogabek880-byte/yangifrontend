@@ -426,11 +426,19 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
   });
   const [config, setConfig] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  // 🩹 MUHIM TUZATISH: avval so'rov muvaffaqiyatsiz bo'lsa (masalan
+  // vaqtinchalik DB ulanish uzilishi) xato SHUNCHAKI YUTIB YUBORILAR
+  // edi va sahifa butunlay BO'SH ko'rinardi — foydalanuvchi nima
+  // bo'lganini bilmasdi. Endi xato saqlanadi va tushunarli xabar +
+  // "Qayta urinish" tugmasi ko'rsatiladi.
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // User Profile (admin only manages agents, not self)
   const [me, setMe] = useState<any>(null);
 
-  useEffect(() => {
+  function loadPhoneProvider() {
+    setLoading(true);
+    setLoadError(null);
     // Provayder turini (STUB/MOIZVONKI/...) HAMMA ko'rishi kerak — agentlar
     // ham o'zining Мои Звонки emailini sozlashi uchun qaysi provayder
     // ishlatilayotganini bilishi shart. GET /tenants/phone-provider har
@@ -440,10 +448,17 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
       setTenant(r.data);
       setProvider(r.data?.provider || 'STUB');
       setConfig(r.data?.config || {});
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch((e) => {
+      setLoadError(errMsg(e) || "Telefoniya sozlamalarini yuklab bo'lmadi");
+    }).finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    loadPhoneProvider();
     usersApi.me().then((r) => {
       setMe(r.data);
     }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   async function saveProvider() {
@@ -459,6 +474,28 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
 
   if (loading) return <Skeleton height={200} />;
 
+  if (loadError) {
+    return (
+      <Card>
+        <div style={{ padding: 8 }}>
+          <h3 style={{ marginTop: 0, fontSize: 15, color: '#ef4444' }}>⚠️ Yuklab bo'lmadi</h3>
+          <p style={{ fontSize: 13, color: 'var(--fg-2)' }}>
+            Telefoniya sozlamalarini serverdan olishda xatolik yuz berdi
+            (odatda vaqtinchalik — bazaga ulanish uzilib qolgan bo'lishi
+            mumkin):
+          </p>
+          <div style={{
+            padding: '10px 12px', background: '#ef444412', borderRadius: 8,
+            fontSize: 12, color: '#ef4444', marginBottom: 14, wordBreak: 'break-word',
+          }}>
+            {loadError}
+          </div>
+          <Btn variant="primary" onClick={loadPhoneProvider}>🔄 Qayta urinish</Btn>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <>
       {/* HAMMA (admin ham, agent ham) — o'zining Мои Звонки login
@@ -466,6 +503,19 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
           shart emas */}
       {provider === 'MOIZVONKI' && (
         <MyMoiZvonkiCard config={config} setConfig={setConfig} myEmail={me?.email} />
+      )}
+
+      {/* Agent uchun: hozircha telefoniya boshqa provayder bilan
+          sozlangan bo'lsa (yoki umuman sozlanmagan bo'lsa) — bo'sh
+          sahifa o'rniga tushunarli xabar ko'rsatamiz */}
+      {!isAdmin && provider !== 'MOIZVONKI' && (
+        <Card>
+          <p style={{ fontSize: 13, color: 'var(--fg-2)', margin: 0 }}>
+            {provider === 'STUB'
+              ? "Telefoniya hali sozlanmagan. Administrator bilan bog'laning."
+              : "Bu bo'limda hozircha sozlanadigan narsa yo'q — telefoniya administrator tomonidan sozlanadi."}
+          </p>
+        </Card>
       )}
 
       {/* Admin uchun: zarur bo'lsa boshqa agentlar nomidan ham
