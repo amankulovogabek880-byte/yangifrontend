@@ -381,6 +381,8 @@ export const callsApi = {
   // v15: AI qo'ng'iroq tahlili — xulosa, e'tirozlar, keyingi qadam, agent bahosi
   setTranscript: (id: string, transcript: string) => api.post(`/calls/${id}/transcript`, { transcript }),
   analyze: (id: string) => api.post(`/calls/${id}/analyze`),
+  // v16: yozuvni Whisper bilan avtomatik eshitib, Claude bilan tahlil qiladi — bir tugma
+  autoAnalyze: (id: string) => api.post(`/calls/${id}/auto-analyze`),
   objectionsStats: (days = 30, agentId?: string) => api.get('/calls/objections-stats', { params: { days, agentId } }),
 };
 

@@ -679,10 +679,12 @@ function CallsTab({ data, isAgent }: any) {
       {aiAnalytics && aiAnalytics.analyzedCount > 0 && (
         <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>🤖 AI tahlil — eng ko'p uchragan e'tirozlar</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+              🤖 {isAgent ? "Mening AI tahlilim — nega sotolmayapman?" : "AI tahlil — jamoada eng ko'p uchragan e'tirozlar"}
+            </h3>
             <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
               {aiAnalytics.analyzedCount} ta qo'ng'iroq tahlil qilingan
-              {aiAnalytics.avgAgentScore != null && <> · O'rtacha agent bahosi: <b style={{ color: aiAnalytics.avgAgentScore >= 7 ? '#10b981' : aiAnalytics.avgAgentScore >= 5 ? '#f59e0b' : '#ef4444' }}>{aiAnalytics.avgAgentScore}/10</b></>}
+              {aiAnalytics.avgAgentScore != null && <> · O'rtacha {isAgent ? 'bahoyingiz' : 'agent bahosi'}: <b style={{ color: aiAnalytics.avgAgentScore >= 7 ? '#10b981' : aiAnalytics.avgAgentScore >= 5 ? '#f59e0b' : '#ef4444' }}>{aiAnalytics.avgAgentScore}/10</b></>}
             </span>
           </div>
           {aiAnalytics.objections?.length > 0 ? (
@@ -703,11 +705,16 @@ function CallsTab({ data, isAgent }: any) {
           ) : (
             <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14 }}>Bu davrda e'tiroz aniqlanmadi.</div>
           )}
-          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)' }}>
+          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)', marginBottom: aiAnalytics.topRecommendation ? 12 : 0 }}>
             <span>😊 Ijobiy: <b style={{ color: '#10b981' }}>{aiAnalytics.sentiment?.positive || 0}</b></span>
             <span>😐 Neytral: <b style={{ color: '#94a3b8' }}>{aiAnalytics.sentiment?.neutral || 0}</b></span>
             <span>😟 Salbiy: <b style={{ color: '#ef4444' }}>{aiAnalytics.sentiment?.negative || 0}</b></span>
           </div>
+          {aiAnalytics.topRecommendation && (
+            <div style={{ padding: '10px 12px', background: 'rgba(61,126,255,0.08)', border: '1px solid rgba(61,126,255,0.25)', borderRadius: 8, fontSize: 12 }}>
+              💡 <b>{aiAnalytics.topRecommendation.label}</b> e'tirozi eng ko'p chiqmoqda — tavsiya: {aiAnalytics.topRecommendation.tip}
+            </div>
+          )}
         </div>
       )}
 

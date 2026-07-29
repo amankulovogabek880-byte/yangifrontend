@@ -114,15 +114,22 @@ export default function CallsPage() {
           </div>
         )}
 
-        {/* v15: AI — bu oyda eng ko'p uchragan e'tiroz */}
+        {/* v16: AI — bu oyda eng ko'p uchragan e'tiroz + tavsiya */}
         {objStats?.objections?.length > 0 && (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+            display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16,
             padding: '10px 16px', background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.3)',
             borderRadius: 10, fontSize: 13,
           }}>
-            <span>🤖</span>
-            <span>Oxirgi 30 kunda eng ko'p uchragan e'tiroz: <b style={{ color: '#f97316' }}>{objStats.objections[0].label}</b> ({objStats.objections[0].count} marta, {objStats.analyzedCount} tahlildan)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span>🤖</span>
+              <span>Oxirgi 30 kunda eng ko'p uchragan e'tiroz: <b style={{ color: '#f97316' }}>{objStats.objections[0].label}</b> ({objStats.objections[0].count} marta, {objStats.totalAnalyzed} tahlildan)</span>
+            </div>
+            {objStats.topRecommendation?.tip && (
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', paddingLeft: 26 }}>
+                💡 Tavsiya: {objStats.topRecommendation.tip}
+              </div>
+            )}
           </div>
         )}
 
