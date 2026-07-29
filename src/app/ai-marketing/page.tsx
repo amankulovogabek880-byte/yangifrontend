@@ -65,6 +65,8 @@ const emptyForm = {
   bannerFormat: 'square' as 'square' | 'story',
   // Tayyor dizayn uslubi ("classic" | "minimal" | "bold")
   bannerTheme: 'classic' as 'classic' | 'minimal' | 'bold',
+  // v14.3: "✨ TUR TAKLIFI" nishonini alohida yoqib/o'chirish (temadan mustaqil)
+  showBadge: true,
 
   // Erkin joylashtirish — har bir ELEMENTNING (bittalab, bir-biridan
   // mustaqil) standart joyidan foiz (%) siljishi. 0/0 = standart joy
@@ -323,7 +325,7 @@ function LivePreview({
       <div style={{ position: 'absolute', left: '6%', right: '6%', bottom: '5%', color: '#fff' }}>
         {/* ── Har biri MUSTAQIL sudraladigan alohida elementlar (guruhlanmagan) ──
             "minimal" temasida nishon/chiplar ko'rsatilmaydi (backend bilan bir xil) */}
-        {form.bannerTheme !== 'minimal' && (
+        {form.bannerTheme !== 'minimal' && form.showBadge !== false && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
           <div
             onPointerDown={beginDrag('badge')}
@@ -657,6 +659,7 @@ export default function AiMarketingPage() {
     borderWidth: Number(form.borderWidth) || undefined,
     bannerFormat: form.bannerFormat || 'square',
     bannerTheme: form.bannerTheme || 'classic',
+    showBadge: form.showBadge !== false,
     layout: form.layout || undefined,
   });
 
@@ -964,6 +967,7 @@ export default function AiMarketingPage() {
       // qaytaramiz (aks holda ekrandagi eski tanlov bilan aralashib qolardi)
       bannerFormat: item.input?.bannerFormat || 'square',
       bannerTheme: item.input?.bannerTheme || 'classic',
+      showBadge: item.input?.showBadge !== false,
       layout: normalizeLegacyLayout(item.input?.layout),
     }));
     setBannerUrl(item.bannerUrl || '');
@@ -1153,6 +1157,21 @@ export default function AiMarketingPage() {
                     </button>
                   )}
                 </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label className="form-label">
+                Brend ovozi / doimiy ohang
+                <span style={{ fontWeight: 400, color: 'var(--fg-3)', marginLeft: 6 }}>
+                  (ixtiyoriy — bir marta yozing, AI HAR DOIM shu ohangda post/taklif yozadi)
+                </span>
+              </label>
+              <textarea className="form-input" style={{ minHeight: 70, fontSize: 12.5 }}
+                placeholder={"Masalan: \"Biz premium/hashamatli turlarga ixtisoslashganmiz — rasmiy va hurmatli ohangda yozamiz, hech qachon 'arzon' yoki 'chegirma' so'zini ishlatmaymiz\" yoki \"Yoshlarga qaratilgan, hazil-mutoyibali, ko'p emoji bilan\""}
+                value={template.brandVoice || ''}
+                onChange={e => setTemplate((t: any) => ({ ...t, brandVoice: e.target.value }))} />
+              <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 4 }}>
+                Bu — AI'ga har safar qayta yozmasdan, doim SHU agentlikka mos ohangda post yozdiradigan doimiy ko'rsatma.
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
@@ -1508,6 +1527,15 @@ export default function AiMarketingPage() {
                     </button>
                   ))}
                 </div>
+                {/* v14.3: "TUR TAKLIFI" nishonini kerak bo'lmasa o'chirib qo'yish */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 8, fontSize: 12, color: 'var(--fg-2)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.showBadge !== false}
+                    onChange={(e) => set('showBadge', e.target.checked)}
+                  />
+                  ✨ "TUR TAKLIFI" nishonini bannerda ko'rsatish
+                </label>
               </div>
             </div>
 
