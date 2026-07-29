@@ -128,7 +128,77 @@ export default function SettingsPage() {
   );
 }
 
-// ─── Agent Extensions Card (admin uchun) ─────────────────────────────────────
+// ─── Mening Мои Звонки ulanishim (HAR BIR foydalanuvchi o'zi) ───────────────
+// Avval faqat admin, "Agentlar jadvali" orqali, HAR bir xodim uchun bu
+// emailni kiritishi kerak edi. Endi har bir agent o'zi shu yerdan kiritadi —
+// admin ishtirokisiz. Faqat SHU foydalanuvchining o'z yozuvini o'zgartiradi
+// (backend: PATCH /tenants/phone-provider/my-moizvonki-email, rol cheklovisiz).
+function MyMoiZvonkiCard({
+  config,
+  setConfig,
+  myEmail,
+}: {
+  config?: any;
+  setConfig?: (c: any) => void;
+  myEmail?: string;
+}) {
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!myEmail || loaded) return;
+    const map = config?.moizvonki?.employeeEmailMap || {};
+    setValue(map[myEmail] || '');
+    setLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myEmail, config?.moizvonki?.employeeEmailMap]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const r = await tenantsApi.updateMyMoiZvonkiEmail(value.trim());
+      const savedEmail = r.data?.myMoizvonkiEmail ?? value.trim();
+      if (setConfig && myEmail) {
+        setConfig((prev: any) => {
+          const prevMap = prev?.moizvonki?.employeeEmailMap || {};
+          const nextMap = { ...prevMap };
+          if (savedEmail) nextMap[myEmail] = savedEmail;
+          else delete nextMap[myEmail];
+          return { ...prev, moizvonki: { ...(prev?.moizvonki || {}), employeeEmailMap: nextMap } };
+        });
+      }
+      toast.success('Saqlandi — endi shu email bilan qo\u2019ng\u2019iroq qilinadi');
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <h3 style={{ marginTop: 0, fontSize: 15 }}>📱 Mening Мои Звонки ulanishim</h3>
+      <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '0 0 14px' }}>
+        Qo'ng'iroq siz bosgan tugmadan aynan <b>sizning</b> Android telefoningiz orqali
+        ketadi. Shuning uchun bu yerga <b>Мои Звонки ilovasiga o'zingiz kirgan email</b>ni
+        kiriting — CRM email bilan bir xil bo'lsa, kiritish shart emas, avtomatik ishlaydi.
+      </p>
+      <Label>Mening Мои Звонки emailim</Label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={myEmail || "o'zingizning moizvonki.ru login emailingiz"}
+          style={{ flex: 1 }}
+        />
+        <Btn variant="primary" onClick={save} loading={saving}>Saqlash</Btn>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Agent Extensions Card (admin uchun, ixtiyoriy — boshqa agent nomidan) ──
 // `provider`/`config`/`setConfig` — PhoneTab'dan keladi. OnlinePBX uchun
 // "Extension (ATS)" ustuni ko'rsatiladi (admin ATS ichki raqamini kiritadi).
 // MOIZVONKI uchun bu ustun KERAK EMAS (u extension emas, EMAIL orqali
@@ -229,11 +299,11 @@ function AgentExtensionsCard({
       <h3 style={{ marginTop: 0, fontSize: 15 }}>👥 Agentlar telefon raqamlari</h3>
       {isMoiZvonki ? (
         <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '0 0 14px' }}>
-          Мои Звонки uchun <b>extension shart emas</b> — u agent Android
-          ilovasiga kirgan <b>email</b> orqali ishlaydi. Agar agent
-          moizvonki.ru ilovasiga xuddi shu CRM email'i bilan kirgan bo'lsa —
-          bu yerda hech narsa qilish shart emas, avtomatik ishlaydi.
-          Faqat email'lar FARQLI bo'lsa, pastda moslang.
+          Endi har bir agent yuqoridagi <b>"Mening Мои Звонки ulanishim"</b>
+          bo'limidan o'zi sozlaydi — bu jadval shart emas. Faqat agent o'zi
+          kira olmasa yoki uning nomidan admin sozlab qo'yishi kerak bo'lsa,
+          shu yerdan ham moslashtirishingiz mumkin (agent o'zi kiritgan
+          qiymatning ustidan yoziladi).
         </p>
       ) : (
         <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '0 0 14px' }}>
@@ -361,15 +431,16 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
   const [me, setMe] = useState<any>(null);
 
   useEffect(() => {
-    if (isAdmin) {
-      api.get('/tenants/phone-provider').then((r) => {
-        setTenant(r.data);
-        setProvider(r.data?.provider || 'STUB');
-        setConfig(r.data?.config || {});
-      }).catch(() => {}).finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // Provayder turini (STUB/MOIZVONKI/...) HAMMA ko'rishi kerak — agentlar
+    // ham o'zining Мои Звонки emailini sozlashi uchun qaysi provayder
+    // ishlatilayotganini bilishi shart. GET /tenants/phone-provider har
+    // qanday login qilingan foydalanuvchi uchun ochiq (backend'da rol
+    // cheklovi yo'q), faqat API kalitlari maskalab qaytariladi.
+    api.get('/tenants/phone-provider').then((r) => {
+      setTenant(r.data);
+      setProvider(r.data?.provider || 'STUB');
+      setConfig(r.data?.config || {});
+    }).catch(() => {}).finally(() => setLoading(false));
     usersApi.me().then((r) => {
       setMe(r.data);
     }).catch(() => {});
@@ -390,7 +461,15 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <>
-      {/* Admin: barcha agentlar uchun raqam/extension (yoki MoiZvonki uchun email) boshqaruvi */}
+      {/* HAMMA (admin ham, agent ham) — o'zining Мои Звонки login
+          emailini o'zi ulaydi, admin buni boshqalar uchun qilishi
+          shart emas */}
+      {provider === 'MOIZVONKI' && (
+        <MyMoiZvonkiCard config={config} setConfig={setConfig} myEmail={me?.email} />
+      )}
+
+      {/* Admin uchun: zarur bo'lsa boshqa agentlar nomidan ham
+          moslashtirish (masalan agent hali CRM'ga o'zi kirmagan bo'lsa) */}
       {isAdmin && <AgentExtensionsCard provider={provider} config={config} setConfig={setConfig} />}
 
       {isAdmin && (

@@ -165,6 +165,10 @@ export const tenantsApi = {
   getSourceRouting: () => api.get('/tenants/source-routing'),
   updateSourceRouting: (sourceRouting: any) =>
     api.patch('/tenants/source-routing', { sourceRouting }),
+  // Har bir agent o'zi o'zining Мои Звонки login emailini sozlashi uchun
+  // (admin talab qilinmaydi)
+  updateMyMoiZvonkiEmail: (email: string) =>
+    api.patch('/tenants/phone-provider/my-moizvonki-email', { email }),
 };
 
 // ── AUTO-REPLY ───────────────────────────────────────────────
