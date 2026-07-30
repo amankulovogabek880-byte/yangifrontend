@@ -1,1521 +1,1633 @@
-import {
-  Module, Injectable, Controller, Get, Post, Body, Query, Param, UseGuards,
-  Logger, BadRequestException, NotFoundException, ForbiddenException,
-  Req,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
-import type { Request } from 'express';
-import { Cron } from '@nestjs/schedule';
-import {
-  checkWebhookSecret,
-  sanitizeMediaUrl,
-  normalizePhone,
-  phoneVariants,
-} from '../../common/utils/helpers';
-import { PrismaService } from '../../prisma/prisma.service';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser, Public } from '../../common/decorators';
-import { EncryptionService } from '../../common/encryption/encryption.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { RealtimeGateway } from '../realtime/realtime.gateway';
-import { PhoneProvidersModule, PhoneProviderFactory } from '../phone-providers/phone-providers.module';
-import type { WebhookEvent } from '../phone-providers/provider.interface';
-import { CallDirection, CallStatus } from '../../prisma-types';;
-import { FollowUpsModule, FollowUpsService } from '../followups/followups.module';
-import { TranscriptionModule, TranscriptionService } from '../transcription/transcription.module';
+'use client';
+import KalendarTab from './KalendarTab';
+import dynamic from 'next/dynamic';
+const OnboardingWizard = dynamic(() => import('@/components/OnboardingWizard'), { ssr: false });
+import GettingStartedCard from '@/components/GettingStartedCard';
+import React, { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
-// E'tiroz turlari — statistikani izchil yig'ish uchun yopiq ro'yxat
-// (Claude javobni shu kategoriyalardan birortasiga moslashtiradi)
-export const OBJECTION_CATEGORIES: Record<string, string> = {
-  price: 'Narx qimmat',
-  think_it_over: "O'ylab ko'raman / vaqt kerak",
-  trust: 'Ishonchsizlik / birinchi marta',
-  timing: 'Sana/muddat mos kelmadi',
-  competitor: 'Boshqa agentlikka qaraydi',
-  availability: 'Joy/tur mos kelmadi',
-  no_response: "Aloqa yo'qoldi / javob bermadi",
-  other: 'Boshqa',
-};
+import { useRouter } from 'next/navigation';
+import CrmLayout from '@/components/layout/CrmLayout';
+import { Card, Stat, Btn, Empty, Skeleton, Avatar, Badge, StatCard, EmptyState } from '@/components/ui';
+import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, api, getAccessToken } from '@/services/api';
+import { useAuth } from '@/lib/store';
+import { useI18n } from '@/lib/i18n';
+import { useDialer } from '@/lib/dialer';
+import { useSocket, getSocket } from '@/hooks/useSocket';
+import { Trophy, DollarSign, TrendingUp, Calendar, Wallet, TrendingUp as TrendUpIc, Users as UsersIc, UserPlus as UserPlusIc, Banknote, CalendarCheck, Percent, Briefcase, PhoneCall, Plus, ClipboardCheck } from 'lucide-react';
+import { fmtDate, fmtMoney } from '@/lib/helpers';
+import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-// v16: Har bir e'tiroz kategoriyasi uchun qisqa, amaliy tavsiya —
-// admin panelida "eng ko'p uchragan e'tiroz" statistikasi yonida
-// ko'rsatiladi ("bu e'tirozga shunday javob bering" tarzida).
-export const OBJECTION_PLAYBOOK: Record<string, string> = {
-  price: "Narxni emas, qiymatni gapiring: nima kiradi (mehmonxona darajasi, ovqat, ekskursiya), muqobil/chegirmali variant taklif qiling, bo'lib to'lash imkoniyatini ayting.",
-  think_it_over: "Aniq muddat qo'ying (\"joylar tugab qolishi mumkin\"), qaysi savol hali ochiqligini so'rang, 2-3 kundan keyin o'zingiz qo'ng'iroq qiling — mijozga qoldirmang.",
-  trust: "Avvalgi mijozlar sharhlarini, litsenziya/guvohnomani ko'rsating, kichik oldindan to'lov bilan boshlashni taklif qiling, jonli video-qo'ng'iroqqa taklif eting.",
-  timing: "Muqobil sanalarni tayyor holda taklif qiling, kutish ro'yxatiga qo'shing va joy bo'shashi bilan xabar bering.",
-  competitor: "Sizning noyob afzalliklaringizni (narx, xizmat, tezkorlik) aniq solishtirib ko'rsating, shoshilinch aksiya/bonus taklif qiling.",
-  availability: "3 ta muqobil variant tayyorlab qo'ying (boshqa mehmonxona, boshqa sana, boshqa yo'nalish), talablarini aniq yozib oling.",
-  no_response: "24-48 soatdan keyin boshqa kanal orqali (Telegram/SMS) qisqa eslatma yuboring, savol shaklida yozing (\"hali qiziqasizmi?\").",
-  other: "Suhbat matnini qayta o'qib, mijozning asosiy tashvishini aniq belgilang va shaxsiy yondashuv bilan javob bering.",
-};
+const AI_SENTIMENT_EMOJI: Record<string, string> = { positive: '😊', neutral: '😐', negative: '😟' };
 
-@Injectable()
-export class CallsService {
-  private readonly logger = new Logger('Calls');
+// Pul summalarini har doim ko'pi bilan 2 xona (tiyin) gacha ko'rsatadi —
+// standart toLocaleString() default holatda 3 xonagacha chiqarib yuborishi
+// mumkin (masalan $57,374.852), bu funksiya buni oldini oladi.
+function money(n: any) {
+  return (Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
 
-  constructor(
-    private prisma: PrismaService,
-    private encryption: EncryptionService,
-    private notifications: NotificationsService,
-    private realtime: RealtimeGateway,
-    private providerFactory: PhoneProviderFactory,
-    private followUps: FollowUpsService,
-    private transcription: TranscriptionService,
-  ) {}
+function ExportButton() {
+  const { t } = useI18n();
+  const [exporting, setExporting] = React.useState(false);
+  const [type, setType] = React.useState('bookings');
+  const [format, setFormat] = React.useState<'csv' | 'xlsx' | 'pdf'>('xlsx');
 
-  // ═══════════════════════════════════════════════════════════════
-  // AI QO'NG'IROQ TAHLILI (Claude orqali) — v15
-  // ═══════════════════════════════════════════════════════════════
-  // Oqim: qo'ng'iroq matni (transcript) — yo agent qo'lda kiritadi,
-  // yo kelajakda transkripsiya provayderi (masalan Whisper/Deepgram)
-  // avtomatik to'ldiradi — Claude'ga yuboriladi va u:
-  //   1) 2-3 gapli xulosa yozadi (nima so'radi, e'tiroz, keyingi qadam)
-  //   2) mijozning kayfiyatini (sentiment) aniqlaydi
-  //   3) e'tirozlarni yopiq kategoriyalar bo'yicha ajratadi (statistikaga)
-  //   4) eng yaxshi keyingi qadamni (follow-up) taklif qiladi va uni
-  //      avtomatik "Eslatmalar" bo'limiga qo'shadi
-  //   5) agentning gaplashish sifatini 1-10 ballda baholaydi
-
-  private get anthropicKey() {
-    return (process.env.ANTHROPIC_API_KEY || '').trim();
-  }
-  private get anthropicModel() {
-    return (process.env.ANTHROPIC_MODEL || 'claude-sonnet-5').trim();
-  }
-  isAiConfigured(): boolean {
-    return !!this.anthropicKey;
-  }
-
-  /** Claude ba'zan JSON ichida xom boshqaruv belgilarini qaytaradi — tozalaymiz */
-  private sanitizeJsonControlChars(input: string): string {
-    let result = '';
-    let inString = false;
-    let escaped = false;
-    for (let i = 0; i < input.length; i++) {
-      const ch = input[i];
-      if (inString) {
-        if (escaped) { result += ch; escaped = false; continue; }
-        if (ch === '\\') { result += ch; escaped = true; continue; }
-        if (ch === '"') { result += ch; inString = false; continue; }
-        const code = ch.charCodeAt(0);
-        if (ch === '\n') { result += '\\n'; continue; }
-        if (ch === '\r') { result += '\\r'; continue; }
-        if (ch === '\t') { result += '\\t'; continue; }
-        if (code < 0x20) { result += '\\u' + code.toString(16).padStart(4, '0'); continue; }
-        result += ch;
-      } else {
-        if (ch === '"') inString = true;
-        result += ch;
-      }
-    }
-    return result;
-  }
-
-  /**
-   * Qo'ng'iroq matnini (transcript) qo'lda kiritish/tahrirlash.
-   * Hozircha CRM'da avtomatik nutqni-matnga o'girish integratsiyasi
-   * yo'q (Claude API audio faylni to'g'ridan-to'g'ri qabul qilmaydi),
-   * shuning uchun agent yozuvni tinglab matnni shu yerga joylaydi —
-   * yoki kelajakda alohida transkripsiya xizmati shu maydonni
-   * avtomatik to'ldiradi. Matn kiritilgach, tahlil (`analyze`) darhol
-   * shu asosda ishlaydi.
-   */
-  async setTranscript(tenantId: string, userId: string, callId: string, transcript: string) {
-    if (!transcript?.trim()) throw new BadRequestException('Matn bo\'sh bo\'lishi mumkin emas');
-    const call = await this.prisma.call.findFirst({ where: { id: callId, tenantId } });
-    if (!call) throw new NotFoundException("Qo'ng'iroq topilmadi");
-    return this.prisma.call.update({
-      where: { id: callId },
-      data: { transcript: transcript.trim() },
-    });
-  }
-
-  /**
-   * Qo'ng'iroqni Claude yordamida tahlil qiladi: xulosa, kayfiyat,
-   * e'tirozlar, keyingi qadam (avtomatik eslatma yaratiladi) va
-   * agentga qisqa feedback.
-   */
-  async analyzeCall(tenantId: string, userId: string, callId: string) {
-    if (!this.anthropicKey) {
-      throw new BadRequestException(
-        "AI tahlil sozlanmagan. Serverda ANTHROPIC_API_KEY o'rnatilmagan.",
-      );
-    }
-
-    const call = await this.prisma.call.findFirst({
-      where: { id: callId, tenantId },
-      include: {
-        client: { select: { id: true, fullName: true } },
-        agent: { select: { id: true, name: true } },
-      },
-    });
-    if (!call) throw new NotFoundException("Qo'ng'iroq topilmadi");
-    if (!call.transcript?.trim()) {
-      throw new BadRequestException(
-        "Bu qo'ng'iroqda matn (transcript) yo'q. Avval yozuvni tinglab matnini kiriting.",
-      );
-    }
-
-    const categoriesList = Object.entries(OBJECTION_CATEGORIES)
-      .map(([k, v]) => `- "${k}": ${v}`).join('\n');
-
-    const system = `Sen O'zbekistondagi sayohat agentligi uchun ishlaydigan, ko'p yillik tajribaga ega sotuv menejeri va call-markaz auditorisan. Senga agent va mijoz o'rtasidagi telefon suhbati matni beriladi. Sen uni FAQAT matnga asoslanib, hech narsa to'qib chiqarmasdan tahlil qilasan. Har doim FAQAT o'zbek tilida, lotin alifbosida yozasan.
-
-Qattiq qoidalar:
-1. Xulosa (summary) 2-3 gapdan oshmasin: mijoz nima haqida so'radi, qanday e'tiroz/shubha bildirdi, keyingi qadam nima bo'lishi kerak.
-2. E'tirozlarni FAQAT quyidagi kategoriyalardan tanlab belgila (agar suhbatda e'tiroz bo'lmasa — bo'sh massiv qaytar):
-${categoriesList}
-3. Har bir e'tiroz uchun mijozning aslidagi gapiga yaqin qisqa "quote" ber (matndan, 15 so'zdan oshmasin).
-4. Keyingi qadam (nextAction) — aniq, bajarish mumkin bo'lgan harakat bo'lsin (masalan "3 kundan keyin narx bo'yicha qayta bog'laning va 5% chegirma taklif qiling"), daysUntilDue — necha kundan keyin bajarilishi kerakligi (1-14 oralig'ida butun son).
-5. Agent feedback — agentning gaplashish sifatini xolisona baholaysan (1-10 ball): savol berish, tinglash, e'tirozga javob berish, yakunlash ko'nikmalari. Kuchli va yaxshilash kerak bo'lgan tomonlarni QISQA (har biri 1 jumla) ko'rsat. Haqoratli emas, konstruktiv bo'l.
-6. Sotuvga yaqinlik (saleReadiness) — mijoz sotib olishga qanchalik yaqinligini 1-10 ballda baholaysan (1 = umuman qiziqmadi, 10 = deyarli rozi bo'ldi/to'lovga tayyor). missedInfo — agent aytishi kerak bo'lib, aytmay qoldirgan MUHIM ma'lumot bo'lsa qisqa yoz (masalan narx, sana, hujjatlar), bo'lmasa bo'sh qoldir. whatWouldClose — mijozni aynan nima ishontirib, sotuvni yakunlagan bo'lardi (1 qisqa, aniq jumla, masalan "5% chegirma va bepul transfer taklif qilinsa rozi bo'lardi").
-7. Agar suhbat juda qisqa yoki mazmunsiz bo'lsa (masalan javob bermadi), buni halol yoz — o'ylab topma.
-
-Javobni FAQAT quyidagi JSON formatida qaytar — hech qanday izoh, sarlavha yoki markdown belgisi qo'shma:
-{
-  "summary": "...",
-  "sentiment": "positive" | "neutral" | "negative",
-  "objections": [{"category": "price", "label": "Narx qimmat", "quote": "..."}],
-  "nextAction": {"title": "...", "note": "...", "daysUntilDue": 3},
-  "feedback": {"score": 8, "strengths": ["..."], "improvements": ["..."]},
-  "saleReadiness": {"score": 6, "missedInfo": "...", "whatWouldClose": "..."}
-}`;
-
-    const prompt = `Mijoz: ${call.client?.fullName || 'Notanish mijoz'}
-Agent: ${call.agent?.name || 'Notanish agent'}
-Qo'ng'iroq davomiyligi: ${call.duration || 0} soniya
-
-SUHBAT MATNI:
-"""
-${call.transcript.trim().slice(0, 12000)}
-"""
-
-Yuqoridagi qoidalarga rioya qilib tahlilni JSON formatida ber.`;
-
-    let raw = '';
+  async function doExport() {
+    setExporting(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.anthropicKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: this.anthropicModel,
-          max_tokens: 1500,
-          temperature: 0.4,
-          system,
-          messages: [{ role: 'user', content: prompt }],
-        }),
+      const token = getAccessToken() || ''; // XAVFSIZLIK TUZATISH: memory'dan
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+      const endpoint = format === 'csv' ? 'export' : format === 'xlsx' ? 'export-xlsx' : 'export-pdf';
+      const res = await fetch(`${API_URL}/api/v1/reports/${endpoint}?type=${type}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Anthropic API xato (HTTP ${res.status}): ${text.slice(0, 300)}`);
-      }
-
-      const j: any = await res.json();
-      const textBlock = (j?.content || []).find((c: any) => c.type === 'text');
-      raw = textBlock?.text || '';
-
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('AI javobidan JSON topilmadi');
-      let parsed: any;
-      try {
-        parsed = JSON.parse(match[0]);
-      } catch {
-        parsed = JSON.parse(this.sanitizeJsonControlChars(match[0]));
-      }
-
-      const objections = Array.isArray(parsed.objections)
-        ? parsed.objections
-            .filter((o: any) => o?.category && OBJECTION_CATEGORIES[o.category])
-            .map((o: any) => ({
-              category: o.category,
-              label: OBJECTION_CATEGORIES[o.category],
-              quote: String(o.quote || '').slice(0, 300),
-            }))
-        : [];
-
-      const nextAction = parsed.nextAction?.title ? {
-        title: String(parsed.nextAction.title).slice(0, 200),
-        note: String(parsed.nextAction.note || '').slice(0, 1000),
-        daysUntilDue: Math.min(Math.max(Number(parsed.nextAction.daysUntilDue) || 3, 1), 14),
-      } : null;
-
-      const feedback = parsed.feedback ? {
-        score: Math.min(Math.max(Number(parsed.feedback.score) || 5, 1), 10),
-        strengths: Array.isArray(parsed.feedback.strengths) ? parsed.feedback.strengths.slice(0, 5) : [],
-        improvements: Array.isArray(parsed.feedback.improvements) ? parsed.feedback.improvements.slice(0, 5) : [],
-      } : null;
-
-      const saleReadiness = parsed.saleReadiness ? {
-        score: Math.min(Math.max(Number(parsed.saleReadiness.score) || 5, 1), 10),
-        missedInfo: String(parsed.saleReadiness.missedInfo || '').slice(0, 300),
-        whatWouldClose: String(parsed.saleReadiness.whatWouldClose || '').slice(0, 300),
-      } : null;
-
-      const sentiment = ['positive', 'neutral', 'negative'].includes(parsed.sentiment)
-        ? parsed.sentiment : 'neutral';
-
-      // Keyingi qadamni avtomatik "Eslatmalar" (FollowUp) bo'limiga qo'shamiz
-      let followUpId: string | undefined;
-      if (nextAction && call.agentId) {
-        try {
-          const due = new Date();
-          due.setDate(due.getDate() + nextAction.daysUntilDue);
-          const fu = await this.followUps.create(tenantId, call.agentId, {
-            title: `📞 AI: ${nextAction.title}`,
-            note: nextAction.note,
-            dueAt: due.toISOString(),
-            clientId: call.clientId || undefined,
-            agentId: call.agentId,
-          });
-          followUpId = fu.id;
-        } catch (e: any) {
-          this.logger.warn(`AI eslatma yaratilmadi: ${e.message}`);
-        }
-      }
-
-      const updated = await this.prisma.call.update({
-        where: { id: callId },
-        data: {
-          aiSummary: String(parsed.summary || '').slice(0, 2000),
-          aiSentiment: sentiment,
-          aiObjections: objections,
-          aiNextAction: nextAction ? { ...nextAction, followUpId } : null,
-          aiFeedback: feedback ? { ...feedback, saleReadiness } : (saleReadiness ? { saleReadiness } : null),
-          aiAnalyzedAt: new Date(),
-        } as any,
-      });
-
-      if (call.agentId) {
-        this.realtime.emitToUser(call.agentId, 'call:analyzed', { callId, summary: updated.aiSummary });
-      }
-
-      return updated;
-    } catch (e: any) {
-      this.logger.error(`AI tahlil xato: ${e.message} | raw: ${raw.slice(0, 200)}`);
-      throw new BadRequestException(`Qo'ng'iroqni tahlil qilib bo'lmadi: ${e.message}`);
-    }
-  }
-
-  /**
-   * Berilgan davr uchun eng ko'p uchragan e'tirozlar statistikasi
-   * (Hisobotlar / Dashboard'da ko'rsatish uchun).
-   */
-  async getObjectionsStats(tenantId: string, days: number, agentId?: string) {
-    const from = new Date(Date.now() - days * 86400000);
-    const where: any = { tenantId, aiAnalyzedAt: { gte: from }, NOT: { aiObjections: null } };
-    if (agentId) where.agentId = agentId;
-
-    const calls = await this.prisma.call.findMany({
-      where,
-      select: { aiObjections: true },
-    });
-
-    const counts: Record<string, { category: string; label: string; count: number }> = {};
-    let analyzedWithObjections = 0;
-    for (const c of calls) {
-      const list = (c as any).aiObjections as any[] | null;
-      if (!Array.isArray(list) || !list.length) continue;
-      analyzedWithObjections++;
-      for (const o of list) {
-        if (!o?.category) continue;
-        if (!counts[o.category]) {
-          counts[o.category] = { category: o.category, label: OBJECTION_CATEGORIES[o.category] || o.category, count: 0 };
-        }
-        counts[o.category].count++;
-      }
-    }
-
-    const totalAnalyzed = calls.length;
-    const sorted = Object.values(counts).sort((a, b) => b.count - a.count);
-    // v16: eng ko'p uchragan e'tirozga tayyor tavsiya — admin/agent panelida
-    // "bu e'tiroz ko'p chiqyapti, shunday qiling" tarzida ko'rsatish uchun
-    const topRecommendation = sorted.length
-      ? { category: sorted[0].category, label: sorted[0].label, tip: OBJECTION_PLAYBOOK[sorted[0].category] || OBJECTION_PLAYBOOK.other }
-      : null;
-    return {
-      totalAnalyzed,
-      callsWithObjections: analyzedWithObjections,
-      objections: sorted,
-      topRecommendation,
-    };
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // AVTOMATIK TRANSKRIPSIYA + TAHLIL (v16) — hech kim qo'l tegizmaydi
-  // ═══════════════════════════════════════════════════════════════
-  // Oqim: yozuv (recordingUrl) paydo bo'ladi → Whisper orqali matnga
-  // o'giriladi → transcript saqlanadi → Claude avtomatik tahlil qiladi
-  // (analyzeCall). Agent yoki admin HECH QANDAY tugma bosishi shart
-  // emas. Bu — foydalanuvchi so'ragan "AI doim eshitib, doim tahlil
-  // qilib beradi, hech kim AI'ga savol bera olmaydi" talabining aynan
-  // o'zi: bu yerda faqat avtomatik pipeline bor, erkin savol-javob
-  // (chat) endpointi umuman mavjud emas.
-  @Cron('*/4 * * * *')
-  async autoTranscribeAndAnalyze() {
-    // v18 TUZATISH: avval bu yerda konfiguratsiya yo'q bo'lsa jimgina
-    // `return` qilinardi — hech qanday izsiz, admin panelida qo'ng'iroqlar
-    // "AI kutmoqda" holatida ABADIY osilib qolardi, sababini HECH KIM
-    // ko'ra olmasdi (faqat server logiga kirish huquqi bo'lganlar bilardi).
-    // Endi: konfiguratsiya yo'q bo'lsa ham, navbatdagi qo'ng'iroqlarga
-    // ANIQ sabab yoziladi (`Call.aiError`) — bu UI'da ko'rinadi.
-    const missingConfig: string[] = [];
-    if (!this.transcription.isConfigured()) missingConfig.push("OPENAI_API_KEY (Whisper — audio matnga o'girish uchun)");
-    if (!this.anthropicKey) missingConfig.push('ANTHROPIC_API_KEY (Claude — tahlil uchun)');
-
-    // Faqat oxirgi 48 soatda tugagan, yozuvi bor, hali matni yo'q, hali
-    // tahlil qilinmagan VA hali xato bilan to'xtamagan (aiError: null),
-    // real suhbat bo'lgan (15 soniyadan uzun) qo'ng'iroqlarni olamiz —
-    // eskilarini/doimiy xato beradiganlarini abadiy qayta urinmaslik uchun.
-    const since = new Date(Date.now() - 48 * 3600 * 1000);
-    const freshCandidates = await this.prisma.call.findMany({
-      where: {
-        status: 'COMPLETED',
-        recordingUrl: { not: null },
-        transcript: null,
-        aiAnalyzedAt: null,
-        aiError: null,
-        duration: { gte: 15 },
-        createdAt: { gte: since },
-      },
-      select: { id: true, tenantId: true, recordingUrl: true },
-      take: 15,
-    }).catch(() => [] as any[]);
-
-    // v19: VAQTINCHALIK xatolar (masalan "yozuv hali PBX'da tayyor emas",
-    // 0 soniyalik audio, tarmoq xatosi) uchun avtomatik qayta urinamiz —
-    // 10 daqiqa o'tgach, 3 martagacha. Sozlama xatolari (API_KEY yo'q)
-    // qayta urinilmaydi — admin sozlashi kerak.
-    const retryWindow = new Date(Date.now() - 10 * 60 * 1000);
-    const retryCandidates = await this.prisma.call.findMany({
-      where: {
-        status: 'COMPLETED',
-        recordingUrl: { not: null },
-        transcript: null,
-        aiAnalyzedAt: null,
-        aiError: { not: null },
-        NOT: { aiError: { contains: 'API_KEY' } },
-        aiRetryCount: { lt: 3 },
-        aiErrorAt: { lte: retryWindow },
-        duration: { gte: 15 },
-        createdAt: { gte: since },
-      } as any,
-      select: { id: true, tenantId: true, recordingUrl: true },
-      take: 10,
-    }).catch(() => [] as any[]);
-
-    const candidates = [...freshCandidates, ...retryCandidates];
-    if (!candidates.length) return;
-
-    if (missingConfig.length) {
-      const msg = `AI tahlil ishlamayapti — serverda quyidagi sozlama(lar) yo'q: ${missingConfig.join(', ')}. Sozlab, so'ng "Qayta urinish" tugmasini bosing.`;
-      await this.prisma.call.updateMany({
-        where: { id: { in: candidates.map((c: any) => c.id) } },
-        data: { aiError: msg, aiErrorAt: new Date() } as any,
-      }).catch((e: any) => this.logger.warn(`aiError yozilmadi: ${e.message}`));
-      this.logger.warn(msg);
-      return;
-    }
-
-    for (const c of candidates) {
-      await this.processAiPipelineForCall(c.id, c.tenantId, c.recordingUrl!);
-    }
-  }
-
-  /**
-   * Bitta qo'ng'iroq uchun: transkripsiya (Whisper) → Claude tahlili.
-   * Har ikkala bosqichda ham xato bo'lsa, ANIQ sababi `Call.aiError`ga
-   * yoziladi (server logi emas) — shuning uchun admin/agent buni to'g'ridan
-   * -to'g'ri UI'da ko'radi. Muvaffaqiyatli tahlildan so'ng `aiError`
-   * tozalanadi. Ham avtomatik cron, ham qo'lda "Qayta urinish" tugmasi
-   * (`retryAi`) shu metoddan foydalanadi.
-   */
-  private async processAiPipelineForCall(callId: string, tenantId: string, recordingUrl: string) {
-    try {
-      const { text, error, transient } = await this.transcription.transcribeFromUrl(recordingUrl);
-      if (!text) {
-        if (error) {
-          await this.prisma.call.update({
-            where: { id: callId },
-            data: {
-              aiError: error,
-              aiErrorAt: new Date(),
-              // Faqat vaqtinchalik xatolarda hisoblagichni oshiramiz — 3 martadan
-              // keyin cron avtomatik qayta urinishni to'xtatadi (query filtri orqali)
-              ...(transient ? { aiRetryCount: { increment: 1 } } : {}),
-            } as any,
-          }).catch(() => {});
-        }
+        if (res.status === 403) toast.error("Bu amal uchun ruxsatingiz yo'q — administratordan so'rang");
+        else toast.error(t('dash.exportError'));
         return;
       }
-
-      await this.prisma.call.update({
-        where: { id: callId },
-        data: { transcript: text, aiError: null, aiErrorAt: null, aiRetryCount: 0 } as any,
-      });
-
-      // Matn tayyor bo'lgach — darhol Claude tahlilini ham ishga tushiramiz
-      await this.analyzeCall(tenantId, '', callId).catch(async (e: any) => {
-        this.logger.warn(`Avtomatik tahlil xato [${callId}]: ${e?.message}`);
-        await this.prisma.call.update({
-          where: { id: callId },
-          data: { aiError: String(e?.message || "AI tahlilida noma'lum xato").slice(0, 1000), aiErrorAt: new Date(), aiRetryCount: { increment: 1 } } as any,
-        }).catch(() => {});
-      });
-    } catch (e: any) {
-      this.logger.warn(`Avtomatik transkripsiya xato [${callId}]: ${e?.message}`);
-      await this.prisma.call.update({
-        where: { id: callId },
-        data: { aiError: String(e?.message || "Noma'lum xato").slice(0, 1000), aiErrorAt: new Date(), aiRetryCount: { increment: 1 } } as any,
-      }).catch(() => {});
-    }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${type}-${new Date().toISOString().slice(0,10)}.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error(t('dash.exportError')); }
+    finally { setExporting(false); }
   }
 
-  /**
-   * Admin/agent "Qayta urinish" tugmasini bossa chaqiriladi — avvalgi
-   * xatoni tozalab, darhol qaytadan urinadi (4 daqiqalik cron kutmasdan).
-   */
-  async retryAi(tenantId: string, callId: string) {
-    const call = await this.prisma.call.findFirst({ where: { id: callId, tenantId } });
-    if (!call) throw new NotFoundException("Qo'ng'iroq topilmadi");
-    if (!call.recordingUrl) throw new BadRequestException("Bu qo'ng'iroqda audio yozuv yo'q");
+  return (
+    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px' }}>
+      <select
+        value={type}
+        onChange={e => setType(e.target.value)}
+        disabled={exporting}
+        style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, cursor: 'pointer' }}
+      >
+        <option value="bookings">{t('dash.bookings')}</option>
+        <option value="clients">{t('dash.clients')}</option>
+        <option value="payments">{t('dash.payments')}</option>
+        <option value="calls">{t('dash.calls')}</option>
+      </select>
+      <select
+        value={format}
+        onChange={e => setFormat(e.target.value as any)}
+        disabled={exporting}
+        style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, cursor: 'pointer' }}
+      >
+        <option value="xlsx">Excel (.xlsx)</option>
+        <option value="pdf">PDF</option>
+        <option value="csv">CSV</option>
+      </select>
+      <button
+        onClick={doExport}
+        disabled={exporting}
+        style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--primary)', color: 'white', fontSize: 12, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+      >
+        {exporting ? 'Yuklanmoqda...' : '⬇ Yuklab olish'}
+      </button>
+    </div>
+  );
+}
 
-    await this.prisma.call.update({
-      where: { id: callId },
-      data: { aiError: null, aiErrorAt: null, aiRetryCount: 0 } as any,
-    });
+export default function DashboardPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
-    if (call.transcript?.trim()) {
-      // Matn allaqachon bor — to'g'ridan-to'g'ri tahlilni qayta ishga tushiramiz
-      return this.analyzeCall(tenantId, '', callId);
+  useEffect(() => {
+    // Birinchi kirish - onboarding ko'rsatish
+    if (user?.role === 'TENANT_ADMIN') {
+      const key = `onboarding_done_${user.tenantId || user.id}`;
+      if (!localStorage.getItem(key)) {
+        setShowOnboarding(true);
+      }
     }
-    await this.processAiPipelineForCall(callId, tenantId, call.recordingUrl);
-    return this.prisma.call.findFirst({ where: { id: callId, tenantId } });
+  }, [user]);
+
+  function completeOnboarding() {
+    if (user) {
+      const key = `onboarding_done_${user.tenantId || user.id}`;
+      localStorage.setItem(key, '1');
+    }
+    setShowOnboarding(false);
   }
+  const { t } = useI18n();
+  const { callClient } = useDialer();
+  const isAgent = user?.role === 'AGENT';
 
-  async initiate(tenantId: string, userId: string, data: {
-    toPhone: string; clientId?: string; bookingId?: string;
-  }) {
-    if (!data.toPhone) throw new BadRequestException('Telefon raqami kerak');
+  const [activeTab, setActiveTab] = useState('overview');
+  const [stats, setStats] = useState<any>(null);
+  // Date range
+  const today = new Date().toISOString().slice(0,10);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10);
+  const [dateFrom, setDateFrom] = useState(monthStart);
+  const [dateTo,   setDateTo]   = useState(today);
+  const [revenueChart, setRevenueChart] = useState<any[]>([]);
+  const [bySource, setBySource] = useState<any[]>([]);
+  const [todayTasks, setTodayTasks] = useState<any[]>([]);
+  const [callData, setCallData] = useState<any>(null);
+  const [leadData, setLeadData] = useState<any>(null);
+  const [agentsList, setAgentsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    const toMasked = this.encryption.maskPhone(data.toPhone);
-    const toRaw = this.encryption.encrypt(data.toPhone);
+  useSocket();
 
-    const agent = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true, email: true, callbackPhone: true, extension: true },
-    });
-    if (!agent) throw new NotFoundException('Agent topilmadi');
-
-    let clientName = 'Notanish';
-    if (data.clientId) {
-      const c = await this.prisma.client.findFirst({
-        where: { id: data.clientId, tenantId },
-        select: { fullName: true },
-      });
-      if (c) clientName = (c as any).fullName;
+  const reload = () => {
+    setLoading(true);
+    const ps: Promise<any>[] = [
+      isAgent
+        ? reportsV6.myStats(dateFrom, dateTo).catch(() => ({ data: null }))
+        : reportsApi.dashboard(dateFrom, dateTo).catch(() => ({ data: null })),
+      reportsV6.revenueChart('month').catch(() => ({ data: [] })),
+      followUpsApi.list({ done: 'false', limit: '6' }).catch(() => ({ data: [] })),
+    ];
+    if (!isAgent) {
+      ps.push(reportsApi.agents ? reportsApi.agents({ from: dateFrom, to: dateTo }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }));
     }
+    Promise.all(ps).then(([s, rc, fu, ag]) => {
+      setStats(s?.data || null);
+      setRevenueChart(Array.isArray(rc?.data) ? rc.data : (rc?.data?.data || []));
+      const fuArr = Array.isArray(fu?.data) ? fu.data : (fu?.data?.data || []);
+      // Backend /followups har qanday bajarilmagan eslatmani (kelajakdagilarini
+      // ham) qaytaradi va `limit` parametrini e'tiborga olmaydi — shuning
+      // uchun "Bugungi eslatmalar" bo'limida faqat bugungi kunga (yoki undan
+      // oldingi, muddati o'tgan) eslatmalarni ko'rsatamiz, kelajakdagilarini
+      // filtrlab tashlaymiz.
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+      const todayOnly = fuArr.filter((f: any) => f?.dueAt && new Date(f.dueAt) <= endOfToday);
+      setTodayTasks(todayOnly.slice(0, 6));
+      if (ag) setAgentsList(Array.isArray(ag.data) ? ag.data : (ag?.data?.agents || []));
+    }).finally(() => setLoading(false));
+  };
 
-    const call = await this.prisma.call.create({
-      data: {
-        tenantId, agentId: userId,
-        clientId: data.clientId, bookingId: data.bookingId,
-        toMasked, toRaw,
-        direction: 'OUTBOUND', status: 'QUEUED',
-      },
+  useEffect(() => {
+    reload();
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => {
+    const days = 30;
+    api.get('/reports/call-analytics', { params: { days } }).then(r => setCallData(r.data)).catch(() => {});
+    if (!isAgent) {
+      api.get('/reports/lead-analytics', { params: { days } }).then(r => setLeadData(r.data)).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const onUpdate = () => reload();
+    socket.on('dashboard:update', onUpdate);
+    socket.on('lead:assigned', (data: any) => {
+      // Agent yangi lead olganini toast bilan ko'rsatish
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.success(`🎯 Yangi lead: ${data.fullName}`, { duration: 5000 });
+      });
+      onUpdate(); // Dashboardni yangilash
     });
-
-    this.realtime.emitToUser(userId, 'call:queued', {
-      callId: call.id, clientName, phone: toMasked, clientId: data.clientId,
+    socket.on('notification:new', (notif: any) => {
+      if (notif.type === 'CLIENT_ASSIGNED') {
+        onUpdate();
+      }
     });
+    return () => {
+      socket.off('dashboard:update', onUpdate);
+      socket.off('lead:assigned');
+      socket.off('notification:new');
+    };
+  }, []);
 
+  // Bir xil manba - booking.totalPrice (agent uchun o'z bookinglar)
+  const totalRevenue = stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? 0;
+  const totalCost    = stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0;
+  const totalProfit  = stats?.thisMonth?.profit ?? stats?.profit?.thisMonth ?? 0;
+  const netProfit    = stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? 0;
+
+  const tabs = isAgent
+    ? [
+        { id: 'overview', label: t('dash.overall') },
+        { id: 'agents', label: t('dash.myRank') },
+        { id: 'calls', label: t('dash.myCalls') },
+      ]
+    : [
+        { id: 'overview', label: t('dash.overall') },
+        { id: 'revenue', label: t('dash.finance') },
+        { id: 'agents', label: t('dash.agents') },
+        { id: 'calls', label: "Qo'ng'iroqlar" },
+        { id: 'leads', label: t('dash.leadSources') },
+      { id: 'calendar', label: t('dash.calendar') },
+      ];
+
+  return (
+    <CrmLayout>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Tab bar */}
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-2)', flexShrink: 0 }}>
+          {/* Tabs + Date range */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px', overflowX: 'auto', gap: 4 }}>
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                padding: '12px 18px', fontSize: 13, fontWeight: 600, border: 'none',
+                background: 'none', cursor: 'pointer', flexShrink: 0,
+                borderBottom: activeTab === tab.id ? '2px solid #3d7eff' : '2px solid transparent',
+                color: activeTab === tab.id ? '#3d7eff' : 'var(--fg-2)', whiteSpace: 'nowrap',
+              }}>
+                {tab.id === 'overview' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                ) : tab.id === 'revenue' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                ) : tab.id === 'agents' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
+                ) : tab.id === 'calls' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 11 19.79 19.79 0 0 1 1.08 2.18 2 2 0 0 1 3.07.01h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21 15l.92 1.92z"/></svg>
+                ) : tab.id === 'calendar' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle',marginRight:6}}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+                )}
+                {tab.label}
+              </button>
+            ))}
+            <div style={{ flex: 1 }}/>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+              <ExportButton />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {loading ? <Skeleton height={400} /> : (
+            <>
+              {activeTab === 'overview' && (
+                <OverviewTab stats={stats} isAgent={isAgent} revenueChart={revenueChart} todayTasks={todayTasks} totalRevenue={totalRevenue} router={router} tenantId={user?.tenantId} />
+              )}
+              {activeTab === 'revenue' && !isAgent && (
+                <RevenueTab stats={stats} revenueChart={revenueChart} from={dateFrom} to={dateTo} />
+              )}
+              {activeTab === 'agents' && (
+                <AgentsTab agents={agentsList} from={dateFrom} to={dateTo} onDateChange={(f,t)=>{setDateFrom(f);setDateTo(t);}} isAgent={isAgent} />
+              )}
+              {activeTab === 'calls' && (
+                <CallsTab data={callData} isAgent={isAgent} />
+              )}
+              {activeTab === 'leads' && !isAgent && (
+                <LeadsTab data={leadData} from={dateFrom} to={dateTo} />
+              )}
+              {activeTab === 'calendar' && (
+                <KalendarTab calendarApi={reportsV6.calendar} />
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </CrmLayout>
+  );
+}
+
+function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, router, tenantId }: any) {
+  const { t } = useI18n();
+  // Agent salary loaded separately
+  const [mySalary, setMySalary] = useState<any>(null);
+  useEffect(() => {
+    if (isAgent) {
+      api.get('/reports/my-salary').then((r: any) => setMySalary(r.data)).catch(() => {});
+    }
+  }, [isAgent]);
+
+  const conversionRate = stats?.conversion?.rate ?? 0;
+
+  // ── v12 FIX: Komissiya raqamlari BITTA manbadan (my-salary, KPI tier bo'yicha) ──
+  // Ilgari "Mening oyligim" SUMMASI tier foizi (masalan 12%) bilan, lekin uning
+  // YORLIG'I va "Kompaniyaga" flat foiz (8%) bilan hisoblanib, bir-biriga mos
+  // kelmasdi. Endi foiz, oylik va kompaniya ulushi bitta manbadan olinadi va
+  // har doim mos keladi:  oylik + kompaniyaga = foyda.
+  const kpiPct = mySalary?.myCommissionPercent ?? stats?.salary?.kpiPercent ?? 10;
+  const myProfit = mySalary?.profit ?? stats?.thisMonth?.profit ?? stats?.profit?.thisMonth ?? 0;
+  const myCommissionAmount = mySalary?.grossSalary ?? Math.round(myProfit * kpiPct / 100);
+  const companyProfit = Math.max(0, myProfit - myCommissionAmount);
+  const agentTier = mySalary?.appliedTier ?? null;
+
+  // Conversion yorlig'i rate bilan AYNAN bir xil manbadan:
+  // booking qilgan mijozlar (conversion.won) / jami mijozlar (conversion.total).
+  const wonCount = stats?.conversion?.won ?? stats?.bookings?.total ?? 0;
+  const totalLeads = stats?.conversion?.total ?? stats?.leads?.total ?? 0;
+
+  // v10.2: sparkline seriyalari — oylik revenue-chart ma'lumotidan
+  const revSeries: number[] = (revenueChart || []).map((d: any) => Number(d.revenue ?? d.total ?? 0));
+  const profitSeries: number[] = (revenueChart || []).map((d: any) => Number(d.profit ?? d.netProfit ?? 0));
+  const countSeries: number[] = (revenueChart || []).map((d: any) => Number(d.bookings ?? d.count ?? 0));
+
+  const kpis = isAgent ? [
+    // v11: "Daromadim"/"Komissiyam" o'rniga — admin dashbordidagi kabi
+    // "Jami daromad" va "Operator narxi", so'ng shulardan kelib chiqib
+    // hisoblangan "Mening oyligim". Foiz har doim admin Sozlamalarda
+    // qo'ygan komissiya foizidan (kpiPct) olinadi — qattiq kodlangan
+    // (masalan 8%) qiymat ishlatilmaydi.
+    { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue ?? stats?.revenue?.thisMonth ?? totalRevenue)}`, color: '#10b981', sub: t('dash.bookingPricesTotal'), icon: <DollarSign size={15} />, series: revSeries },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.thisMonth?.cost ?? stats?.cost?.thisMonth ?? 0)}`, color: '#ef4444', sub: t('dash.costTotal'), icon: <Banknote size={15} /> },
+    { label: t('dash.mySalary'), value: `$${money(myCommissionAmount)}`, color: '#8b5cf6', sub: `${kpiPct}% ${t('dash.ofProfit')}`, icon: <Wallet size={15} />, emphasis: true },
+    { label: t('dash.myBookings'), value: stats?.bookings?.thisMonth ?? 0, color: '#3d7eff', sub: `${t('dash.jami')}: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
+    { label: t('dash.conversionRate'), value: `${conversionRate}%`, color: '#f59e0b', sub: `${wonCount} / ${totalLeads} mijoz booking qildi`, icon: <Percent size={15} /> },
+    { label: t('dash.myLeads'), value: stats?.leads?.total ?? 0, color: '#06b6d4', sub: `${t('common.thisMonth')}: +${stats?.leads?.thisMonth ?? 0}`, icon: <UserPlusIc size={15} /> },
+    { label: t('dash.toCompany'), value: `$${companyProfit > 0 ? money(companyProfit) : 0}`, color: '#94a3b8', sub: '', icon: <Briefcase size={15} /> },
+  ] : [
+    // Vizual iyerarxiya: "Sof foyda" — eng muhim metrika, kattaroq (emphasis)
+    { label: t('dash.netProfit'), value: `$${money(stats?.thisMonth?.netProfit ?? stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: t('dash.revMinusCostSalary'), icon: <TrendUpIc size={16} />, series: profitSeries, emphasis: true },
+    { label: t('dash.totalRevenue'), value: `$${money(stats?.thisMonth?.revenue || stats?.revenue?.thisMonth || 0)}`, color: '#10b981', sub: t('dash.bookingPricesTotal'), icon: <DollarSign size={15} />, series: revSeries },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: t('dash.costTotal'), icon: <Banknote size={15} /> },
+    { label: t('dash.clients'), value: stats?.clients?.total ?? 0, color: '#3d7eff', icon: <UsersIc size={15} /> },
+    { label: t('dash.newLeads'), value: stats?.clients?.newThisMonth ?? 0, color: '#06b6d4', sub: `${t('common.today')}: +${stats?.clients?.newToday ?? 0}`, icon: <UserPlusIc size={15} /> },
+    { label: t('dash.bookingsMonth'), value: stats?.bookings?.thisMonth ?? 0, color: '#84cc16', sub: `${t('dash.jami')}: ${stats?.bookings?.total ?? 0}`, icon: <CalendarCheck size={15} />, series: countSeries },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* v29: "Boshlash uchun qadamlar" — faqat admin/manager ko'radi (Telegram/FB
+          ulash agentga tegishli sozlama emas). Hammasi bajarilganda o'zi yashiradi. */}
+      {!isAgent && (
+        <GettingStartedCard
+          tenantId={tenantId}
+          hasClients={(stats?.leads?.total ?? 0) > 0}
+          hasOffers={(stats?.bookings?.total ?? 0) > 0}
+        />
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+        {kpis.map((k: any, i) => (
+          <StatCard key={i} label={k.label} value={k.value} color={k.color} sub={k.sub}
+            icon={k.icon} series={k.series} emphasis={k.emphasis} />
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+        <RevenueChart data={revenueChart} />
+
+        <div style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>{t('dash.todayReminders')} ({todayTasks.length})</h3>
+          {todayTasks.length === 0 ? (
+            <div>
+              <EmptyState
+                icon={<ClipboardCheck size={22} />}
+                title={t('dash.noReminderToday')}
+                description="Hammasi nazoratda. Tezkor amallardan foydalaning:"
+              />
+              {/* Tezkor amallar — bo'sh joy o'rniga */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+                {[
+                  { label: t('dash.newLead'), icon: <UserPlusIc size={14} />, href: '/clients' },
+                  { label: t('dash.newBooking'), icon: <Plus size={14} />, href: '/bookings' },
+                  { label: "Qo'ng'iroqlar", icon: <PhoneCall size={14} />, href: '/calls' },
+                  { label: t('dash.inbox'), icon: <UsersIc size={14} />, href: '/inbox' },
+                ].map((qa) => (
+                  <button key={qa.label} onClick={() => router.push(qa.href)} style={{
+                    display: 'flex', alignItems: 'center', gap: 7, padding: '9px 12px',
+                    background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 9,
+                    color: 'var(--fg-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                    <span style={{ color: 'var(--primary)', display: 'inline-flex' }}>{qa.icon}</span>
+                    {qa.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {todayTasks.map((t: any) => (
+                <div key={t.id} onClick={() => router.push(t.clientId ? `/clients/${t.clientId}` : '/followups')}
+                  style={{ padding: '8px 10px', background: 'var(--bg-3)', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
+                  <div style={{ fontWeight: 600 }}>{t.title}</div>
+                  {t.dueAt && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>
+                    {new Date(t.dueAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                  </div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RevenueTab({ stats, revenueChart }: any) {
+  const { t } = useI18n();
+  const items = [
+    { label: t('dash.totalRevenue'), value: `$${money(stats?.revenue?.thisMonth || stats?.cost?.totalSales || 0)}`, color: '#10b981' },
+    { label: t('dash.operatorCost'), value: `$${money(stats?.cost?.thisMonth || 0)}`, color: '#ef4444', sub: t('dash.costTotal') },
+
+    { label: t('dash.netProfit'), value: `$${money(stats?.netProfit?.thisMonth ?? stats?.profit?.thisMonth ?? 0)}`, color: '#8b5cf6', sub: t('dash.profitMinusSalary') },
+    { label: t('dash.conversion'), value: `${stats?.conversion?.rate ?? 0}%`, color: '#06b6d4', sub: t('dash.leadToBooking') },
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+        {items.map((it, i) => (
+          <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{it.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: it.color }}>{it.value}</div>
+            {it.sub && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 4 }}>{it.sub}</div>}
+          </div>
+        ))}
+      </div>
+      <RevenueChart data={revenueChart} />
+    </div>
+  );
+}
+
+// v10: 1/2/3-o'rin uchun oltin/kumush/bronza doira ichida raqam
+const RANK_COLORS = ['#ffd700', '#c0c0c0', '#cd7f32'];
+function RankBadge({ rank }: { rank: number }) {
+  if (rank > 3) {
+    return <span style={{ fontSize: 12, color: 'var(--fg-3)', width: 24, textAlign: 'center', display: 'inline-block' }}>{rank}</span>;
+  }
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 24, height: 24, borderRadius: '50%',
+      background: RANK_COLORS[rank - 1], color: '#1a1a1a', fontWeight: 800, fontSize: 12,
+      flexShrink: 0,
+    }}>{rank}</span>
+  );
+}
+
+function AgentsTab({ agents, isAgent }: any) {
+  const { t } = useI18n();
+  // v10: Agent bo'lsa — faqat o'zining reyting/oylik kartochkasi ko'rsatiladi,
+  // boshqa agentlarning ismi yoki summasi umuman chiqmaydi.
+  if (isAgent) return <MySalaryCard />;
+
+  const [salaries, setSalaries] = useState<Record<string, any>>({});
+  const [payStatus, setPayStatus] = useState<Record<string, { paid: boolean; note: string; saving: boolean }>>({});
+
+  useEffect(() => {
+    if (!agents?.length) return;
+    agents.forEach((a: any) => {
+      const agentId = a.agent?.id;
+      if (!agentId) return;
+      api.get('/reports/my-salary', { params: { agentId } })
+        .then((r: any) => {
+          setSalaries((prev: any) => ({ ...prev, [agentId]: r.data }));
+          setPayStatus((prev: any) => ({
+            ...prev,
+            [agentId]: {
+              paid: r.data?.isPaid || false,
+              note: r.data?.adminNote || '',
+              saving: false,
+            },
+          }));
+        })
+        .catch(() => {});
+    });
+  }, [agents]);
+
+  async function savePay(agentId: string, newPaid?: boolean) {
+    const ps = payStatus[agentId];
+    if (!ps) return;
+    const isPaid = newPaid !== undefined ? newPaid : ps.paid;
+    setPayStatus((prev: any) => ({ ...prev, [agentId]: { ...prev[agentId], saving: true } }));
     try {
-      // 🩹 MUHIM TUZATISH: bu ilgari try/catch'dan TASHQARIDA edi —
-      // agar shu yerda (masalan vaqtinchalik DB ulanish uzilishi
-      // tufayli) xato chiqsa, `call` yozuvi abadiy "QUEUED" holatida
-      // qolib ketardi va foydalanuvchiga xom server xatosi ko'rsatilardi.
-      const provider = await this.providerFactory.getProvider(tenantId);
-
-      const result = await provider.initiate({
-        toPhone: data.toPhone,
-        agentId: userId,
-        agentPhone: agent.callbackPhone || undefined,
-        agentExtension: agent.extension || undefined,
-        agentEmail: agent.email || undefined,
-        clientName,
-      });
-
-      await this.prisma.call.update({
-        where: { id: call.id },
-        data: { providerCallId: result.providerCallId, status: 'INITIATED' as any, startedAt: new Date() },
-      });
-
-      if (provider.name === 'STUB') {
-        // STUB: real qongiroq qilinmaydi - faqat UI simulatsiya
-        this.logger.warn(
-          'STUB provider ishlatilmoqda. ' +
-          'Sozlamalar → Telefon dan OnlinePBX yoki Custom SIP sozlang!'
-        );
-        this.simulateStubCall(call.id, userId, tenantId);
-        // Frontend'ga xabar
-        this.realtime.emitToUser(userId, 'call:warning', {
-          callId: call.id,
-          message: 'Sinov rejimi: real qongiroq emas. Sozlamalar → Telefon dan provayder sozlang.',
-        });
-      }
-
-      return {
-        id: call.id,
-        providerCallId: result.providerCallId,
-        providerName: provider.name,
-        status: result.status,
-        clientAction: result.clientAction,
-      };
-    } catch (e: any) {
-      this.logger.error(`Qongiroq xatosi: ${e.message}`);
-      await this.prisma.call.update({
-        where: { id: call.id },
-        data: { status: 'FAILED' as any, notes: `Xato: ${e.message}` },
-      });
-      this.realtime.emitToUser(userId, 'call:failed', { callId: call.id, error: e.message });
-      throw new BadRequestException(`Qongiroq xatosi: ${e.message}`);
-    }
-  }
-
-  private async simulateStubCall(callId: string, userId: string, tenantId: string) {
-    setTimeout(async () => {
-      const c = await this.prisma.call.findUnique({ where: { id: callId } });
-      if (!c || c.status === 'COMPLETED') return;
-      await this.prisma.call.update({ where: { id: callId }, data: { status: 'RINGING' as any } });
-      this.realtime.emitToUser(userId, 'call:status', { callId, status: 'RINGING' });
-    }, 2000);
-
-    setTimeout(async () => {
-      const c = await this.prisma.call.findUnique({ where: { id: callId } });
-      if (!c || c.status === 'COMPLETED') return;
-      const answered = Math.random() > 0.2;
-      if (answered) {
-        await this.prisma.call.update({ where: { id: callId }, data: { status: 'IN_PROGRESS' as any } });
-        this.realtime.emitToUser(userId, 'call:status', { callId, status: 'IN_PROGRESS' });
-      } else {
-        await this.prisma.call.update({
-          where: { id: callId },
-          data: { status: 'NO_ANSWER' as any, endedAt: new Date() },
-        });
-        this.realtime.emitToUser(userId, 'call:status', { callId, status: 'NO_ANSWER' });
-      }
-    }, 5500);
-  }
-
-  async hangup(tenantId: string, userId: string, callId: string) {
-    const call = await this.prisma.call.findFirst({
-      where: { id: callId, tenantId, agentId: userId },
-    });
-    if (!call) throw new NotFoundException('Qongiroq topilmadi');
-    if (call.status === 'COMPLETED' || call.status === 'CANCELED') return call;
-
-    const duration = call.startedAt
-      ? Math.round((Date.now() - new Date(call.startedAt).getTime()) / 1000)
-      : 0;
-
-    const provider = await this.providerFactory.getProvider(tenantId);
-    if (provider.hangup && call.providerCallId) {
-      try { await provider.hangup(call.providerCallId); } catch {}
-    }
-
-    const updated = await this.prisma.call.update({
-      where: { id: callId },
-      data: { status: 'COMPLETED' as any, endedAt: new Date(), duration },
-    });
-
-    this.realtime.emitToUser(userId, 'call:status', { callId, status: 'COMPLETED', duration });
-    return updated;
-  }
-
-  /**
-   * Telefoniya ulanishini tekshiradi.
-   *
-   * OnlinePBX uchun bu FAQAT auth.json'ni chaqiradi — u rasmiy hujjatda
-   * tasdiqlangan endpoint, shuning uchun natijaga ishonish mumkin:
-   * muvaffaqiyatli bo'lsa domen va API kalit to'g'ri degani.
-   */
-  async testConnection(tenantId: string) {
-    const provider: any = await this.providerFactory.getProvider(tenantId);
-    if (!provider) {
-      return { success: false, message: 'Telefoniya provayderi sozlanmagan' };
-    }
-    if (typeof provider.testConnection !== 'function') {
-      return {
-        success: provider.isConfigured?.() ?? false,
-        message: provider.isConfigured?.()
-          ? `${provider.name}: sozlangan (bu provayder alohida tekshiruvni qo'llab-quvvatlamaydi)`
-          : `${provider.name}: sozlanmagan`,
-      };
-    }
-    return provider.testConnection();
-  }
-
-
-  // ═══════════════════════════════════════════════════════════════
-  // KIRUVCHI QO'NG'IROQLAR (v12.3)
-  // ═══════════════════════════════════════════════════════════════
-  //
-  // MUAMMO: webhook faqat MAVJUD qo'ng'iroq yozuvini yangilaydi
-  // (providerCallId bo'yicha topadi). Mijoz o'zi qo'ng'iroq qilsa
-  // CRM'da hech qanday yozuv paydo bo'lmasdi.
-  //
-  // YECHIM: OnlinePBX tarixini muntazam o'qib, kiruvchi qo'ng'iroqlarni
-  // yaratamiz va telefon bo'yicha mijozni topamiz.
-  //
-  // mongo_history/search.json — rasmiy hujjatda tasdiqlangan endpoint.
-
-  /** Har 3 daqiqada kiruvchi qo'ng'iroqlarni tortib olamiz */
-  @Cron('*/3 * * * *')
-  async syncInboundCalls() {
-    // Telefoniya sozlamasi ALOHIDA ustunda: tenant.phoneConfig
-    // (tenant.settings ichida EMAS — provayder fabrikasi ham shundan o'qiydi)
-    const tenants = await this.prisma.tenant.findMany({
-      where: { status: 'ACTIVE', phoneProvider: 'ONLINEPBX' as any },
-      select: { id: true, phoneConfig: true },
-    }).catch(() => [] as any[]);
-
-    for (const t of tenants) {
-      const opbx: any = ((t as any).phoneConfig || {}).onlinepbx;
-      if (!opbx?.domain || !opbx?.apiKey) continue;
-
-      try {
-        await this.pullInboundForTenant(t.id);
-      } catch (e: any) {
-        this.logger.warn(`Kiruvchi sinx xato [${t.id}]: ${e?.message}`);
-      }
-    }
-  }
-
-  /**
-   * Har 5 daqiqada — audio yozuvi hali yo'q, lekin javob berilgan
-   * (duration > 0) qo'ng'iroqlarni topib, tasdiqlangan `download=1`
-   * mexanizmi orqali qayta urinadi.
-   *
-   * Bu KIRUVCHI (agar getRecordingUrl birinchi urinishda ulgurmagan
-   * bo'lsa — masalan yozuv hali qayta ishlanayotgan bo'lsa) VA
-   * CHIQUVCHI (webhook orqali recordingUrl kelmagan yoki umuman
-   * webhook ishlamagan) qo'ng'iroqlar uchun ham ishlaydi.
-   *
-   * Faqat oxirgi 2 soatdagi qo'ng'iroqlarni tekshiradi — eskilarini
-   * abadiy qayta urinib, tizimni ortiqcha yuklamaslik uchun.
-   */
-  @Cron('*/5 * * * *')
-  async backfillMissingRecordings() {
-    const tenants = await this.prisma.tenant.findMany({
-      where: { status: 'ACTIVE', phoneProvider: 'ONLINEPBX' as any },
-      select: { id: true, phoneConfig: true },
-    }).catch(() => [] as any[]);
-
-    for (const t of tenants) {
-      const opbx: any = ((t as any).phoneConfig || {}).onlinepbx;
-      if (!opbx?.domain || !opbx?.apiKey) continue;
-      // Yozib olish yoqilmagan bo'lsa — urinishning ma'nosi yo'q
-      if (opbx?.recordingEnabled === false) continue;
-
-      try {
-        const provider: any = await this.providerFactory.getProvider(t.id);
-        if (!provider || typeof provider.getRecordingUrl !== 'function') continue;
-
-        const since = new Date(Date.now() - 2 * 3600 * 1000);
-        const candidates = await this.prisma.call.findMany({
-          where: {
-            tenantId: t.id,
-            recordingUrl: null,
-            duration: { gt: 0 },
-            providerCallId: { not: null },
-            createdAt: { gte: since },
-            status: 'COMPLETED',
-          },
-          select: { id: true, providerCallId: true },
-          take: 50,
-        });
-
-        for (const c of candidates) {
-          try {
-            const url = await provider.getRecordingUrl(c.providerCallId);
-            const safe = url ? sanitizeMediaUrl(url) : null;
-            if (safe) {
-              await this.prisma.call.update({
-                where: { id: c.id },
-                data: { recordingUrl: safe },
-              });
-            }
-          } catch {
-            // Bitta yozuv topilmasa ham davom etamiz
-          }
-        }
-      } catch (e: any) {
-        this.logger.warn(`Audio backfill xato [${t.id}]: ${e?.message}`);
-      }
-    }
-  }
-
-  /** Bitta tenant uchun tarixdan kiruvchi qo'ng'iroqlarni oladi */
-  async pullInboundForTenant(tenantId: string) {
-    const provider: any = await this.providerFactory.getProvider(tenantId);
-    if (!provider || typeof provider.fetchHistory !== 'function') return { created: 0 };
-
-    // Oxirgi 30 daqiqa (kesishuv bo'lsa dublikat tekshiruvi ushlaydi)
-    const since = new Date(Date.now() - 30 * 60 * 1000);
-    const rows: any[] = await provider.fetchHistory(since, 200);
-    if (!Array.isArray(rows) || rows.length === 0) return { created: 0 };
-
-    let created = 0;
-
-    for (const r of rows) {
-      // ✅ TASDIQLANGAN maydon: `accountcode` (mongo_history/search.json
-      // rasmiy hujjati). `r.direction`/`r.call_direction`/`r.type` bu
-      // endpointda mavjud emas — faqat qo'shimcha xavfsizlik uchun
-      // tekshiriladi (zarar keltirmaydi, lekin ular umuman kelmaydi).
-      const dir = String(r.direction || r.call_direction || r.type || '').toLowerCase();
-      const isInbound = r.accountcode === 'inbound' || dir.includes('in');
-      if (!isInbound) continue;
-
-      const providerCallId = String(r.uuid || r.call_id || r.id || '');
-      if (!providerCallId) continue;
-
-      // Allaqachon yozilganmi? (tenant bo'yicha ham cheklangan —
-      // turli tenantlar orasida providerCallId to'qnashuvining oldini oladi)
-      const exists = await this.prisma.call.findFirst({
-        where: { providerCallId, tenantId },
-        select: { id: true },
-      });
-      if (exists) continue;
-
-      // ✅ TASDIQLANGAN maydon: `caller_id_number`
-      const fromPhone = normalizePhone(r.caller_id_number || r.from || r.src);
-      if (!fromPhone) continue;
-
-      // Mijozni raqam bo'yicha topamiz (barcha formatlarni tekshiramiz)
-      const client = await this.prisma.client.findFirst({
-        where: { tenantId, phone: { in: phoneVariants(fromPhone) } },
-        select: { id: true, fullName: true, assignedAgentId: true },
-      });
-
-      // ✅ TASDIQLANGAN maydonlar: `duration`, `user_talk_time`.
-      // `billsec` OnlinePBX hujjatida yo'q — faqat orqaga moslik uchun
-      // pastroq ustuvorlikda qoldirilgan.
-      const durationRaw = Number(r.duration ?? r.user_talk_time ?? r.billsec ?? 0);
-      const answered = durationRaw > 0;
-
-      // ⚠️ MUHIM: mongo_history/search.json javobida recording_url
-      // KABI MAYDON YO'Q (rasmiy hujjatda tasdiqlangan). Audio faqat
-      // alohida `download=1` so'rovi orqali olinadi — pastda,
-      // qo'ng'iroq yozuvi yaratilgandan KEYIN, alohida so'rov bilan.
-      const call = await this.prisma.call.create({
-        data: {
-          tenantId,
-          clientId: client?.id || null,
-          agentId: client?.assignedAgentId || null,
-          direction: 'INBOUND' as any,
-          status: (answered ? 'COMPLETED' : 'NO_ANSWER') as any,
-          providerCallId,
-          // Kiruvchida qo'ng'iroq qiluvchi = mijoz, shuning uchun fromMasked.
-          // toMasked ham to'ldiriladi — mavjud ro'yxat UI'si shuni o'qiydi.
-          fromMasked: fromPhone,
-          toMasked: fromPhone,
-          duration: Number.isFinite(durationRaw) ? Math.round(durationRaw) : 0,
-          startedAt: r.start_stamp ? new Date(Number(r.start_stamp) * 1000) : new Date(),
-        } as any,
-      }).catch(() => null);
-
-      if (!call) continue;
-      created++;
-
-      // Audio yozuvni ALOHIDA so'rov bilan olamiz (tasdiqlangan
-      // `download=1` mexanizmi orqali) — javob bo'lgan qo'ng'iroqlar
-      // uchungina, va xato bo'lsa asosiy oqim buzilmasin.
-      if (answered && typeof provider.getRecordingUrl === 'function') {
-        provider.getRecordingUrl(providerCallId)
-          .then((url: string | null) => {
-            if (!url) return;
-            const safe = sanitizeMediaUrl(url);
-            if (!safe) return;
-            return this.prisma.call.update({
-              where: { id: call.id },
-              data: { recordingUrl: safe },
-            });
-          })
-          .catch((e: any) => {
-            this.logger.warn(`Audio yozuv olinmadi [${providerCallId}]: ${e?.message}`);
-          });
-      }
-
-      // Agentga darhol ko'rsatamiz — mijoz kartochkasi ochilishi uchun
-      const payload = {
-        callId: call.id,
-        clientId: client?.id || null,
-        clientName: client?.fullName || null,
-        phone: fromPhone,
-        answered,
-      };
-      if (client?.assignedAgentId) {
-        this.realtime.emitToUser(client.assignedAgentId, 'call:inbound', payload);
-      } else {
-        this.realtime.emitToTenant(tenantId, 'call:inbound', payload);
-      }
-
-      // Javobsiz qo'ng'iroq — bu yo'qotilgan mijoz bo'lishi mumkin
-      if (!answered && client?.assignedAgentId) {
-        await this.notifications.create({
-          tenantId,
-          userId: client.assignedAgentId,
-          type: 'CALL_MISSED',
-          title: "📞 Javobsiz qo'ng'iroq",
-          body: `${client.fullName || fromPhone} qo'ng'iroq qildi`,
-          link: client.id ? `/clients/${client.id}` : '/calls',
-          metadata: { callId: call.id, phone: fromPhone },
-        }).catch(() => {});
-      }
-    }
-
-    if (created) this.logger.log(`Kiruvchi qo'ng'iroqlar [${tenantId}]: +${created}`);
-    return { created };
-  }
-
-  async handleWebhook(body: any) {
-    const providerName = this.providerFactory.identifyProvider(body);
-    if (!providerName) {
-      this.logger.warn(`Webhook: provayder aniqlanmadi - ${JSON.stringify(body).slice(0, 200)}`);
-      return { ok: true };
-    }
-
-    const tempProvider = providerName === 'ONLINEPBX'
-      ? new (await import('../phone-providers/onlinepbx.provider')).OnlinePbxProvider({})
-      : new (await import('../phone-providers/twilio.provider')).TwilioProvider({});
-
-    const event = tempProvider.parseWebhook?.(body);
-    if (!event) return { ok: true };
-
-    const call = await this.prisma.call.findFirst({
-      where: { providerCallId: event.providerCallId },
-    });
-    if (!call) {
-      this.logger.warn(`Webhook: call topilmadi ${event.providerCallId}`);
-      return { ok: true };
-    }
-
-    const statusMap: Record<string, CallStatus> = {
-      queued: 'QUEUED', initiated: 'INITIATED', ringing: 'RINGING',
-      in_progress: 'IN_PROGRESS', completed: 'COMPLETED',
-      busy: 'BUSY', failed: 'FAILED', no_answer: 'NO_ANSWER', canceled: 'CANCELED',
-    };
-
-    const newStatus = statusMap[event.status] || call.status;
-    const updateData: any = { status: newStatus };
-    if (event.duration && event.duration > 0) updateData.duration = event.duration;
-    // XAVFSIZLIK: provayder yuborgan havolani tekshiramiz — faqat http(s).
-    // Aks holda `javascript:` sxemali havola agent brauzerida ishga tushardi.
-    const safeRecording = sanitizeMediaUrl(event.recordingUrl);
-    if (safeRecording) updateData.recordingUrl = safeRecording;
-    if (['COMPLETED', 'FAILED', 'NO_ANSWER', 'BUSY'].includes(newStatus)) {
-      updateData.endedAt = new Date();
-    }
-
-    await this.prisma.call.update({ where: { id: call.id }, data: updateData });
-
-    this.realtime.emitToUser(call.agentId, 'call:status', {
-      callId: call.id, status: newStatus,
-      duration: event.duration,
-      recordingUrl: safeRecording,
-    });
-
-    if (newStatus === 'NO_ANSWER' || newStatus === 'BUSY') {
-      this.notifications.create({
-        tenantId: call.tenantId,
-        userId: call.agentId,
-        type: 'CALL_MISSED' as any,
-        title: 'Javob berilmadi',
-        body: `Raqam: ${call.toMasked}`,
-        link: call.clientId ? `/clients/${call.clientId}` : '/calls',
-        metadata: { callId: call.id },
-      }).catch(() => {});
-    }
-
-    return { ok: true };
-  }
-
-  /**
-   * Мои Звонки uchun ALOHIDA webhook handleri.
-   *
-   * NEGA ALOHIDA (umumiy handleWebhook() dan farqli): OnlinePBX/Twilio
-   * uchun webhook FAQAT allaqachon initiate() orqali yaratilgan
-   * (chiquvchi) qo'ng'iroqni yangilaydi — kiruvchilar alohida cron
-   * (fetchHistory) orqali tortib olinadi. МоиЗвонки uchun ASOSIY yo'l —
-   * `calls.list` cron sinxronizatsiyasi (`pullMoiZvonkiEvents`, pastda),
-   * bu endpoint esa QO'SHIMCHA — agar admin moizvonki.ru kabinetida
-   * `webhook.subscribe` orqali real-vaqt push'ni ham yoqsa, hodisa
-   * tezroq (3 daqiqalik cron kutmasdan) keladi. Ikkalasi ham bir xil
-   * `processMoiZvonkiEvent()`ga tushadi, shuning uchun dublikat bo'lmaydi.
-   *
-   * Oqim:
-   *   1) providerCallId bo'yicha mavjud Call qidiriladi (agar CRM'dan
-   *      initiate() orqali boshlangan bo'lsa — topiladi, yangilanadi).
-   *   2) Topilmasa — bu KIRUVCHI (yoki telefon'dan to'g'ridan-to'g'ri,
-   *      CRM orqali emas, terilgan chiquvchi) qo'ng'iroq deb hisoblab,
-   *      YANGI Call yozuvi yaratiladi, mijoz raqami bo'yicha
-   *      qidiriladi (pullInboundForTenant bilan bir xil mantiq).
-   */
-  async handleMoiZvonkiWebhook(tenantId: string, body: any) {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { id: true, phoneProvider: true, phoneConfig: true },
-    });
-    if (!tenant) throw new NotFoundException('Tenant topilmadi');
-
-    const { MoiZvonkiProvider } = await import('../phone-providers/moizvonki.provider');
-    const cfg: any = ((tenant as any).phoneConfig || {}).moizvonki || {};
-    const provider = new MoiZvonkiProvider(cfg);
-
-    const event = provider.parseWebhook(body);
-    if (!event) {
-      this.logger.warn(`MoiZvonki webhook: tanib bo'lmadi — ${JSON.stringify(body).slice(0, 200)}`);
-      return { ok: true };
-    }
-    return this.processMoiZvonkiEvent(tenantId, event as any);
-  }
-
-  /**
-   * ✅ v19 TUZATISH: asosiy sinxronizatsiya yo'li endi `calls.list`
-   * (kursor — `from_id`) orqali ishlaydi. Avvalgi kod `calls.get_crm_event`
-   * degan MAVJUD BO'LMAGAN action'ni chaqirardi (rasmiy hujjatda bunday
-   * amal yo'q) — shu sabab yozuv (recording) HECH QACHON CRM'ga kelmasdi.
-   * `calls.list` javobida `recording` maydoni to'g'ridan-to'g'ri keladi,
-   * alohida so'rov shart emas. Har 3 daqiqada barcha MOIZVONKI ulangan
-   * tenantlar uchun ishga tushadi — xuddi OnlinePBX uchun
-   * `syncInboundCalls` qanday ishlasa, shunday.
-   */
-  @Cron('*/3 * * * *')
-  async pullMoiZvonkiEvents() {
-    const tenants = await this.prisma.tenant.findMany({
-      where: { phoneProvider: 'MOIZVONKI' as any },
-      select: { id: true, phoneConfig: true },
-    });
-    if (!tenants.length) return;
-
-    const { MoiZvonkiProvider } = await import('../phone-providers/moizvonki.provider');
-    let total = 0;
-
-    for (const tenant of tenants) {
-      try {
-        const phoneConfig: any = (tenant as any).phoneConfig || {};
-        const cfg: any = phoneConfig.moizvonki || {};
-        const missing: string[] = [];
-        if (!cfg.subdomain) missing.push('subdomain');
-        if (!cfg.apiKey) missing.push('apiKey');
-        if (!cfg.adminEmail) missing.push('adminEmail');
-        if (missing.length) {
-          this.logger.warn(`MoiZvonki sozlanmagan [tenant ${tenant.id}] — yetishmayotgan maydon(lar): ${missing.join(', ')}. Sozlamalar > Telefoniya sahifasida to'ldiring.`);
-          continue;
-        }
-
-        const provider = new MoiZvonkiProvider(cfg);
-        let fromId = Number(cfg.lastSyncCallId) || 1;
-        let fromOffset = 0;
-        let maxDbCallId = fromId - 1;
-        let pageCount = 0;
-
-        // Bir CRON aylanishida bir nechta sahifani ketma-ket o'qiymiz
-        // (agar bir vaqtda ko'p qo'ng'iroq to'planib qolgan bo'lsa),
-        // lekin cheksiz aylanmaslik uchun 10 sahifa bilan cheklaymiz.
-        while (pageCount < 10) {
-          pageCount++;
-          const { results, nextOffset, remains } = await provider.fetchRecentCalls(fromId, 100, fromOffset);
-          if (!results.length) {
-            if (pageCount === 1) {
-              this.logger.log(`MoiZvonki [tenant ${tenant.id}]: yangi qo'ng'iroq yo'q (from_id=${fromId})`);
-            }
-            break;
-          }
-
-          for (const raw of results) {
-            const event = provider.parseCallRow(raw);
-            if (!event) continue;
-            if (event.dbCallId && event.dbCallId > maxDbCallId) maxDbCallId = event.dbCallId;
-
-            const result = await this.processMoiZvonkiEvent(tenant.id, event).catch((e) => {
-              this.logger.warn(`MoiZvonki hodisa xatosi [${tenant.id}]: ${e.message}`);
-              return null;
-            });
-            if (result?.mode === 'created') total++;
-          }
-
-          if (!remains || !nextOffset) break;
-          fromOffset = nextOffset;
-        }
-
-        // Kursorni bir qadam oldinga suramiz — keyingi safar shu ID'dan
-        // KEYIN (o'zi qo'shilmasdan) davom etamiz.
-        if (maxDbCallId >= fromId) {
-          const newCfg = { ...phoneConfig, moizvonki: { ...cfg, lastSyncCallId: maxDbCallId + 1 } };
-          await this.prisma.tenant.update({
-            where: { id: tenant.id },
-            data: { phoneConfig: newCfg } as any,
-          }).catch((e: any) => {
-            this.logger.warn(`MoiZvonki kursor saqlanmadi [${tenant.id}]: ${e.message}`);
-          });
-        }
-      } catch (e: any) {
-        this.logger.warn(`MoiZvonki sinxronizatsiya xatosi [${tenant.id}]: ${e.message}`);
-      }
-    }
-
-    if (total) this.logger.log(`Мои Звонки: +${total} yangi qo'ng'iroq`);
-  }
-
-  /**
-   * Bitta MoiZvonki hodisasini (webhook orqali kelgan yoki
-   * `calls.list` orqali sinxronlashtirilgan — ikkalasi ham
-   * bir xil unifikatsiya qilingan shaklda keladi) CRM'ga yozadi.
-   *
-   * Oqim:
-   *   1) providerCallId bo'yicha mavjud Call qidiriladi (agar CRM'dan
-   *      initiate() orqali boshlangan bo'lsa — topiladi, yangilanadi).
-   *   2) Topilmasa — bu YANGI (odatda kiruvchi) qo'ng'iroq deb
-   *      hisoblab, YANGI Call yozuvi yaratiladi, mijoz raqami
-   *      bo'yicha qidiriladi (pullInboundForTenant bilan bir xil mantiq).
-   */
-  private async processMoiZvonkiEvent(
-    tenantId: string,
-    event: WebhookEvent & {
-      direction?: 'INBOUND' | 'OUTBOUND';
-      fromPhone?: string;
-      toPhone?: string;
-      employeeEmail?: string;
-    },
-  ) {
-    const statusMap: Record<string, CallStatus> = {
-      queued: 'QUEUED', initiated: 'INITIATED', ringing: 'RINGING',
-      in_progress: 'IN_PROGRESS', completed: 'COMPLETED',
-      busy: 'BUSY', failed: 'FAILED', no_answer: 'NO_ANSWER', canceled: 'CANCELED',
-    };
-    const newStatus = statusMap[event.status] || 'COMPLETED';
-    const safeRecording = sanitizeMediaUrl(event.recordingUrl);
-
-    // 1) Avval CRM orqali BOSHLANGAN (initiate()) qo'ng'iroqni qidiramiz
-    const existing = await this.prisma.call.findFirst({
-      where: { providerCallId: event.providerCallId, tenantId },
-    });
-
-    if (existing) {
-      // Allaqachon to'liq qayta ishlangan hodisani qayta yangilamaymiz
-      // (calls.list bir xil qatorni qayta qaytarishi mumkin, masalan kursor to'liq ilgarilamasa)
-      if (existing.status === 'COMPLETED' && existing.recordingUrl) {
-        return { ok: true, callId: existing.id, mode: 'skipped' as const };
-      }
-
-      const updateData: any = { status: newStatus };
-      if (event.duration && event.duration > 0) updateData.duration = event.duration;
-      if (safeRecording) updateData.recordingUrl = safeRecording;
-      if (['COMPLETED', 'FAILED', 'NO_ANSWER', 'BUSY'].includes(newStatus)) {
-        updateData.endedAt = new Date();
-      }
-      await this.prisma.call.update({ where: { id: existing.id }, data: updateData });
-
-      if (existing.agentId) {
-        this.realtime.emitToUser(existing.agentId, 'call:status', {
-          callId: existing.id, status: newStatus, duration: event.duration, recordingUrl: safeRecording,
-        });
-      }
-      return { ok: true, callId: existing.id, mode: 'updated' as const };
-    }
-
-    // 2) Topilmasa — bu YANGI (odatda kiruvchi) qo'ng'iroq
-    const fromPhone = normalizePhone(event.fromPhone || event.toPhone || '');
-    if (!fromPhone) {
-      this.logger.warn(`MoiZvonki: telefon raqami topilmadi — ${JSON.stringify(event.raw).slice(0, 200)}`);
-      return { ok: true, mode: 'skipped' as const };
-    }
-
-    const client = await this.prisma.client.findFirst({
-      where: { tenantId, phone: { in: phoneVariants(fromPhone) } },
-      select: { id: true, fullName: true, assignedAgentId: true },
-    });
-
-    // Qaysi agent gaplashgani — xodim email'i orqali (bizning User.email bilan mos)
-    let agentId: string | null = client?.assignedAgentId || null;
-    if (event.employeeEmail) {
-      const byEmail = await this.prisma.user.findFirst({
-        where: { tenantId, email: event.employeeEmail },
-        select: { id: true },
-      });
-      if (byEmail) agentId = byEmail.id;
-    }
-
-    const direction = event.direction || 'INBOUND';
-    const answered = (event.duration || 0) > 0 || newStatus === 'COMPLETED';
-
-    const call = await this.prisma.call.create({
-      data: {
-        tenantId,
-        clientId: client?.id || null,
+      await api.post('/reports/mark-salary-paid', {
         agentId,
-        direction: direction as any,
-        status: (answered ? 'COMPLETED' : newStatus) as any,
-        providerCallId: event.providerCallId,
-        fromMasked: fromPhone,
-        toMasked: fromPhone,
-        duration: event.duration || 0,
-        recordingUrl: safeRecording || null,
-        startedAt: new Date(),
-        endedAt: new Date(),
-      } as any,
-    });
-
-    const payload = {
-      callId: call.id, clientId: client?.id || null, clientName: client?.fullName || null,
-      phone: fromPhone, answered, recordingUrl: safeRecording,
-    };
-    if (agentId) {
-      this.realtime.emitToUser(agentId, 'call:inbound', payload);
-    } else {
-      this.realtime.emitToTenant(tenantId, 'call:inbound', payload);
-    }
-
-    if (!answered && agentId) {
-      await this.notifications.create({
-        tenantId, userId: agentId, type: 'CALL_MISSED' as any,
-        title: "📞 Javobsiz qo'ng'iroq (Мои Звонки)",
-        body: `${client?.fullName || fromPhone} qo'ng'iroq qildi`,
-        link: client?.id ? `/clients/${client.id}` : '/calls',
-        metadata: { callId: call.id, phone: fromPhone },
-      }).catch(() => {});
-    }
-
-    return { ok: true, callId: call.id, mode: 'created' as const };
+        isPaid,
+        note: ps.note,
+      });
+      toast.success(isPaid ? 'Tolov belgilandi ✓' : 'Tolov bekor qilindi');
+    } catch { toast.error(t('dash.saveFailed')); }
+    finally { setPayStatus((prev: any) => ({ ...prev, [agentId]: { ...prev[agentId], saving: false } })); }
   }
 
-  async getActive(userId: string) {
-    return this.prisma.call.findFirst({
-      where: {
-        agentId: userId,
-        status: { in: ['QUEUED', 'INITIATED', 'RINGING', 'IN_PROGRESS'] as CallStatus[] },
-      },
-      include: { client: { select: { id: true, fullName: true, phone: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
+  if (!agents || agents.length === 0) return (
+    <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('dash.noAgentInfo')}</div>
+  );
 
-  async getStats(tenantId: string, userId: string, role: string) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const where: any = { tenantId, createdAt: { gte: today } };
-    if (role === 'AGENT') where.agentId = userId;
+  // v10: Reyting (leaderboard) — sal.grossSalary bo'yicha kamayish tartibida
+  const sortedAgents = [...agents].sort((a: any, b: any) => {
+    const sa = salaries[a.agent?.id]?.grossSalary || 0;
+    const sb = salaries[b.agent?.id]?.grossSalary || 0;
+    return sb - sa;
+  });
 
-    const [total, answered, missed, durSum] = await Promise.all([
-      this.prisma.call.count({ where }),
-      this.prisma.call.count({ where: { ...where, status: 'COMPLETED' } }),
-      this.prisma.call.count({ where: { ...where, status: { in: ['NO_ANSWER', 'BUSY', 'FAILED'] as CallStatus[] } } }),
-      this.prisma.call.aggregate({ where, _sum: { duration: true } }),
-    ]);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Trophy size={16} color="#f59e0b" />
+          Agentlar reytingi
+        </h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+              {['#', 'Agent', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Komissiya %', 'Maosh (oy)', 'Note'].map(h => (
+                <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedAgents.map((a: any, i: number) => {
+              const agentId = a.agent?.id;
+              const sal = salaries[agentId] || {};
+              const ps = payStatus[agentId] || { paid: false, note: '', saving: false };
+              const rank = i + 1;
+              return (
+                <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 12px' }}>
+                    <RankBadge rank={rank} />
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ fontWeight: 600 }}>{a.agent?.name || a.name || 'N/A'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{a.agent?.role}</div>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {a.leadsInPeriod ?? 0}
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('dash.jami')}: {a.clients ?? 0}</div>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {a.bookingsInPeriod ?? 0}
+                    <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{t('dash.jami')}: {a.bookings ?? 0}</div>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                      background: (a.conversion ?? 0) >= 30 ? '#10b98120' : '#f59e0b20',
+                      color: (a.conversion ?? 0) >= 30 ? '#10b981' : '#f59e0b' }}>
+                      {a.conversion ?? 0}%
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#10b981' }}>
+                    ${money(a.revenue ?? 0)}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: '#f59e0b', fontWeight: 600 }}>
+                    {sal.myCommissionPercent != null ? sal.myCommissionPercent + '%' : '-'}
+                    {sal.appliedTier && <div style={{ fontSize: 9, color: 'var(--fg-3)' }}>{t('dash.kpiTier')}</div>}
+                  </td>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#8b5cf6' }}>
+                    {sal.grossSalary != null ? ('$' + money(sal.grossSalary)) : '-'}
+                  </td>
+                  {/* Note */}
+                  <td style={{ padding: '10px 12px', minWidth: 160 }}>
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      <input
+                        style={{
+                          flex: 1, padding: '4px 8px', borderRadius: 6,
+                          border: '1px solid var(--border)',
+                          background: 'var(--bg-input)',
+                          color: 'var(--fg)', fontSize: 11, outline: 'none',
+                        }}
+                        value={ps.note}
+                        placeholder={t('pl.notePh')}
+                        onChange={e => setPayStatus((prev: any) => ({
+                          ...prev,
+                          [agentId]: { ...ps, note: e.target.value },
+                        }))}
+                        onBlur={() => savePay(agentId)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
-    const totalDuration = durSum._sum.duration || 0;
-    return {
-      total, completed: answered, answered, missed, noAnswer: missed,
-      totalDuration,
-      avgDuration: total > 0 ? Math.round(totalDuration / total) : 0,
-      totalMinutes: Math.round(totalDuration / 60),
-      answerRate: total > 0 ? Math.round((answered / total) * 100) : 0,
-    };
-  }
-
-  async addNote(tenantId: string, userId: string, callId: string, notes: string) {
-    const call = await this.prisma.call.findFirst({ where: { id: callId, tenantId } });
-    if (!call) throw new NotFoundException();
-    if (call.agentId !== userId) {
-      const user = await this.prisma.user.findUnique({ where: { id: userId } });
-      if (!user || !['TENANT_ADMIN', 'MANAGER'].includes(user.role)) throw new ForbiddenException();
-    }
-    return this.prisma.call.update({ where: { id: callId }, data: { notes } });
-  }
-
-  async list(tenantId: string, userId: string, role: string, params: any) {
-    const where: any = { tenantId };
-    if (role === 'AGENT') where.agentId = userId;
-    // v14.2: admin/manager — Hisobotlar → Qo'ng'iroqlar bo'limidan
-    // muayyan agentning qo'ng'iroqlarini (yozuvlari bilan) ko'rish uchun
-    else if (params.agentId) where.agentId = params.agentId;
-    if (params.clientId) where.clientId = params.clientId;
-    if (params.status) where.status = params.status;
-    if (params.direction) where.direction = params.direction;
-    if (params.from || params.to) {
-      where.createdAt = {};
-      if (params.from) where.createdAt.gte = new Date(params.from);
-      if (params.to) where.createdAt.lte = new Date(params.to);
-    }
-
-    const limit = Number(params.limit) || 50;
-    const skip = ((Number(params.page) || 1) - 1) * limit;
-
-    const [data, total] = await Promise.all([
-      this.prisma.call.findMany({
-        where,
-        include: {
-          agent: { select: { id: true, name: true } },
-          client: { select: { id: true, fullName: true, phone: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip,
-      }),
-      this.prisma.call.count({ where }),
-    ]);
-
-    return { data, total, page: Number(params.page) || 1, limit };
-  }
-
-  async logManual(tenantId: string, userId: string, data: any) {
-    return this.prisma.call.create({
-      data: {
-        tenantId, agentId: userId,
-        clientId: data.clientId, bookingId: data.bookingId,
-        direction: (data.direction as CallDirection) || 'OUTBOUND',
-        status: 'COMPLETED' as any,
-        duration: Number(data.duration) || 0,
-        notes: data.notes,
-        startedAt: new Date(), endedAt: new Date(),
-      },
-    });
-  }
+      {/* v10.3: Oyma-oy tarix — admin hamma agentni, agent o'zini ko'radi */}
+      <AgentMonthlyHistory isAgent={isAgent} agents={agents} />
+    </div>
+  );
 }
 
-// ─── Controller ───────────────────────────────────────────────────────────────
-@ApiTags('IP Telefoniya (Calls)')
-@ApiBearerAuth('JWT')
-@Controller('calls')
-export class CallsController {
-  constructor(private svc: CallsService) {}
+// v10: AGENT roli uchun — faqat o'zining reyting/oylik kartochkasi.
+// Boshqa agentlarning ismi yoki aniq summasi bu yerda umuman ko'rinmaydi.
+function MySalaryCard() {
+  const { t } = useI18n();
+  const [sal, setSal] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  @ApiOperation({ summary: 'Telefoniya ulanishini tekshirish' })
-  @Post('test-connection')
-  @UseGuards(JwtAuthGuard)
-  testConnection(@CurrentUser() u: any) {
-    return this.svc.testConnection(u.tenantId);
-  }
+  useEffect(() => {
+    api.get('/reports/my-salary')
+      .then((r: any) => setSal(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  @ApiOperation({ summary: "Qo'ng'iroqlar tarixi" })
-  @Get()
-  @UseGuards(JwtAuthGuard)
-  list(
-    @CurrentUser() u: any,
-    @Query('clientId') clientId?: string,
-    @Query('status') status?: string,
-    @Query('direction') direction?: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('agentId') agentId?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
-    return this.svc.list(u.tenantId, u.sub, u.role, { clientId, status, direction, page, limit, agentId, from, to });
-  }
+  if (loading) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
+  if (!sal) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('dash.notFound')}</div>;
 
-  @ApiOperation({ summary: "Joriy faol qo'ng'iroq" })
-  @Get('active')
-  @UseGuards(JwtAuthGuard)
-  active(@CurrentUser() u: any) {
-    return this.svc.getActive(u.sub);
-  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 680 }}>
+      {sal.myRank != null && sal.totalAgents > 0 && (
+        <div style={{
+          padding: '16px 20px', borderRadius: 12,
+          background: 'linear-gradient(135deg, #8b5cf620, #3d7eff20)',
+          border: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <Trophy size={28} color="#f59e0b" />
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>
+              Siz jamoada #{sal.myRank}/{sal.totalAgents} o'rindasiz
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('dash.thisMonthResults')}</div>
+          </div>
+        </div>
+      )}
 
-  @ApiOperation({ summary: "Bugungi qo'ng'iroq statistikasi" })
-  @Get('stats')
-  @UseGuards(JwtAuthGuard)
-  stats(@CurrentUser() u: any) {
-    return this.svc.getStats(u.tenantId, u.sub, u.role);
-  }
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+        <SalaryStatCard icon={<DollarSign size={18} />} label="Oylik (bruto)" value={`$${money(sal.grossSalary || 0)}`} color="#8b5cf6" />
+        <SalaryStatCard icon={<TrendingUp size={18} />} label="Komissiya" value={`${sal.myCommissionPercent || 0}%`} color="#f59e0b" sub={sal.appliedTier ? 'KPI tier bo\'yicha' : undefined} />
+        <SalaryStatCard icon={<Calendar size={18} />} label="Bookinglar" value={sal.bookingsCount || 0} color="#3d7eff" />
+        <SalaryStatCard icon={<Wallet size={18} />} label="To'langan" value={`$${money(sal.alreadyPaid || 0)}`} color="#10b981" sub={sal.pending > 0 ? `kutilmoqda: $${money(sal.pending)}` : "to'liq to'landi"} />
+      </div>
 
-  @ApiOperation({
-    summary: 'Click-to-Call: qongiroq boshlash',
-    description: [
-      'OnlinePBX orqali chiquvchi qongiroq boshlaydi.',
-      '1. Agent extensioniga qongiroq qiladi',
-      '2. Agent koteradi',
-      '3. Klient raqamiga ulanadi',
-      '',
-      'Kerakli sozlamalar: Settings -> Telefon -> OnlinePBX',
-    ].join('\n'),
-  })
-  @ApiBody({
-    schema: {
-      example: { toPhone: '+998901234567', clientId: 'optional_client_id' },
-    },
-  })
-  @Post('initiate')
-  @UseGuards(JwtAuthGuard)
-  initiate(@Body() body: any, @CurrentUser() u: any) {
-    return this.svc.initiate(u.tenantId, u.sub, body);
-  }
+      <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>{t('dash.commissionByBookings')}</h3>
+        {!sal.breakdown?.length ? (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>{t('dash.noBookingThisMonth')}</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {sal.breakdown.map((b: any) => (
+              <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{b.clientName || 'Klient'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', fontFamily: 'monospace' }}>{b.bookingRef}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>+${money(b.myShare)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>foyda ${money(b.profit)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-  @ApiOperation({ summary: "Qo'ng'iroqni tugatish" })
-  @Post(':id/hangup')
-  @UseGuards(JwtAuthGuard)
-  hangup(@Param('id') id: string, @CurrentUser() u: any) {
-    return this.svc.hangup(u.tenantId, u.sub, id);
-  }
-
-  @ApiOperation({ summary: "Qo'ng'iroqqa izoh qo'shish" })
-  @Post(':id/note')
-  @UseGuards(JwtAuthGuard)
-  note(@Param('id') id: string, @Body() body: { notes: string }, @CurrentUser() u: any) {
-    return this.svc.addNote(u.tenantId, u.sub, id, body.notes);
-  }
-
-  @ApiOperation({ summary: "Qo'ng'iroqni qo'lda yozish" })
-  @Post('log')
-  @UseGuards(JwtAuthGuard)
-  log(@Body() body: any, @CurrentUser() u: any) {
-    return this.svc.logManual(u.tenantId, u.sub, body);
-  }
-
-  @ApiOperation({
-    summary: "Qo'ng'iroq matnini (transcript) kiritish/tahrirlash",
-    description: "Avtomatik transkripsiya hozircha ulanmagan — agent yozuvni tinglab matnini shu yerga joylaydi. Keyin /analyze chaqirilsa, AI shu matn asosida ishlaydi.",
-  })
-  @Post(':id/transcript')
-  @UseGuards(JwtAuthGuard)
-  setTranscript(@Param('id') id: string, @Body() body: { transcript: string }, @CurrentUser() u: any) {
-    return this.svc.setTranscript(u.tenantId, u.sub, id, body.transcript);
-  }
-
-  @ApiOperation({
-    summary: "Qo'ng'iroqni AI (Claude) yordamida tahlil qilish",
-    description: "Xulosa, mijoz kayfiyati, e'tirozlar va keyingi qadamni chiqaradi; keyingi qadam avtomatik ravishda Eslatmalar bo'limiga qo'shiladi. Bajarish uchun avval /transcript orqali matn kiritilgan bo'lishi kerak.",
-  })
-  @Post(':id/analyze')
-  @UseGuards(JwtAuthGuard)
-  analyze(@Param('id') id: string, @CurrentUser() u: any) {
-    return this.svc.analyzeCall(u.tenantId, u.sub, id);
-  }
-
-  @ApiOperation({
-    summary: "AI tahlilni qayta urinish",
-    description: "Avvalgi xatoni (aiError) tozalab, transkripsiya/tahlilni darhol qayta ishga tushiradi (4 daqiqalik cron kutmasdan). Sozlama (masalan OPENAI_API_KEY) tuzatilgandan keyin ishlatiladi.",
-  })
-  @Post(':id/retry-ai')
-  @UseGuards(JwtAuthGuard)
-  retryAi(@Param('id') id: string, @CurrentUser() u: any) {
-    return this.svc.retryAi(u.tenantId, id);
-  }
-
-  @ApiOperation({ summary: "Eng ko'p uchragan e'tirozlar statistikasi" })
-  @Get('objections-stats')
-  @UseGuards(JwtAuthGuard)
-  objectionsStats(@CurrentUser() u: any, @Query('days') days?: string, @Query('agentId') agentId?: string) {
-    const d = Math.min(Number(days) || 30, 365);
-    const aId = u.role === 'AGENT' ? u.sub : agentId;
-    return this.svc.getObjectionsStats(u.tenantId, d, aId);
-  }
-
-  @ApiOperation({
-    summary: 'OnlinePBX / Twilio Webhook',
-    description: [
-      'OnlinePBX qongiroq holati ozgarganda ushbu endpointni chaqiradi.',
-      '',
-      'Webhook URL (OnlinePBX kabinetiga kiriting):',
-      'POST https://yourdomain.com/api/v1/calls/webhook',
-      '',
-      'OnlinePBX payload namunasi:',
-      '{ "uuid": "xxx", "status": "completed", "duration_seconds": 45, "recording_url": "https://..." }',
-    ].join('\n'),
-  })
-  @ApiBody({
-    schema: {
-      example: {
-        uuid: 'call-uuid-from-onlinepbx',
-        status: 'completed',
-        duration_seconds: 45,
-        recording_url: 'https://onlinepbx.uz/recordings/xxx.mp3',
-      },
-    },
-  })
-  /**
-   * Telefoniya provayderidan keladigan webhook.
-   *
-   * XAVFSIZLIK: bu endpoint tashqi dunyoga ochiq (@Public), shuning uchun
-   * MAXFIY KALIT bilan himoyalangan. Kalitsiz kimdir soxta qo'ng'iroq
-   * yozuvi yoki zararli `recording_url` yuborishi mumkin edi.
-   *
-   * Sozlash: .env ga PHONE_WEBHOOK_SECRET qo'shing, so'ng provayderda
-   * webhook manzilini shunday ko'rsating:
-   *   https://sizning-server/calls/webhook?secret=SIZNING_KALIT
-   * yoki `x-webhook-secret` header'ida yuboring.
-   *
-   * Kalit sozlanmagan bo'lsa — ishlashda davom etadi (mavjud o'rnatmalar
-   * buzilmasin), lekin ogohlantirish log'ga yoziladi.
-   */
-  @Post('webhook')
-  @Public()
-  webhook(@Body() body: any, @Req() req: Request) {
-    const res = checkWebhookSecret(
-      req.headers as any,
-      req.query as any,
-      process.env.PHONE_WEBHOOK_SECRET,
-    );
-    if (!res.ok) throw new UnauthorizedException("Webhook kaliti noto'g'ri");
-    if (!res.configured) this.warnOnce();
-
-    return this.svc.handleWebhook(body);
-  }
-
-  @ApiOperation({
-    summary: 'Мои Звонки Webhook',
-    description: [
-      "Мои Звонки qo'ng'iroq tugagach ushbu endpointni chaqiradi.",
-      '',
-      'Webhook URL (moizvonki.ru Sozlamalar → Integratsiya sahifasiga kiriting):',
-      'POST https://yourdomain.com/api/v1/calls/webhook/moizvonki/{tenantId}?secret=SIZNING_KALIT',
-      '',
-      "Boshqa provayderlardan farqli o'laroq, URL ichida tenantId bor — chunki",
-      "kiruvchi qo'ng'iroqlar uchun hali CRM'da hech qanday yozuv yo'q va biz",
-      "so'rovni qaysi agentlikka tegishli ekanini boshqa yo'l bilan bilolmaymiz.",
-    ].join('\n'),
-  })
-  @Post('webhook/moizvonki/:tenantId')
-  @Public()
-  webhookMoiZvonki(
-    @Param('tenantId') tenantId: string,
-    @Body() body: any,
-    @Req() req: Request,
-  ) {
-    const res = checkWebhookSecret(
-      req.headers as any,
-      req.query as any,
-      process.env.PHONE_WEBHOOK_SECRET,
-    );
-    if (!res.ok) throw new UnauthorizedException("Webhook kaliti noto'g'ri");
-    if (!res.configured) this.warnOnce();
-
-    return this.svc.handleMoiZvonkiWebhook(tenantId, body);
-  }
-
-  private static warned = false;
-  private warnOnce() {
-    if (CallsController.warned) return;
-    CallsController.warned = true;
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[XAVFSIZLIK] PHONE_WEBHOOK_SECRET sozlanmagan — /calls/webhook himoyasiz. ' +
-      'Ishlab chiqarishda albatta sozlang.',
-    );
-  }
+      {/* v10.3: Mening oyma-oy tarixim */}
+      <AgentMonthlyHistory isAgent={true} agents={[]} />
+    </div>
+  );
 }
 
-@Module({
-  imports: [PhoneProvidersModule, FollowUpsModule, TranscriptionModule],
-  controllers: [CallsController],
-  providers: [CallsService],
-  exports: [CallsService],
-})
-export class CallsModule {}
+function SalaryStatCard({ icon, label, value, color, sub }: any) {
+  return (
+    <div style={{ padding: '14px 16px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color }}>
+        {icon}
+        <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+function CallsTab({ data, isAgent }: any) {
+  const { t } = useI18n();
+  if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
+  const { summary = {}, byDay = [], byAgent = [], aiAnalytics } = data;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        {[
+          { label: t('dash.jami'), value: summary.total || 0, color: '#3d7eff' },
+          { label: t('dash.answered'), value: summary.answered || 0, color: '#10b981' },
+          { label: t('dash.noAnswer'), value: summary.noAnswer || 0, color: '#ef4444' },
+          { label: 'Conversion', value: `${summary.conversionRate || 0}%`, color: '#f59e0b' },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* v15: AI tahlil — eng ko'p uchragan e'tirozlar, kayfiyat, agent bahosi */}
+      {aiAnalytics && aiAnalytics.analyzedCount > 0 && (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+              🤖 {isAgent ? "Mening AI tahlilim — nega sotolmayapman?" : "AI tahlil — jamoada eng ko'p uchragan e'tirozlar"}
+            </h3>
+            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+              {aiAnalytics.analyzedCount} ta qo'ng'iroq tahlil qilingan
+              {aiAnalytics.avgAgentScore != null && <> · O'rtacha {isAgent ? 'bahoyingiz' : 'agent bahosi'}: <b style={{ color: aiAnalytics.avgAgentScore >= 7 ? '#10b981' : aiAnalytics.avgAgentScore >= 5 ? '#f59e0b' : '#ef4444' }}>{aiAnalytics.avgAgentScore}/10</b></>}
+            </span>
+          </div>
+          {aiAnalytics.objections?.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {aiAnalytics.objections.slice(0, 6).map((o: any) => {
+                const max = aiAnalytics.objections[0].count || 1;
+                return (
+                  <div key={o.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 170, fontSize: 12, flexShrink: 0 }}>{o.label}</div>
+                    <div style={{ flex: 1, height: 8, background: 'var(--bg-3)', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(6, (o.count / max) * 100)}%`, height: '100%', background: '#f97316', borderRadius: 6 }} />
+                    </div>
+                    <div style={{ width: 28, fontSize: 12, fontWeight: 700, textAlign: 'right' }}>{o.count}</div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14 }}>Bu davrda e'tiroz aniqlanmadi.</div>
+          )}
+          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)', marginBottom: aiAnalytics.topRecommendation ? 12 : 0 }}>
+            <span>😊 Ijobiy: <b style={{ color: '#10b981' }}>{aiAnalytics.sentiment?.positive || 0}</b></span>
+            <span>😐 Neytral: <b style={{ color: '#94a3b8' }}>{aiAnalytics.sentiment?.neutral || 0}</b></span>
+            <span>😟 Salbiy: <b style={{ color: '#ef4444' }}>{aiAnalytics.sentiment?.negative || 0}</b></span>
+          </div>
+          {aiAnalytics.topRecommendation && (
+            <div style={{ padding: '10px 12px', background: 'rgba(61,126,255,0.08)', border: '1px solid rgba(61,126,255,0.25)', borderRadius: 8, fontSize: 12 }}>
+              💡 <b>{aiAnalytics.topRecommendation.label}</b> e'tirozi eng ko'p chiqmoqda — tavsiya: {aiAnalytics.topRecommendation.tip}
+            </div>
+          )}
+        </div>
+      )}
+
+      {byDay.length > 0 && (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>{t('dash.daily')}</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={byDay}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" stroke="#64748b" fontSize={10} />
+              <YAxis stroke="#64748b" fontSize={11} />
+              <Tooltip contentStyle={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 8 }} />
+              <Bar dataKey="total" fill="#3d7eff" name="Jami" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="answered" fill="#10b981" name="Javob berildi" radius={[3, 3, 0, 0]} />
+              <Legend />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* v14.2: admin/manager uchun — har bir agent qancha gaplashgani va
+          yozuvlari, alohida-alohida ko'rinadi */}
+      {!isAgent && byAgent.length > 0 && (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Agentlar bo'yicha (gaplashgan vaqt va yozuvlar)</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {byAgent.map((a: any) => (
+              <AgentCallsRow key={a.agentId} agent={a} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fmtDurLong(totalSec: number) {
+  const s = Math.max(0, Math.round(totalSec || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}s ${m}d`;
+  if (m > 0) return `${m}d ${sec}s`;
+  return `${sec}s`;
+}
+
+/**
+ * v18: Bitta qo'ng'iroq uchun AI holatini ko'rsatadi:
+ *   - tahlil qilingan bo'lsa → kayfiyat + baho (hover'da xulosa)
+ *   - xato bo'lsa (masalan OPENAI_API_KEY yo'q edi) → ANIQ sababi
+ *     ko'rinadi (hover) + "🔄 Qayta urinish" tugmasi
+ *   - yozuv bor lekin hali navbatda bo'lsa → "AI kutmoqda"
+ *   - suhbat juda qisqa (<15s) bo'lsa → umuman tahlil qilinmaydi, shuni aytadi
+ */
+function AiBadge({ call: c, missed, onUpdated }: { call: any; missed: boolean; onUpdated: (updated: any) => void }) {
+  const [retrying, setRetrying] = useState(false);
+
+  async function retry() {
+    setRetrying(true);
+    try {
+      const r: any = await callsApi.retryAi(c.id);
+      onUpdated(r.data || {});
+      if (r.data?.aiAnalyzedAt) toast.success("AI tahlil qildi ✅");
+      else if (r.data?.aiError) toast.error(r.data.aiError);
+      else toast.success("Qayta urinildi, natija bir necha soniyada ko'rinadi");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Qayta urinishda xato');
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  if (c.aiAnalyzedAt) {
+    return (
+      <span
+        title={c.aiSummary || ''}
+        style={{
+          fontSize: 10.5, flexShrink: 0, whiteSpace: 'nowrap', cursor: c.aiSummary ? 'help' : 'default',
+          padding: '3px 7px', borderRadius: 6, background: 'var(--bg-3)', border: '1px solid var(--border)',
+        }}
+      >
+        🤖 {AI_SENTIMENT_EMOJI[c.aiSentiment] || ''}{c.aiFeedback?.score ? ` ${c.aiFeedback.score}/10` : ''}
+      </span>
+    );
+  }
+
+  if (c.aiError) {
+    return (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <span
+          title={c.aiError}
+          style={{
+            fontSize: 10.5, whiteSpace: 'nowrap', cursor: 'help', color: '#ef4444',
+            padding: '3px 7px', borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+          }}
+        >
+          ❌ AI xato
+        </span>
+        <button
+          onClick={retry}
+          disabled={retrying}
+          title="Sozlamani tuzatgandan keyin bosing"
+          style={{
+            fontSize: 10.5, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)',
+            background: 'var(--bg-2)', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1,
+          }}
+        >
+          {retrying ? '…' : '🔄'}
+        </button>
+      </span>
+    );
+  }
+
+  if (!c.recordingUrl || missed) return null;
+
+  if (c.duration > 0 && c.duration < 15) {
+    return <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }} title="Suhbat 15 soniyadan qisqa — AI tahlil qilinmaydi">— qisqa</span>;
+  }
+
+  return <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }}>⏳ AI kutmoqda</span>;
+}
+
+function AgentCallsRow({ agent }: any) {
+  const [open, setOpen] = useState(false);
+  const [calls, setCalls] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && calls === null) {
+      setLoading(true);
+      try {
+        const r: any = await callsApi.list({ agentId: agent.agentId === 'unassigned' ? undefined : agent.agentId, limit: 100 });
+        setCalls(r.data?.data || []);
+      } catch {
+        setCalls([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  const fmtShortDur = (sec: number) => {
+    const s = Math.max(0, Math.round(sec || 0));
+    const m = Math.floor(s / 60);
+    return m > 0 ? `${m}:${String(s % 60).padStart(2, '0')}` : `${s} son`;
+  };
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+      <button
+        onClick={toggle}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '11px 14px', background: 'transparent', border: 'none', cursor: 'pointer',
+          fontFamily: 'inherit', textAlign: 'left',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <span style={{
+            width: 30, height: 30, borderRadius: '50%', flexShrink: 0, background: '#3d7eff18', color: '#3d7eff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700,
+          }}>
+            {(agent.agentName || '?').slice(0, 1).toUpperCase()}
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{agent.agentName}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>
+              {agent.totalCalls} qo'ng'iroq · {agent.answered} javob berildi · 🎙️ {agent.recordingsCount} yozuv
+            </div>
+            {agent.aiAnalyzedCount > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {agent.aiAvgScore != null && (
+                  <span>
+                    🤖 Bahosi:{' '}
+                    <b style={{ color: agent.aiAvgScore >= 7 ? '#10b981' : agent.aiAvgScore >= 5 ? '#f59e0b' : '#ef4444' }}>
+                      {agent.aiAvgScore}/10
+                    </b>
+                  </span>
+                )}
+                {agent.aiTopObjection && (
+                  <span>· Ko'p e'tiroz: <b style={{ color: '#f97316' }}>{agent.aiTopObjection.label}</b> ({agent.aiTopObjection.count})</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>{fmtDurLong(agent.totalDurationSec)}</div>
+            <div style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>jami gaplashgan vaqt</div>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>{open ? '▲' : '▼'}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', background: 'var(--bg-3, #fafafa)' }}>
+          {loading ? (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 }}>Yuklanmoqda...</div>
+          ) : !calls || calls.length === 0 ? (
+            <div style={{ padding: 12, textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 }}>Qo'ng'iroq topilmadi</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
+              {calls.map((c: any) => (
+                <AiCallRow
+                  key={c.id}
+                  call={c}
+                  fmtShortDur={fmtShortDur}
+                  onUpdated={(updated) => {
+                    setCalls((prev) => prev ? prev.map((x) => x.id === c.id ? { ...x, ...updated } : x) : prev);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * v19: Bitta qo'ng'iroq qatori — endi AI xulosasi/bahosi/e'tirozlari
+ * FAQAT hover'da (title tooltip) emas, "bosilganda" ochiladigan panelda
+ * to'liq ko'rinadi — bu mobil qurilmalarda ham ishlaydi (hover yo'q).
+ */
+function AiCallRow({ call: c, fmtShortDur, onUpdated }: { call: any; fmtShortDur: (s: number) => string; onUpdated: (u: any) => void }) {
+  const [open, setOpen] = useState(false);
+  const missed = ['NO_ANSWER', 'MISSED', 'BUSY', 'FAILED'].includes(c.status);
+  const hasAiContent = !!(c.transcript || (c.aiAnalyzedAt && (c.aiSummary || c.aiFeedback || c.aiObjections?.length)));
+
+  return (
+    <div style={{ background: 'var(--bg-2)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+      <div
+        onClick={() => hasAiContent && setOpen((v) => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', cursor: hasAiContent ? 'pointer' : 'default' }}
+      >
+        <span style={{ fontSize: 12, color: missed ? '#ef4444' : (c.direction === 'INBOUND' ? '#10b981' : '#3d7eff') }}>
+          {missed ? '✕' : (c.direction === 'INBOUND' ? '↙' : '↗')}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {c.client?.fullName || c.client?.phone || 'Noma\'lum mijoz'}
+          </div>
+          <div style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>
+            {new Date(c.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            {c.duration > 0 && <> · ⏱ {fmtShortDur(c.duration)}</>}
+          </div>
+        </div>
+        {c.recordingUrl ? (
+          <audio controls src={c.recordingUrl} style={{ height: 30, maxWidth: 220 }} onClick={(e) => e.stopPropagation()} />
+        ) : (
+          <span style={{ fontSize: 10, color: 'var(--fg-4)', fontStyle: 'italic' }}>
+            {missed ? '—' : '⏳ yozuvsiz'}
+          </span>
+        )}
+        <span onClick={(e) => e.stopPropagation()}>
+          <AiBadge call={c} missed={missed} onUpdated={onUpdated} />
+        </span>
+        {hasAiContent && <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>{open ? '▲' : '▼'}</span>}
+      </div>
+
+      {open && hasAiContent && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', background: 'var(--bg-3, #fafafa)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {c.aiSummary && (
+            <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+              <b>🤖 Xulosa:</b> {c.aiSummary}
+            </div>
+          )}
+          {c.aiObjections?.length > 0 && (
+            <div style={{ fontSize: 12 }}>
+              <b>E'tirozlar:</b>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                {c.aiObjections.map((o: any, i: number) => (
+                  <li key={i} style={{ marginBottom: 2 }}>
+                    <span style={{ color: '#f97316', fontWeight: 600 }}>{o.label}</span>
+                    {o.quote && <span style={{ color: 'var(--fg-3)' }}> — "{o.quote}"</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {c.aiNextAction?.title && (
+            <div style={{ fontSize: 12 }}>
+              <b>💡 Keyingi qadam:</b> {c.aiNextAction.title}
+              {c.aiNextAction.note && <div style={{ color: 'var(--fg-3)', marginTop: 2 }}>{c.aiNextAction.note}</div>}
+            </div>
+          )}
+          {c.aiFeedback?.saleReadiness && (
+            <div style={{ fontSize: 12, padding: '8px 10px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8 }}>
+              <b>🎯 Sotuvga yaqinlik: </b>
+              <span style={{
+                fontWeight: 700,
+                color: c.aiFeedback.saleReadiness.score >= 7 ? '#10b981' : c.aiFeedback.saleReadiness.score >= 4 ? '#f59e0b' : '#ef4444',
+              }}>
+                {c.aiFeedback.saleReadiness.score}/10
+              </span>
+              {c.aiFeedback.saleReadiness.whatWouldClose && (
+                <div style={{ marginTop: 3 }}>Nima deganda sotib olardi: {c.aiFeedback.saleReadiness.whatWouldClose}</div>
+              )}
+              {c.aiFeedback.saleReadiness.missedInfo && (
+                <div style={{ marginTop: 3, color: '#ef4444' }}>Agent aytmay qoldirgan: {c.aiFeedback.saleReadiness.missedInfo}</div>
+              )}
+            </div>
+          )}
+          {c.aiFeedback && (
+            <div style={{ fontSize: 12 }}>
+              <b>Agent bahosi: </b>
+              <span style={{ fontWeight: 700, color: c.aiFeedback.score >= 7 ? '#10b981' : c.aiFeedback.score >= 5 ? '#f59e0b' : '#ef4444' }}>
+                {c.aiFeedback.score}/10
+              </span>
+              {c.aiFeedback.strengths?.length > 0 && (
+                <div style={{ marginTop: 4, color: '#10b981' }}>
+                  {c.aiFeedback.strengths.map((s: string, i: number) => <div key={i}>✓ {s}</div>)}
+                </div>
+              )}
+              {c.aiFeedback.improvements?.length > 0 && (
+                <div style={{ marginTop: 4, color: '#f59e0b' }}>
+                  {c.aiFeedback.improvements.map((s: string, i: number) => <div key={i}>△ {s}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+          {c.transcript && <TranscriptToggle text={c.transcript} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Suhbat matnining o'zi — juda uzun bo'lgani uchun alohida "ko'rsatish/yashirish" tugmasi bilan */
+function TranscriptToggle({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={() => setShow((v) => !v)}
+        style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-2)', cursor: 'pointer' }}
+      >
+        {show ? 'Suhbat matnini yashirish ▲' : "Suhbat matnini ko'rish ▼"}
+      </button>
+      {show && (
+        <div style={{ fontSize: 11.5, lineHeight: 1.6, marginTop: 6, padding: '8px 10px', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, whiteSpace: 'pre-wrap', maxHeight: 220, overflowY: 'auto' }}>
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LeadsTab({ data, from, to }: any) {
+  const { t } = useI18n();
+  const [activeSource, setActiveSource] = useState<string>('ALL');
+  if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
+  const { summary = {}, bySource = [] } = data;
+
+  const SRC: Record<string, { icon: string; color: string }> = {
+    TELEGRAM:  { icon: '✈️', color: '#3d7eff' },
+    INSTAGRAM: { icon: '📷', color: '#ec4899' },
+    WHATSAPP:  { icon: '💚', color: '#10b981' },
+    WEBSITE:   { icon: '🌐', color: '#8b5cf6' },
+    REFERRAL:  { icon: '🤝', color: '#f59e0b' },
+    FACEBOOK:  { icon: '📘', color: '#3b82f6' },
+    CALL:      { icon: '📞', color: '#06b6d4' },
+    OTHER:     { icon: '📋', color: '#94a3b8' },
+  };
+
+  // Filter by source
+  const filtered = activeSource === 'ALL' ? bySource : bySource.filter((s: any) => s.source === activeSource);
+  
+  // Sort by revenue desc
+  const sorted = [...filtered].sort((a: any, b: any) => (b.revenue || 0) - (a.revenue || 0));
+  
+  // Best source
+  const best = bySource.reduce((a: any, b: any) => (b.revenue || 0) > (a.revenue || 0) ? b : a, bySource[0] || null);
+  
+  const totalRevenue = bySource.reduce((s: number, r: any) => s + (r.revenue || 0), 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+        {[
+          { label: t('dash.totalLeads'), value: summary.totalLeads || 0, color: '#3d7eff', sub: t('dash.allSourcesSub') },
+          { label: t('dash.bookings'), value: summary.totalBookings || 0, color: '#10b981', sub: t('dash.successful') },
+          { label: t('dash.avgConversion'), value: `${(summary.avgConversionRate || 0).toFixed(1)}%`, color: '#f59e0b', sub: "o'rtacha" },
+          { label: t('dash.totalRevenue'), value: `$${money(totalRevenue)}`, color: '#8b5cf6', sub: "barcha manbadan" },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-5)', marginTop: 3 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Best source highlight */}
+      {best && (
+        <div style={{ padding: '14px 18px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 28 }}>{SRC[best.source]?.icon || '🏆'}</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#10b981' }}>🏆 Eng yaxshi manba: {best.source}</div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>
+              {best.leads} lead · {best.bookings} booking · ${money(best.revenue||0)} daromad · {best.conversionRate?.toFixed(1)}% conversion
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Source filter chips */}
+      {bySource.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => setActiveSource('ALL')} style={{
+            padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            background: activeSource === 'ALL' ? '#3d7eff' : 'rgba(255,255,255,0.05)',
+            color: activeSource === 'ALL' ? '#fff' : 'var(--fg-3)',
+            fontSize: 12, fontWeight: 600,
+          }}>Hammasi ({bySource.length})</button>
+          {bySource.map((s: any) => (
+            <button key={s.source} onClick={() => setActiveSource(s.source === activeSource ? 'ALL' : s.source)} style={{
+              padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: activeSource === s.source ? (SRC[s.source]?.color || '#6b7194') : 'rgba(255,255,255,0.05)',
+              color: activeSource === s.source ? '#fff' : 'var(--fg-3)',
+              fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              {SRC[s.source]?.icon || '📋'} {s.source}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Table */}
+      {sorted.length > 0 ? (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ fontSize: 11, color: 'var(--fg-5)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {['Manba', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Ulush'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700, borderBottom: '1px solid var(--border)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((s: any, i: number) => {
+                const share = totalRevenue > 0 ? Math.round((s.revenue || 0) / totalRevenue * 100) : 0;
+                const isTop = i === 0 && activeSource === 'ALL';
+                return (
+                  <tr key={i} style={{ borderTop: '1px solid var(--border)', background: isTop ? 'rgba(16,185,129,0.03)' : 'transparent' }}>
+                    <td style={{ padding: '12px 14px', fontWeight: 700 }}>
+                      <span style={{ marginRight: 8 }}>{SRC[s.source]?.icon || '📋'}</span>
+                      <span style={{ color: isTop ? '#10b981' : 'var(--fg)' }}>{s.source}</span>
+                      {isTop && <span style={{ marginLeft: 8, fontSize: 10, color: '#10b981', background: 'rgba(16,185,129,0.12)', padding: '2px 7px', borderRadius: 20, fontWeight: 700 }}>TOP</span>}
+                    </td>
+                    <td style={{ padding: '12px 14px', color: '#3d7eff', fontWeight: 600 }}>{s.leads || 0}</td>
+                    <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 600 }}>{s.bookings || 0}</td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                        background: (s.conversionRate || 0) >= 50 ? 'rgba(16,185,129,0.15)' : (s.conversionRate || 0) >= 20 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.1)',
+                        color: (s.conversionRate || 0) >= 50 ? '#10b981' : (s.conversionRate || 0) >= 20 ? '#f59e0b' : '#ef4444',
+                      }}>{(s.conversionRate || 0).toFixed(1)}%</span>
+                    </td>
+                    <td style={{ padding: '12px 14px', color: '#10b981', fontWeight: 700 }}>${money(s.revenue || 0)}</td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 99, overflow: 'hidden', minWidth: 60 }}>
+                          <div style={{ height: '100%', borderRadius: 99, background: SRC[s.source]?.color || '#6b7194', width: `${share}%`, transition: 'width 0.4s' }}/>
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--fg-3)', fontWeight: 600, minWidth: 30 }}>{share}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-4)', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🎯</div>
+          <div>{t('dash.noData')}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ─── DATE RANGE PICKER ────────────────────────────────────────
+function DateRangePicker({ from, to, onChange }: {
+  from: string; to: string;
+  onChange: (from: string, to: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [lFrom, setLFrom] = useState(from);
+  const [lTo,   setLTo]   = useState(to);
+
+  const presets = [
+    { label: "Bu oy",        f: () => { const n = new Date(); return [new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "O'tgan oy",   f: () => { const n = new Date(); return [new Date(n.getFullYear(),n.getMonth()-1,1).toISOString().slice(0,10), new Date(n.getFullYear(),n.getMonth(),0).toISOString().slice(0,10)]; } },
+    { label: "Bu hafta",     f: () => { const n = new Date(); const d = n.getDay()||7; return [new Date(n.getFullYear(),n.getMonth(),n.getDate()-d+1).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "Bu yil",       f: () => { const n = new Date(); return [new Date(n.getFullYear(),0,1).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "So'nggi 7 kun", f: () => { const n = new Date(); return [new Date(n.getTime()-6*864e5).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "So'nggi 30 kun", f: () => { const n = new Date(); return [new Date(n.getTime()-29*864e5).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+    { label: "So'nggi 90 kun", f: () => { const n = new Date(); return [new Date(n.getTime()-89*864e5).toISOString().slice(0,10), n.toISOString().slice(0,10)]; } },
+  ];
+
+  const label = from && to ? `${from.slice(5)} → ${to.slice(5)}` : 'Sana';
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        padding: '7px 14px', borderRadius: 9, border: '1px solid #1e2440',
+        background: '#0c0e1a', color: '#c4c9e0', fontSize: 12.5, fontWeight: 600,
+        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7,
+        fontFamily: 'inherit', whiteSpace: 'nowrap',
+      }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>{label}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }}/>
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 100,
+            background: '#0c0e1a', border: '1px solid #2a3258', borderRadius: 14,
+            padding: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+            minWidth: 320,
+          }}>
+            {/* Presets */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {presets.map(p => (
+                <button key={p.label} onClick={() => {
+                  const [f, t] = p.f();
+                  onChange(f, t); setOpen(false);
+                }} style={{
+                  padding: '5px 11px', borderRadius: 20, border: '1px solid #1e2440',
+                  background: 'rgba(61,126,255,0.06)', color: '#9aa0c0',
+                  fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit',
+                  fontWeight: 500, transition: 'all 0.12s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(61,126,255,0.15)'; e.currentTarget.style.color='#3d7eff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(61,126,255,0.06)'; e.currentTarget.style.color='#9aa0c0'; }}
+                >{p.label}</button>
+              ))}
+            </div>
+
+            <div style={{ height: 1, background: '#1e2440', marginBottom: 14 }}/>
+
+            {/* Custom range */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#3d4568', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Dan</div>
+                <input type="date" value={lFrom} onChange={e => setLFrom(e.target.value)} style={{
+                  width: '100%', padding: '8px 10px', background: '#111420',
+                  border: '1px solid #1e2440', borderRadius: 8, color: '#e8eaf2',
+                  fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const,
+                }}/>
+              </div>
+              <div style={{ color: '#3d4568', paddingBottom: 10 }}>→</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#3d4568', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Gacha</div>
+                <input type="date" value={lTo} onChange={e => setLTo(e.target.value)} style={{
+                  width: '100%', padding: '8px 10px', background: '#111420',
+                  border: '1px solid #1e2440', borderRadius: 8, color: '#e8eaf2',
+                  fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const,
+                }}/>
+              </div>
+              <button onClick={() => { onChange(lFrom, lTo); setOpen(false); }} style={{
+                padding: '8px 14px', borderRadius: 8, border: 'none',
+                background: 'linear-gradient(135deg,#3d7eff,#a855f7)',
+                color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                paddingBottom: 10,
+              }}>✓</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── PREMIUM REVENUE CHART ──────────────────────────────────────────
+function RevenueChart({ data }: { data: any[] }) {
+  const { t } = useI18n();
+  const [view, setView] = useState<'year' | 'quarter'>('year');
+  const months = ['','Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
+
+  const chartData = data.map((d: any) => ({
+    ...d,
+    label: d.period
+      ? d.period.slice(0,7).replace(/-(\d+)$/, (_: any, m: string) => ' ' + (months[parseInt(m)] || m))
+      : d.month
+        ? (() => { const parts = d.month.split('-'); return parts[1] ? months[parseInt(parts[1])] + ' ' + parts[0] : d.month; })()
+        : (d.label || ''),
+    revenue: d.revenue ?? d.amount ?? 0,
+    profit: d.profit ?? d.netProfit ?? 0,
+  }));
+
+  const displayed = view === 'quarter' ? chartData.slice(-3) : chartData;
+
+  const isEmpty = displayed.length === 0;
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <div style={{
+      padding: '22px 24px',
+      background: 'var(--bg-2)',
+      borderRadius: 16,
+      border: '1px solid var(--border)',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Subtle glow bg */}
+      <div style={{
+        position: 'absolute', top: -40, right: -40,
+        width: 220, height: 220, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(91,110,245,0.07) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', letterSpacing: -0.3 }}>{t('dash.revenueProfit')}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 3, fontWeight: 500 }}>
+            {t('dash.monthlyPerf')} · {currentYear}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#5b8def', display: 'inline-block' }}/>
+              <span style={{ fontSize: 11.5, color: 'var(--fg-2)', fontWeight: 500 }}>{t('dash.revenue')}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7', display: 'inline-block' }}/>
+              <span style={{ fontSize: 11.5, color: 'var(--fg-2)', fontWeight: 500 }}>{t('dash.profit')}</span>
+            </div>
+          </div>
+
+          {/* Year / Quarter toggle */}
+          <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 8, padding: 3, border: '1px solid var(--border)', gap: 2 }}>
+            {(['year','quarter'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)} style={{
+                padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                fontSize: 11.5, fontWeight: 600,
+                background: view === v ? 'var(--bg-4)' : 'transparent',
+                color: view === v ? 'var(--fg)' : 'var(--fg-3)',
+                transition: 'all 0.14s',
+                boxShadow: view === v ? 'var(--shadow-xs)' : 'none',
+              }}>
+                {v === 'year' ? t('dash.year') : t('dash.quarter')}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Chart */}
+      {isEmpty ? (
+        <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-3)', fontSize: 13 }}>
+          Ma'lumot yo'q
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={displayed} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              {/* Revenue — ko'k-indigo gradient */}
+              <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#4f72e3" stopOpacity={0.5}/>
+                <stop offset="60%"  stopColor="#3d5fc0" stopOpacity={0.25}/>
+                <stop offset="100%" stopColor="#1a2a6e" stopOpacity={0.05}/>
+              </linearGradient>
+              {/* Profit — violet gradient */}
+              <linearGradient id="profGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#a855f7" stopOpacity={0.45}/>
+                <stop offset="60%"  stopColor="#7c3aed" stopOpacity={0.18}/>
+                <stop offset="100%" stopColor="#3b0764" stopOpacity={0.04}/>
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid
+              strokeDasharray="0"
+              stroke="rgba(255,255,255,0.04)"
+              vertical={false}
+              horizontal={true}
+            />
+
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: 'var(--fg-3)', fontSize: 11, fontWeight: 500 }}
+              dy={8}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: 'var(--fg-3)', fontSize: 10.5, fontWeight: 500 }}
+              tickFormatter={(v: any) => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`}
+              width={44}
+            />
+
+            <Tooltip
+              cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
+              contentStyle={{
+                background: 'var(--bg-4)',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 10,
+                fontSize: 12,
+                padding: '10px 14px',
+                boxShadow: 'var(--shadow-lg)',
+              }}
+              labelStyle={{ color: 'var(--fg)', fontWeight: 700, marginBottom: 6, fontSize: 13 }}
+              formatter={(v: any, name: string) => [
+                `$${money(v)}`,
+                name === 'revenue' ? 'Revenue' : 'Profit'
+              ]}
+            />
+
+            {/* Revenue — ustida */}
+            <Area
+              type="monotone"
+              dataKey="revenue"
+              stroke="#5b8def"
+              strokeWidth={2.2}
+              fill="url(#revGrad)"
+              dot={false}
+              activeDot={{ r: 5, fill: '#5b8def', stroke: '#fff', strokeWidth: 2 }}
+            />
+            {/* Profit — pastida */}
+            <Area
+              type="monotone"
+              dataKey="profit"
+              stroke="#a855f7"
+              strokeWidth={2}
+              fill="url(#profGrad)"
+              dot={false}
+              activeDot={{ r: 4.5, fill: '#a855f7', stroke: '#fff', strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// v10.3: AGENTLAR OYMA-OY TARIXI
+// Admin: agent tanlab (yoki hammasi) oxirgi 3/6/12 oy bo'yicha
+// leadlar, bookinglar, conversion, daromad va maoshni ko'radi.
+// Agent: faqat o'zining tarixini ko'radi (backend cheklaydi).
+// ═════════════════════════════════════════════════════════════
+function AgentMonthlyHistory({ isAgent, agents }: { isAgent: boolean; agents: any[] }) {
+  const { t } = useI18n();
+  const [months, setMonths] = useState(6);
+  const [agentId, setAgentId] = useState<string>('');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    reportsV6.agentsMonthly(months, agentId || undefined)
+      .then((r: any) => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [months, agentId]);
+
+  const MONTH_UZ = ['Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
+  const mLabel = (mk: string) => {
+    const [y, m] = mk.split('-');
+    return `${MONTH_UZ[parseInt(m) - 1]} ${y}`;
+  };
+
+  const list: any[] = data?.agents || [];
+  // Admin "Barcha agentlar" rejimida — jami bo'yicha jadval;
+  // bitta agent tanlanganda (yoki agent roli) — oyma-oy qatorlar
+  const single = isAgent || !!agentId ? list[0] : (list.length === 1 ? list[0] : null);
+
+  return (
+    <div style={{ padding: '14px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <Calendar size={15} color="#8b5cf6" />
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+          {isAgent ? 'Mening oyma-oy natijalarim' : 'Agentlar — oyma-oy tarix'}
+        </h3>
+        <div style={{ flex: 1 }} />
+        {!isAgent && (
+          <select value={agentId} onChange={(e) => setAgentId(e.target.value)} style={{
+            padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, outline: 'none', cursor: 'pointer',
+          }}>
+            <option value="">{t('dash.allAgents')}</option>
+            {agents.map((a: any) => (
+              <option key={a.agent?.id || a.id} value={a.agent?.id || a.id}>{a.agent?.name || a.name}</option>
+            ))}
+          </select>
+        )}
+        <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 8, padding: 2, gap: 2 }}>
+          {[3, 6, 12].map((m) => (
+            <button key={m} onClick={() => setMonths(m)} style={{
+              padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              fontSize: 11.5, fontWeight: 700,
+              background: months === m ? 'var(--primary)' : 'transparent',
+              color: months === m ? '#fff' : 'var(--fg-3)',
+            }}>{m} oy</button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <Skeleton height={160} />
+      ) : !data || list.length === 0 ? (
+        <div style={{ padding: 24, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>{t('dash.noData')}</div>
+      ) : single ? (
+        /* ── BITTA AGENT: oyma-oy qatorlar ── */
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+              {['Oy', 'Leadlar', 'Bookinglar', 'Conversion', 'Daromad', 'Foyda', 'Komissiya %', 'Maosh'].map((h) => (
+                <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[...single.rows].reverse().map((r: any) => (
+              <tr key={r.month} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '9px 12px', fontWeight: 700 }}>{mLabel(r.month)}</td>
+                <td style={{ padding: '9px 12px' }}>{r.leads}</td>
+                <td style={{ padding: '9px 12px' }}>{r.bookings}</td>
+                <td style={{ padding: '9px 12px' }}>
+                  <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    background: r.conversion >= 30 ? '#10b98120' : '#f59e0b20',
+                    color: r.conversion >= 30 ? '#10b981' : '#f59e0b' }}>{r.conversion}%</span>
+                </td>
+                <td style={{ padding: '9px 12px', fontWeight: 700, color: '#10b981' }}>${money(r.revenue)}</td>
+                <td style={{ padding: '9px 12px', color: '#f59e0b', fontWeight: 600 }}>${money(r.profit)}</td>
+                <td style={{ padding: '9px 12px', color: 'var(--fg-2)' }}>{r.commissionPercent}%</td>
+                <td style={{ padding: '9px 12px', fontWeight: 800, color: '#8b5cf6' }}>${money(r.salary)}</td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-3)' }}>
+              <td style={{ padding: '9px 12px', fontWeight: 800 }}>{t('dash.totalCaps')}</td>
+              <td style={{ padding: '9px 12px', fontWeight: 700 }}>{single.totals.leads}</td>
+              <td style={{ padding: '9px 12px', fontWeight: 700 }}>{single.totals.bookings}</td>
+              <td style={{ padding: '9px 12px' }} />
+              <td style={{ padding: '9px 12px', fontWeight: 800, color: '#10b981' }}>${money(single.totals.revenue)}</td>
+              <td style={{ padding: '9px 12px', fontWeight: 700, color: '#f59e0b' }}>${money(single.totals.profit)}</td>
+              <td style={{ padding: '9px 12px' }} />
+              <td style={{ padding: '9px 12px', fontWeight: 800, color: '#8b5cf6' }}>${money(single.totals.salary)}</td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        /* ── BARCHA AGENTLAR: davr bo'yicha jami ── */
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-3)', fontSize: 10.5, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+              {['Agent', `Leadlar (${months} oy)`, 'Bookinglar', 'Daromad', 'Foyda', 'Maosh (jami)'].map((h) => (
+                <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[...list].sort((a, b) => (b.totals?.salary || 0) - (a.totals?.salary || 0)).map((row: any) => (
+              <tr key={row.agent.id} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }}
+                onClick={() => setAgentId(row.agent.id)} title={t('dash.clickMonthly')}>
+                <td style={{ padding: '9px 12px', fontWeight: 700 }}>
+                  {row.agent.name}
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)', fontWeight: 400 }}>{row.agent.role} · oyma-oy uchun bosing</div>
+                </td>
+                <td style={{ padding: '9px 12px' }}>{row.totals.leads}</td>
+                <td style={{ padding: '9px 12px' }}>{row.totals.bookings}</td>
+                <td style={{ padding: '9px 12px', fontWeight: 700, color: '#10b981' }}>${money(row.totals.revenue)}</td>
+                <td style={{ padding: '9px 12px', color: '#f59e0b', fontWeight: 600 }}>${money(row.totals.profit)}</td>
+                <td style={{ padding: '9px 12px', fontWeight: 800, color: '#8b5cf6' }}>${money(row.totals.salary)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
