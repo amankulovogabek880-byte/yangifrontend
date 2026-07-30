@@ -25,6 +25,10 @@ export const api = axios.create({
   baseURL: `${API_URL}/api/v1`,
   timeout: 30000,
   withCredentials: true, // httpOnly refresh cookie uchun
+  // v19: har qanday oraliq proksi/CDN (masalan Render) yoki brauzer
+  // keshlashini butunlay o'chiramiz — CRM ma'lumotlari doim yangi
+  // bo'lishi kerak (masalan yangi kelgan qo'ng'iroq yozuvi kabi).
+  headers: { 'Cache-Control': 'no-cache' },
 });
 
 // Request interceptor — access tokenni header'ga qo'shish
