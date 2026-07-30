@@ -233,14 +233,15 @@ export default function CallsPage() {
                               }}>📞 Qayta</button>
                             )}
                             {c.status === 'COMPLETED' && (
-                              <button onClick={() => setAiCall(c)} title="AI tahlil"
+                              <button onClick={() => setAiCall(c)} title={c.aiError || 'AI tahlil'}
                                 style={{
-                                  padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border)',
-                                  background: c.aiAnalyzedAt ? 'rgba(16,185,129,0.15)' : 'var(--bg-3)',
-                                  color: c.aiAnalyzedAt ? '#10b981' : 'var(--fg)',
+                                  padding: '4px 10px', borderRadius: 7,
+                                  border: c.aiError ? '1px solid rgba(239,68,68,0.4)' : '1px solid var(--border)',
+                                  background: c.aiError ? 'rgba(239,68,68,0.1)' : (c.aiAnalyzedAt ? 'rgba(16,185,129,0.15)' : 'var(--bg-3)'),
+                                  color: c.aiError ? '#ef4444' : (c.aiAnalyzedAt ? '#10b981' : 'var(--fg)'),
                                   cursor: 'pointer', fontSize: 12, fontWeight: 700,
                                 }}>
-                                {c.aiAnalyzedAt ? `🤖 ${SENTIMENT_EMOJI[c.aiSentiment] || ''}` : '🤖 AI'}
+                                {c.aiError ? '❌ AI xato' : (c.aiAnalyzedAt ? `🤖 ${SENTIMENT_EMOJI[c.aiSentiment] || ''}` : '🤖 AI')}
                               </button>
                             )}
                           </div>
@@ -281,6 +282,24 @@ function AiAnalysisModal({ call, onClose, onUpdated }: { call: any; onClose: () 
   const [savingTranscript, setSavingTranscript] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [current, setCurrent] = useState(call);
+  const [retrying, setRetrying] = useState(false);
+
+  async function retryAiPipeline() {
+    setRetrying(true);
+    try {
+      const r = await callsApi.retryAi(current.id);
+      setCurrent((prev: any) => ({ ...prev, ...r.data }));
+      onUpdated({ ...current, ...r.data });
+      if (r.data?.transcript) setTranscript(r.data.transcript);
+      if (r.data?.aiAnalyzedAt) toast.success('AI tahlil qildi ✅');
+      else if (r.data?.aiError) toast.error(r.data.aiError);
+      else toast.success("Qayta urinildi, natija bir necha soniyada ko'rinadi");
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   async function saveTranscript() {
     if (!transcript.trim()) { toast.error("Matn bo'sh bo'lishi mumkin emas"); return; }
@@ -339,6 +358,23 @@ function AiAnalysisModal({ call, onClose, onUpdated }: { call: any; onClose: () 
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--fg-3)' }}>✕</button>
         </div>
+
+        {current.aiError && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+            marginBottom: 16, padding: '10px 12px', background: 'rgba(239,68,68,0.08)',
+            border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8,
+          }}>
+            <div style={{ fontSize: 12.5, color: '#ef4444', lineHeight: 1.4 }}>
+              ❌ Avtomatik AI jarayoni xato berdi: {current.aiError}
+            </div>
+            <button onClick={retryAiPipeline} disabled={retrying} style={{
+              padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)',
+              background: 'var(--bg-3)', color: 'var(--fg)', cursor: retrying ? 'default' : 'pointer',
+              fontSize: 12, fontWeight: 700, flexShrink: 0,
+            }}>{retrying ? '…' : '🔄 Qayta urinish'}</button>
+          </div>
+        )}
 
         {current.recordingUrl && (
           <div style={{ marginBottom: 16 }}>
