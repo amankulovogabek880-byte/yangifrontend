@@ -326,13 +326,6 @@ export const reportsApi = {
     api.get('/reports/export-pdf', { params: { type, from, to }, responseType: 'blob' }),
 };
 
-// ── AUDIT LOG (v17) ────────────────────────────────────────────
-export const auditApi = {
-  list: (params?: { entity?: string; action?: string; userId?: string; from?: string; to?: string; page?: number; limit?: number }) =>
-    api.get('/audit', { params }),
-  filterOptions: () => api.get('/audit/filter-options'),
-};
-
 // ── REPORTS v6 ───────────────────────────────────────────────
 export const reportsV6 = {
   bySource: () => api.get('/reports/by-source'),
@@ -378,7 +371,10 @@ export const apiKeysApi = {
 
 // ── AUDIT ────────────────────────────────────────────────────
 export const auditApi = {
-  list: (params?: any) => api.get('/audit', { params }),
+  list: (params?: { entity?: string; action?: string; userId?: string; from?: string; to?: string; page?: number; limit?: number }) =>
+    api.get('/audit', { params }),
+  // v17: filtr dropdown'lari uchun mavjud entity/action turlari
+  filterOptions: () => api.get('/audit/filter-options'),
 };
 
 // ── CALLS v6 ─────────────────────────────────────────────────
