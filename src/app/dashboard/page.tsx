@@ -867,16 +867,20 @@ function AgentCallsRow({ agent }: any) {
   const [calls, setCalls] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   async function toggle() {
     const next = !open;
     setOpen(next);
     if (next && calls === null) {
       setLoading(true);
+      setLoadError(null);
       try {
         const r: any = await callsApi.list({ agentId: agent.agentId === 'unassigned' ? undefined : agent.agentId, limit: 100 });
         setCalls(r.data?.data || []);
-      } catch {
+      } catch (e: any) {
         setCalls([]);
+        setLoadError(e?.response?.data?.message || e?.message || "Qo'ng'iroqlarni yuklashda xato");
       } finally {
         setLoading(false);
       }
@@ -938,11 +942,16 @@ function AgentCallsRow({ agent }: any) {
       </button>
 
       {open && (
-        <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px', background: 'var(--bg-3, #fafafa)' }}>
+        <div style={{ borderTop: '1px solid var(--border, #e5e7eb)', padding: '10px 14px', background: 'var(--bg-3, #fafafa)' }}>
           {loading ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 }}>Yuklanmoqda...</div>
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-4, #6b7280)', fontSize: 12 }}>Yuklanmoqda...</div>
+          ) : loadError ? (
+            <div style={{ padding: 12, textAlign: 'center', color: '#ef4444', fontSize: 12 }}>❌ {loadError}</div>
           ) : !calls || calls.length === 0 ? (
-            <div style={{ padding: 12, textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 }}>Qo'ng'iroq topilmadi</div>
+            <div style={{ padding: 12, textAlign: 'center', color: 'var(--fg-4, #6b7280)', fontSize: 12 }}>
+              Bu agent uchun qo'ng'iroq topilmadi.<br />
+              <span style={{ fontSize: 11 }}>(Agar bu kutilmagan bo'lsa — telefoniya sozlamalarini tekshiring.)</span>
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
               {calls.map((c: any) => (
