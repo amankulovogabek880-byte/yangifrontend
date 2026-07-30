@@ -270,6 +270,16 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
                 <button onClick={() => { setUserMenu(false); router.push('/settings'); }} style={{ width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--fg)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Icons.Settings /> Sozlamalar
                 </button>
+                {(user.role === 'TENANT_ADMIN' || user.role === 'MANAGER') && (
+                  <button onClick={() => { setUserMenu(false); router.push('/audit-log'); }} style={{ width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--fg)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    📜 Audit jurnali
+                  </button>
+                )}
+                {user.role === 'TENANT_ADMIN' && (
+                  <button onClick={() => { setUserMenu(false); router.push('/team-permissions'); }} style={{ width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--fg)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    🔐 Xodimlar ruxsatlari
+                  </button>
+                )}
                 <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
                 <button onClick={() => { disconnectSocket(); logout(); setUserMenu(false); }} style={{ width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--danger)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Icons.LogOut /> Chiqish
@@ -546,6 +556,16 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
                     <button onClick={() => { setUserMenu(false); router.push('/settings'); }} style={{ width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--fg)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Icons.Settings /> Sozlamalar
                     </button>
+                    {(user.role === 'TENANT_ADMIN' || user.role === 'MANAGER') && (
+                      <button onClick={() => { setUserMenu(false); router.push('/audit-log'); }} style={{ width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--fg)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        📜 Audit jurnali
+                      </button>
+                    )}
+                    {user.role === 'TENANT_ADMIN' && (
+                      <button onClick={() => { setUserMenu(false); router.push('/team-permissions'); }} style={{ width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--fg)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        🔐 Xodimlar ruxsatlari
+                      </button>
+                    )}
                     <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
                     <button onClick={() => { disconnectSocket(); logout(); setUserMenu(false); }} style={{ width: '100%', textAlign: 'left', padding: '8px 14px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--danger)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Icons.LogOut /> Chiqish

@@ -28,21 +28,28 @@ function money(n: any) {
 function ExportButton() {
   const { t } = useI18n();
   const [exporting, setExporting] = React.useState(false);
+  const [type, setType] = React.useState('bookings');
+  const [format, setFormat] = React.useState<'csv' | 'xlsx' | 'pdf'>('xlsx');
 
-  async function doExport(type: string) {
+  async function doExport() {
     setExporting(true);
     try {
       const token = getAccessToken() || ''; // XAVFSIZLIK TUZATISH: memory'dan
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-      const res = await fetch(`${API_URL}/api/v1/reports/export?type=${type}`, {
+      const endpoint = format === 'csv' ? 'export' : format === 'xlsx' ? 'export-xlsx' : 'export-pdf';
+      const res = await fetch(`${API_URL}/api/v1/reports/${endpoint}?type=${type}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) { toast.error(t('dash.exportError')); return; }
+      if (!res.ok) {
+        if (res.status === 403) toast.error("Bu amal uchun ruxsatingiz yo'q — administratordan so'rang");
+        else toast.error(t('dash.exportError'));
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${type}-${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `${type}-${new Date().toISOString().slice(0,10)}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch { toast.error(t('dash.exportError')); }
@@ -50,19 +57,35 @@ function ExportButton() {
   }
 
   return (
-    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', padding: '0 16px' }}>
+    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px' }}>
       <select
-        onChange={e => { if (e.target.value) { doExport(e.target.value); e.target.value = ''; } }}
-        defaultValue=""
+        value={type}
+        onChange={e => setType(e.target.value)}
         disabled={exporting}
         style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, cursor: 'pointer' }}
       >
-        <option value="" disabled>{exporting ? 'Yuklanmoqda...' : 'Export CSV'}</option>
         <option value="bookings">{t('dash.bookings')}</option>
         <option value="clients">{t('dash.clients')}</option>
         <option value="payments">{t('dash.payments')}</option>
         <option value="calls">{t('dash.calls')}</option>
       </select>
+      <select
+        value={format}
+        onChange={e => setFormat(e.target.value as any)}
+        disabled={exporting}
+        style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-3)', color: 'var(--fg)', fontSize: 12, cursor: 'pointer' }}
+      >
+        <option value="xlsx">Excel (.xlsx)</option>
+        <option value="pdf">PDF</option>
+        <option value="csv">CSV</option>
+      </select>
+      <button
+        onClick={doExport}
+        disabled={exporting}
+        style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--primary)', color: 'white', fontSize: 12, fontWeight: 600, cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1 }}
+      >
+        {exporting ? 'Yuklanmoqda...' : '⬇ Yuklab olish'}
+      </button>
     </div>
   );
 }

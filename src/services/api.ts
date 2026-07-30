@@ -143,6 +143,10 @@ export const usersApi = {
     api.post(`/lead-assignment/agents/${id}/unpause`),
   setDailyLimit: (id: string, limit: number) =>
     api.patch(`/lead-assignment/agents/${id}/daily-limit`, { limit }),
+  // v17: moslashtiriladigan ruxsatlar (custom permissions)
+  getPermissions: (id: string) => api.get(`/users/${id}/permissions`),
+  setPermissions: (id: string, permissions: Record<string, boolean>) =>
+    api.patch(`/users/${id}/permissions`, { permissions }),
 };
 
 // ── INVOICES (v5) ──────────────────────────────────────────
@@ -315,6 +319,18 @@ export const reportsApi = {
   revenue: (params?: any) => api.get('/reports/revenue', { params }),
   agents: (params?: any) => api.get('/reports/agents', { params }),
   bookings: () => api.get('/reports/bookings'),
+  // v17: haqiqiy .xlsx va .pdf fayl yuklab olish (blob)
+  exportXlsx: (type: string, from?: string, to?: string) =>
+    api.get('/reports/export-xlsx', { params: { type, from, to }, responseType: 'blob' }),
+  exportPdf: (type: string, from?: string, to?: string) =>
+    api.get('/reports/export-pdf', { params: { type, from, to }, responseType: 'blob' }),
+};
+
+// ── AUDIT LOG (v17) ────────────────────────────────────────────
+export const auditApi = {
+  list: (params?: { entity?: string; action?: string; userId?: string; from?: string; to?: string; page?: number; limit?: number }) =>
+    api.get('/audit', { params }),
+  filterOptions: () => api.get('/audit/filter-options'),
 };
 
 // ── REPORTS v6 ───────────────────────────────────────────────
@@ -381,8 +397,6 @@ export const callsApi = {
   // v15: AI qo'ng'iroq tahlili — xulosa, e'tirozlar, keyingi qadam, agent bahosi
   setTranscript: (id: string, transcript: string) => api.post(`/calls/${id}/transcript`, { transcript }),
   analyze: (id: string) => api.post(`/calls/${id}/analyze`),
-  // v16: yozuvni Whisper bilan avtomatik eshitib, Claude bilan tahlil qiladi — bir tugma
-  autoAnalyze: (id: string) => api.post(`/calls/${id}/auto-analyze`),
   objectionsStats: (days = 30, agentId?: string) => api.get('/calls/objections-stats', { params: { days, agentId } }),
 };
 
