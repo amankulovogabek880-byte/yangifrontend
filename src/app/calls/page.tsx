@@ -53,7 +53,7 @@ export default function CallsPage() {
     const params: any = { page, limit: 30 };
     if (filter.status) params.status = filter.status;
     if (filter.direction) params.direction = filter.direction;
-    callsApi.list().then(r => {
+    callsApi.list(params).then(r => {
       const d = r.data;
       setCalls(Array.isArray(d) ? d : (d?.data || []));
       setTotal(d?.total || 0);
