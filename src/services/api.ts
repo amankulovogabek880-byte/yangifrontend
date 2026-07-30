@@ -744,7 +744,3 @@ export const tourSearchApi = {
   // Jonli natijadan booking yaratish: { clientId, result, checkin, checkout, adults?, children?, totalPrice?, supplierCost?, note? }
   book: (data: any) => api.post('/tour-search/book', data),
 };
-
-
-
-//?salom
