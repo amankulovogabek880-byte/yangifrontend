@@ -9,12 +9,12 @@ import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { Card, Stat, Btn, Empty, Skeleton, Avatar, Badge, StatCard, EmptyState } from '@/components/ui';
-import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, briefingApi, api, getAccessToken } from '@/services/api';
+import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, api, getAccessToken } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { useDialer } from '@/lib/dialer';
 import { useSocket, getSocket } from '@/hooks/useSocket';
-import { Trophy, DollarSign, TrendingUp, Calendar, Wallet, TrendingUp as TrendUpIc, Users as UsersIc, UserPlus as UserPlusIc, Banknote, CalendarCheck, Percent, Briefcase, PhoneCall, Plus, ClipboardCheck, Sparkles, Target, RefreshCw, MessageCircle, ListTodo, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, DollarSign, TrendingUp, Calendar, Wallet, TrendingUp as TrendUpIc, Users as UsersIc, UserPlus as UserPlusIc, Banknote, CalendarCheck, Percent, Briefcase, PhoneCall, Plus, ClipboardCheck } from 'lucide-react';
 import { fmtDate, fmtMoney } from '@/lib/helpers';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -259,7 +259,6 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-          <DailyBriefingCard isAgent={isAgent} />
           {loading ? <Skeleton height={400} /> : (
             <>
               {activeTab === 'overview' && (
@@ -285,141 +284,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </CrmLayout>
-  );
-}
-
-/**
- * v19: "BUGUNGI USTUVORLIK" — AI kunlik brifing kartasi.
- * Qo'ng'iroq tahlili + chat + eslatma + vazifalarni birlashtirib,
- * har bir agentga (yoki adminga — jamoa bo'yicha) shaxsiy, harakatga
- * undovchi ustuvorlik ro'yxatini ko'rsatadi. Backend'da kuniga FAQAT
- * BIR MARTA generatsiya qilinib, keshlanadi — shuning uchun bu karta
- * necha marta ko'rinishidan qat'iy nazar AI xarajati oshmaydi.
- */
-const BRIEFING_ITEM_ICON: Record<string, any> = {
-  call_back: PhoneCall,
-  followup: ClipboardCheck,
-  chat_reply: MessageCircle,
-  task: ListTodo,
-  coaching: Target,
-};
-
-function DailyBriefingCard({ isAgent }: { isAgent: boolean }) {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-
-  const load = () => {
-    setLoading(true);
-    briefingApi.today()
-      .then((r: any) => setData(r.data))
-      .catch(() => setData({ error: "Brifingni yuklab bo'lmadi" }))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const refresh = () => {
-    setRefreshing(true);
-    briefingApi.refresh()
-      .then((r: any) => {
-        setData(r.data);
-        if (r.data?.throttled) toast('Brifing yaqinda yangilangan — 10 daqiqadan keyin qayta yangilash mumkin', { icon: '⏳' });
-        else toast.success('Brifing yangilandi');
-      })
-      .catch(() => toast.error("Yangilab bo'lmadi"))
-      .finally(() => setRefreshing(false));
-  };
-
-  if (loading) {
-    return (
-      <div style={{ marginBottom: 20, borderRadius: 16, height: 88, background: 'linear-gradient(135deg, rgba(61,126,255,0.06), rgba(139,92,246,0.06))', border: '1px solid var(--border)' }} />
-    );
-  }
-  if (data?.error && !data?.items?.length) {
-    return null; // sozlanmagan yoki xato — jim o'tamiz, dashboard'ning qolgan qismiga xalaqit bermaymiz
-  }
-
-  const items: any[] = data?.items || [];
-  const weakSpot = data?.weakSpot;
-  const hasContent = items.length > 0 || weakSpot;
-
-  return (
-    <div style={{
-      marginBottom: 20, borderRadius: 16, overflow: 'hidden',
-      background: 'linear-gradient(135deg, #1e3a8a 0%, #3730a3 45%, #581c87 100%)',
-      boxShadow: '0 8px 24px rgba(55,48,163,0.25)',
-    }}>
-      <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 12, cursor: hasContent ? 'pointer' : 'default' }} onClick={() => hasContent && setCollapsed((v) => !v)}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Sparkles size={18} color="#fbbf24" />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
-            Bugungi ustuvorlik {isAgent ? '' : '— jamoa'}
-          </div>
-          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
-            {data?.greeting || (hasContent ? "AI tomonidan tayyorlangan bugungi reja" : "Bugun barcha ishlar nazoratda — ustuvor vazifa topilmadi 🎉")}
-          </div>
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); refresh(); }}
-          disabled={refreshing}
-          title="Yangilash"
-          style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
-        >
-          <RefreshCw size={14} color="#fff" style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-        </button>
-        {hasContent && (
-          <span style={{ color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>
-            {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-          </span>
-        )}
-      </div>
-
-      {hasContent && !collapsed && (
-        <div style={{ background: 'rgba(255,255,255,0.97)', padding: '14px 18px 16px' }}>
-          {items.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: weakSpot ? 12 : 0 }}>
-              {items.map((it, i) => {
-                const Icon = BRIEFING_ITEM_ICON[it.type] || ListTodo;
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 10, background: i === 0 ? 'rgba(61,126,255,0.07)' : 'transparent', border: i === 0 ? '1px solid rgba(61,126,255,0.2)' : '1px solid transparent' }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: i === 0 ? '#3d7eff' : 'var(--bg-2)', color: i === 0 ? '#fff' : 'var(--fg-3)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                      {i + 1}
-                    </div>
-                    <Icon size={15} color="var(--fg-3)" style={{ marginTop: 3, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-1)' }}>
-                        {it.title}{it.clientName ? ` — ${it.clientName}` : ''}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 1 }}>{it.reason}</div>
-                    </div>
-                    {it.phone && (
-                      <a href={`tel:${it.phone}`} onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, color: '#3d7eff', fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap', marginTop: 2 }}>
-                        📞 {it.phone}
-                      </a>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {weakSpot && (
-            <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Target size={13} /> Bu haftalik zaif nuqta: {weakSpot.title}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 4 }}>{weakSpot.detail}</div>
-              {weakSpot.tip && <div style={{ fontSize: 12, color: '#10b981', marginTop: 4 }}>💡 {weakSpot.tip}</div>}
-            </div>
-          )}
-        </div>
-      )}
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-    </div>
   );
 }
 
@@ -992,10 +856,10 @@ function AiBadge({ call: c, missed, onUpdated }: { call: any; missed: boolean; o
   if (!c.recordingUrl || missed) return null;
 
   if (c.duration > 0 && c.duration < 15) {
-    return <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }} title="Suhbat 15 soniyadan qisqa — AI tahlil qilinmaydi">— qisqa</span>;
+    return <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }} title="Suhbat 15 soniyadan qisqa — AI tahlil qilinmaydi">— qisqa</span>;
   }
 
-  return <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }}>⏳ AI kutmoqda</span>;
+  return <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>⏳ AI kutmoqda</span>;
 }
 
 function AgentCallsRow({ agent }: any) {
@@ -1009,17 +873,36 @@ function AgentCallsRow({ agent }: any) {
     const next = !open;
     setOpen(next);
     if (next && calls === null) {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const r: any = await callsApi.list({ agentId: agent.agentId === 'unassigned' ? undefined : agent.agentId, limit: 100 });
-        setCalls(r.data?.data || []);
-      } catch (e: any) {
-        setCalls([]);
-        setLoadError(e?.response?.data?.message || e?.message || "Qo'ng'iroqlarni yuklashda xato");
-      } finally {
-        setLoading(false);
+      await loadCalls();
+    }
+  }
+
+  async function loadCalls() {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      // v20: `agent.agentId` "unassigned" bo'lsa (Agentsiz guruh) — filtrsiz
+      // (backend tenant bo'yicha hammasini beradi), aks holda aynan shu
+      // agentning ID'si bilan so'raladi.
+      const r: any = await callsApi.list({ agentId: agent.agentId === 'unassigned' ? undefined : agent.agentId, limit: 100 });
+      const rows = Array.isArray(r?.data?.data) ? r.data.data : [];
+      setCalls(rows);
+      // v20 DEBUG: agar server "N ta yozuv bor" desa-yu ro'yxat bo'sh kelsa —
+      // buni konsolga aniq yozamiz, shunda brauzer konsolidan (F12) sababini
+      // ko'rish mumkin (masalan agentId mos kelmayapti yoki server xatosi).
+      if (rows.length === 0 && (agent.totalCalls > 0 || agent.recordingsCount > 0)) {
+        // eslint-disable-next-line no-console
+        console.warn('[AgentCallsRow] Kutilmagan bo\'sh natija:', {
+          agentId: agent.agentId, agentName: agent.agentName,
+          expectedTotalCalls: agent.totalCalls, expectedRecordings: agent.recordingsCount,
+          apiResponse: r?.data,
+        });
       }
+    } catch (e: any) {
+      setCalls([]);
+      setLoadError(e?.response?.data?.message || e?.message || "Qo'ng'iroqlarni yuklashda xato");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -1048,7 +931,7 @@ function AgentCallsRow({ agent }: any) {
           </span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{agent.agentName}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>
+            <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
               {agent.totalCalls} qo'ng'iroq · {agent.answered} javob berildi · 🎙️ {agent.recordingsCount} yozuv
             </div>
             {agent.aiAnalyzedCount > 0 && (
@@ -1071,22 +954,37 @@ function AgentCallsRow({ agent }: any) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>{fmtDurLong(agent.totalDurationSec)}</div>
-            <div style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>jami gaplashgan vaqt</div>
+            <div style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>jami gaplashgan vaqt</div>
           </div>
-          <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>{open ? '▲' : '▼'}</span>
+          <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{open ? '▲' : '▼'}</span>
         </div>
       </button>
 
       {open && (
         <div style={{ borderTop: '1px solid var(--border, #e5e7eb)', padding: '10px 14px', background: 'var(--bg-3, #fafafa)' }}>
           {loading ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-4, #6b7280)', fontSize: 12 }}>Yuklanmoqda...</div>
+            <div style={{ padding: 20, textAlign: 'center', color: '#6b7280', fontSize: 12.5 }}>⏳ Yuklanmoqda...</div>
           ) : loadError ? (
-            <div style={{ padding: 12, textAlign: 'center', color: '#ef4444', fontSize: 12 }}>❌ {loadError}</div>
+            <div style={{ padding: 12, textAlign: 'center' }}>
+              <div style={{ color: '#ef4444', fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>❌ {loadError}</div>
+              <button onClick={loadCalls} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
+                🔄 Qayta urinish
+              </button>
+            </div>
           ) : !calls || calls.length === 0 ? (
-            <div style={{ padding: 12, textAlign: 'center', color: 'var(--fg-4, #6b7280)', fontSize: 12 }}>
-              Bu agent uchun qo'ng'iroq topilmadi.<br />
-              <span style={{ fontSize: 11 }}>(Agar bu kutilmagan bo'lsa — telefoniya sozlamalarini tekshiring.)</span>
+            <div style={{ padding: 12, textAlign: 'center', color: '#4b5563', fontSize: 12.5 }}>
+              Bu agent uchun qo'ng'iroq topilmadi.
+              {(agent.totalCalls > 0 || agent.recordingsCount > 0) && (
+                <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#b91c1c', fontSize: 11.5, textAlign: 'left' }}>
+                  ⚠️ Bu kutilmagan holat: yuqorida <b>{agent.totalCalls} qo'ng'iroq / {agent.recordingsCount} yozuv</b> bor deb ko'rsatilgan, lekin ro'yxat bo'sh keldi.
+                  Brauzerda <b>F12 → Console</b> ni oching, shu yerdagi log'ni (qizil <code>[AgentCallsRow]</code> yozuvi) menga ko'chirib bering — sababini aniq topib beraman.
+                </div>
+              )}
+              <div style={{ marginTop: 8 }}>
+                <button onClick={loadCalls} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
+                  🔄 Qayta yuklash
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
@@ -1131,7 +1029,7 @@ function AiCallRow({ call: c, fmtShortDur, onUpdated }: { call: any; fmtShortDur
           <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {c.client?.fullName || c.client?.phone || 'Noma\'lum mijoz'}
           </div>
-          <div style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>
+          <div style={{ fontSize: 10.5, color: '#6b7280' }}>
             {new Date(c.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
             {c.duration > 0 && <> · ⏱ {fmtShortDur(c.duration)}</>}
           </div>
@@ -1139,14 +1037,14 @@ function AiCallRow({ call: c, fmtShortDur, onUpdated }: { call: any; fmtShortDur
         {c.recordingUrl ? (
           <audio controls src={c.recordingUrl} style={{ height: 30, maxWidth: 220 }} onClick={(e) => e.stopPropagation()} />
         ) : (
-          <span style={{ fontSize: 10, color: 'var(--fg-4)', fontStyle: 'italic' }}>
+          <span style={{ fontSize: 10, color: '#9ca3af', fontStyle: 'italic' }}>
             {missed ? '—' : '⏳ yozuvsiz'}
           </span>
         )}
         <span onClick={(e) => e.stopPropagation()}>
           <AiBadge call={c} missed={missed} onUpdated={onUpdated} />
         </span>
-        {hasAiContent && <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>{open ? '▲' : '▼'}</span>}
+        {hasAiContent && <span style={{ fontSize: 11, color: '#6b7280' }}>{open ? '▲' : '▼'}</span>}
       </div>
 
       {open && hasAiContent && (
