@@ -945,38 +945,107 @@ function AgentCallsRow({ agent }: any) {
             <div style={{ padding: 12, textAlign: 'center', color: 'var(--fg-4)', fontSize: 12 }}>Qo'ng'iroq topilmadi</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
-              {calls.map((c: any) => {
-                const missed = ['NO_ANSWER', 'MISSED', 'BUSY', 'FAILED'].includes(c.status);
-                return (
-                  <div key={c.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px',
-                    background: 'var(--bg-2)', borderRadius: 8, border: '1px solid var(--border)',
-                  }}>
-                    <span style={{ fontSize: 12, color: missed ? '#ef4444' : (c.direction === 'INBOUND' ? '#10b981' : '#3d7eff') }}>
-                      {missed ? '✕' : (c.direction === 'INBOUND' ? '↙' : '↗')}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {c.client?.fullName || c.client?.phone || 'Noma\'lum mijoz'}
-                      </div>
-                      <div style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>
-                        {new Date(c.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                        {c.duration > 0 && <> · ⏱ {fmtShortDur(c.duration)}</>}
-                      </div>
-                    </div>
-                    {c.recordingUrl ? (
-                      <audio controls src={c.recordingUrl} style={{ height: 30, maxWidth: 220 }} />
-                    ) : (
-                      <span style={{ fontSize: 10, color: 'var(--fg-4)', fontStyle: 'italic' }}>
-                        {missed ? '—' : '⏳ yozuvsiz'}
-                      </span>
-                    )}
-                    <AiBadge call={c} missed={missed} onUpdated={(updated) => {
-                      setCalls((prev) => prev ? prev.map((x) => x.id === c.id ? { ...x, ...updated } : x) : prev);
-                    }} />
-                  </div>
-                );
-              })}
+              {calls.map((c: any) => (
+                <AiCallRow
+                  key={c.id}
+                  call={c}
+                  fmtShortDur={fmtShortDur}
+                  onUpdated={(updated) => {
+                    setCalls((prev) => prev ? prev.map((x) => x.id === c.id ? { ...x, ...updated } : x) : prev);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * v19: Bitta qo'ng'iroq qatori — endi AI xulosasi/bahosi/e'tirozlari
+ * FAQAT hover'da (title tooltip) emas, "bosilganda" ochiladigan panelda
+ * to'liq ko'rinadi — bu mobil qurilmalarda ham ishlaydi (hover yo'q).
+ */
+function AiCallRow({ call: c, fmtShortDur, onUpdated }: { call: any; fmtShortDur: (s: number) => string; onUpdated: (u: any) => void }) {
+  const [open, setOpen] = useState(false);
+  const missed = ['NO_ANSWER', 'MISSED', 'BUSY', 'FAILED'].includes(c.status);
+  const hasAiContent = !!(c.aiAnalyzedAt && (c.aiSummary || c.aiFeedback || c.aiObjections?.length));
+
+  return (
+    <div style={{ background: 'var(--bg-2)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+      <div
+        onClick={() => hasAiContent && setOpen((v) => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', cursor: hasAiContent ? 'pointer' : 'default' }}
+      >
+        <span style={{ fontSize: 12, color: missed ? '#ef4444' : (c.direction === 'INBOUND' ? '#10b981' : '#3d7eff') }}>
+          {missed ? '✕' : (c.direction === 'INBOUND' ? '↙' : '↗')}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {c.client?.fullName || c.client?.phone || 'Noma\'lum mijoz'}
+          </div>
+          <div style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>
+            {new Date(c.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            {c.duration > 0 && <> · ⏱ {fmtShortDur(c.duration)}</>}
+          </div>
+        </div>
+        {c.recordingUrl ? (
+          <audio controls src={c.recordingUrl} style={{ height: 30, maxWidth: 220 }} onClick={(e) => e.stopPropagation()} />
+        ) : (
+          <span style={{ fontSize: 10, color: 'var(--fg-4)', fontStyle: 'italic' }}>
+            {missed ? '—' : '⏳ yozuvsiz'}
+          </span>
+        )}
+        <span onClick={(e) => e.stopPropagation()}>
+          <AiBadge call={c} missed={missed} onUpdated={onUpdated} />
+        </span>
+        {hasAiContent && <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>{open ? '▲' : '▼'}</span>}
+      </div>
+
+      {open && hasAiContent && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', background: 'var(--bg-3, #fafafa)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {c.aiSummary && (
+            <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+              <b>🤖 Xulosa:</b> {c.aiSummary}
+            </div>
+          )}
+          {c.aiObjections?.length > 0 && (
+            <div style={{ fontSize: 12 }}>
+              <b>E'tirozlar:</b>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                {c.aiObjections.map((o: any, i: number) => (
+                  <li key={i} style={{ marginBottom: 2 }}>
+                    <span style={{ color: '#f97316', fontWeight: 600 }}>{o.label}</span>
+                    {o.quote && <span style={{ color: 'var(--fg-3)' }}> — "{o.quote}"</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {c.aiNextAction?.title && (
+            <div style={{ fontSize: 12 }}>
+              <b>💡 Keyingi qadam:</b> {c.aiNextAction.title}
+              {c.aiNextAction.note && <div style={{ color: 'var(--fg-3)', marginTop: 2 }}>{c.aiNextAction.note}</div>}
+            </div>
+          )}
+          {c.aiFeedback && (
+            <div style={{ fontSize: 12 }}>
+              <b>Agent bahosi: </b>
+              <span style={{ fontWeight: 700, color: c.aiFeedback.score >= 7 ? '#10b981' : c.aiFeedback.score >= 5 ? '#f59e0b' : '#ef4444' }}>
+                {c.aiFeedback.score}/10
+              </span>
+              {c.aiFeedback.strengths?.length > 0 && (
+                <div style={{ marginTop: 4, color: '#10b981' }}>
+                  {c.aiFeedback.strengths.map((s: string, i: number) => <div key={i}>✓ {s}</div>)}
+                </div>
+              )}
+              {c.aiFeedback.improvements?.length > 0 && (
+                <div style={{ marginTop: 4, color: '#f59e0b' }}>
+                  {c.aiFeedback.improvements.map((s: string, i: number) => <div key={i}>△ {s}</div>)}
+                </div>
+              )}
             </div>
           )}
         </div>
