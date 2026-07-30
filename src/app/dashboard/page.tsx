@@ -9,12 +9,12 @@ import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { Card, Stat, Btn, Empty, Skeleton, Avatar, Badge, StatCard, EmptyState } from '@/components/ui';
-import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, api, getAccessToken } from '@/services/api';
+import { reportsApi, reportsV6, followUpsApi, bookingsApi, callsApi, briefingApi, api, getAccessToken } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { useDialer } from '@/lib/dialer';
 import { useSocket, getSocket } from '@/hooks/useSocket';
-import { Trophy, DollarSign, TrendingUp, Calendar, Wallet, TrendingUp as TrendUpIc, Users as UsersIc, UserPlus as UserPlusIc, Banknote, CalendarCheck, Percent, Briefcase, PhoneCall, Plus, ClipboardCheck } from 'lucide-react';
+import { Trophy, DollarSign, TrendingUp, Calendar, Wallet, TrendingUp as TrendUpIc, Users as UsersIc, UserPlus as UserPlusIc, Banknote, CalendarCheck, Percent, Briefcase, PhoneCall, Plus, ClipboardCheck, Sparkles, Target, RefreshCw, MessageCircle, ListTodo, ChevronDown, ChevronUp } from 'lucide-react';
 import { fmtDate, fmtMoney } from '@/lib/helpers';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -259,6 +259,7 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          <DailyBriefingCard isAgent={isAgent} />
           {loading ? <Skeleton height={400} /> : (
             <>
               {activeTab === 'overview' && (
@@ -284,6 +285,141 @@ export default function DashboardPage() {
         </div>
       </div>
     </CrmLayout>
+  );
+}
+
+/**
+ * v19: "BUGUNGI USTUVORLIK" — AI kunlik brifing kartasi.
+ * Qo'ng'iroq tahlili + chat + eslatma + vazifalarni birlashtirib,
+ * har bir agentga (yoki adminga — jamoa bo'yicha) shaxsiy, harakatga
+ * undovchi ustuvorlik ro'yxatini ko'rsatadi. Backend'da kuniga FAQAT
+ * BIR MARTA generatsiya qilinib, keshlanadi — shuning uchun bu karta
+ * necha marta ko'rinishidan qat'iy nazar AI xarajati oshmaydi.
+ */
+const BRIEFING_ITEM_ICON: Record<string, any> = {
+  call_back: PhoneCall,
+  followup: ClipboardCheck,
+  chat_reply: MessageCircle,
+  task: ListTodo,
+  coaching: Target,
+};
+
+function DailyBriefingCard({ isAgent }: { isAgent: boolean }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    briefingApi.today()
+      .then((r: any) => setData(r.data))
+      .catch(() => setData({ error: "Brifingni yuklab bo'lmadi" }))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const refresh = () => {
+    setRefreshing(true);
+    briefingApi.refresh()
+      .then((r: any) => {
+        setData(r.data);
+        if (r.data?.throttled) toast('Brifing yaqinda yangilangan — 10 daqiqadan keyin qayta yangilash mumkin', { icon: '⏳' });
+        else toast.success('Brifing yangilandi');
+      })
+      .catch(() => toast.error("Yangilab bo'lmadi"))
+      .finally(() => setRefreshing(false));
+  };
+
+  if (loading) {
+    return (
+      <div style={{ marginBottom: 20, borderRadius: 16, height: 88, background: 'linear-gradient(135deg, rgba(61,126,255,0.06), rgba(139,92,246,0.06))', border: '1px solid var(--border)' }} />
+    );
+  }
+  if (data?.error && !data?.items?.length) {
+    return null; // sozlanmagan yoki xato — jim o'tamiz, dashboard'ning qolgan qismiga xalaqit bermaymiz
+  }
+
+  const items: any[] = data?.items || [];
+  const weakSpot = data?.weakSpot;
+  const hasContent = items.length > 0 || weakSpot;
+
+  return (
+    <div style={{
+      marginBottom: 20, borderRadius: 16, overflow: 'hidden',
+      background: 'linear-gradient(135deg, #1e3a8a 0%, #3730a3 45%, #581c87 100%)',
+      boxShadow: '0 8px 24px rgba(55,48,163,0.25)',
+    }}>
+      <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'flex-start', gap: 12, cursor: hasContent ? 'pointer' : 'default' }} onClick={() => hasContent && setCollapsed((v) => !v)}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Sparkles size={18} color="#fbbf24" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+            Bugungi ustuvorlik {isAgent ? '' : '— jamoa'}
+          </div>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
+            {data?.greeting || (hasContent ? "AI tomonidan tayyorlangan bugungi reja" : "Bugun barcha ishlar nazoratda — ustuvor vazifa topilmadi 🎉")}
+          </div>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); refresh(); }}
+          disabled={refreshing}
+          title="Yangilash"
+          style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+        >
+          <RefreshCw size={14} color="#fff" style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+        </button>
+        {hasContent && (
+          <span style={{ color: 'rgba(255,255,255,0.7)', flexShrink: 0 }}>
+            {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          </span>
+        )}
+      </div>
+
+      {hasContent && !collapsed && (
+        <div style={{ background: 'rgba(255,255,255,0.97)', padding: '14px 18px 16px' }}>
+          {items.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: weakSpot ? 12 : 0 }}>
+              {items.map((it, i) => {
+                const Icon = BRIEFING_ITEM_ICON[it.type] || ListTodo;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', borderRadius: 10, background: i === 0 ? 'rgba(61,126,255,0.07)' : 'transparent', border: i === 0 ? '1px solid rgba(61,126,255,0.2)' : '1px solid transparent' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: i === 0 ? '#3d7eff' : 'var(--bg-2)', color: i === 0 ? '#fff' : 'var(--fg-3)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                      {i + 1}
+                    </div>
+                    <Icon size={15} color="var(--fg-3)" style={{ marginTop: 3, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-1)' }}>
+                        {it.title}{it.clientName ? ` — ${it.clientName}` : ''}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 1 }}>{it.reason}</div>
+                    </div>
+                    {it.phone && (
+                      <a href={`tel:${it.phone}`} onClick={(e) => e.stopPropagation()} style={{ fontSize: 11, color: '#3d7eff', fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap', marginTop: 2 }}>
+                        📞 {it.phone}
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {weakSpot && (
+            <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Target size={13} /> Bu haftalik zaif nuqta: {weakSpot.title}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--fg-2)', marginTop: 4 }}>{weakSpot.detail}</div>
+              {weakSpot.tip && <div style={{ fontSize: 12, color: '#10b981', marginTop: 4 }}>💡 {weakSpot.tip}</div>}
+            </div>
+          )}
+        </div>
+      )}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
   );
 }
 
@@ -700,68 +836,48 @@ function CallsTab({ data, isAgent }: any) {
         ))}
       </div>
 
-      {/* v15: AI tahlil — eng ko'p uchragan e'tirozlar, kayfiyat, agent bahosi.
-          v21 TUZATISH: avval bu bo'lim analyzedCount=0 bo'lsa BUTUNLAY
-          yashiringan edi — foydalanuvchiga xuddi bunday funksiya UMUMAN
-          yo'qdek ko'rinardi. Endi HAR DOIM ko'rinadi, "0" bo'lsa ham aniq
-          sababi bilan (masalan API kalit sozlanmagan yoki hali tahlil
-          qilingan qo'ng'iroq yo'q) — shunda muammo yashirin qolmaydi. */}
-      <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
-            🤖 {isAgent ? "Mening AI tahlilim — nega sotolmayapman?" : "AI tahlil — jamoada eng ko'p uchragan e'tirozlar"}
-          </h3>
-          {aiAnalytics && aiAnalytics.analyzedCount > 0 && (
+      {/* v15: AI tahlil — eng ko'p uchragan e'tirozlar, kayfiyat, agent bahosi */}
+      {aiAnalytics && aiAnalytics.analyzedCount > 0 && (
+        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+              🤖 {isAgent ? "Mening AI tahlilim — nega sotolmayapman?" : "AI tahlil — jamoada eng ko'p uchragan e'tirozlar"}
+            </h3>
             <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
               {aiAnalytics.analyzedCount} ta qo'ng'iroq tahlil qilingan
               {aiAnalytics.avgAgentScore != null && <> · O'rtacha {isAgent ? 'bahoyingiz' : 'agent bahosi'}: <b style={{ color: aiAnalytics.avgAgentScore >= 7 ? '#10b981' : aiAnalytics.avgAgentScore >= 5 ? '#f59e0b' : '#ef4444' }}>{aiAnalytics.avgAgentScore}/10</b></>}
             </span>
+          </div>
+          {aiAnalytics.objections?.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {aiAnalytics.objections.slice(0, 6).map((o: any) => {
+                const max = aiAnalytics.objections[0].count || 1;
+                return (
+                  <div key={o.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 170, fontSize: 12, flexShrink: 0 }}>{o.label}</div>
+                    <div style={{ flex: 1, height: 8, background: 'var(--bg-3)', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(6, (o.count / max) * 100)}%`, height: '100%', background: '#f97316', borderRadius: 6 }} />
+                    </div>
+                    <div style={{ width: 28, fontSize: 12, fontWeight: 700, textAlign: 'right' }}>{o.count}</div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14 }}>Bu davrda e'tiroz aniqlanmadi.</div>
+          )}
+          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)', marginBottom: aiAnalytics.topRecommendation ? 12 : 0 }}>
+            <span>😊 Ijobiy: <b style={{ color: '#10b981' }}>{aiAnalytics.sentiment?.positive || 0}</b></span>
+            <span>😐 Neytral: <b style={{ color: '#94a3b8' }}>{aiAnalytics.sentiment?.neutral || 0}</b></span>
+            <span>😟 Salbiy: <b style={{ color: '#ef4444' }}>{aiAnalytics.sentiment?.negative || 0}</b></span>
+          </div>
+          {aiAnalytics.topRecommendation && (
+            <div style={{ padding: '10px 12px', background: 'rgba(61,126,255,0.08)', border: '1px solid rgba(61,126,255,0.25)', borderRadius: 8, fontSize: 12 }}>
+              💡 <b>{aiAnalytics.topRecommendation.label}</b> e'tirozi eng ko'p chiqmoqda — tavsiya: {aiAnalytics.topRecommendation.tip}
+            </div>
           )}
         </div>
-
-        {(!aiAnalytics || aiAnalytics.analyzedCount === 0) ? (
-          <div style={{ fontSize: 12.5, color: 'var(--fg-3)', lineHeight: 1.6, padding: '8px 0' }}>
-            Hali hech qanday qo'ng'iroq AI tomonidan tahlil qilinmagan.
-            Buning odatiy sabablari:
-            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-              <li>Serverda <code>OPENAI_API_KEY</code> va <code>ANTHROPIC_API_KEY</code> hali sozlanmagan bo'lishi mumkin (Render → Environment).</li>
-              <li>Hali yozuvi bor va 15 soniyadan uzunroq qo'ng'iroq bo'lmagan (qisqa suhbatlar tahlil qilinmaydi).</li>
-              <li>Tahlil fon jarayoni hali navbatga yetib bormagan (bir necha daqiqa kutish kerak bo'lishi mumkin).</li>
-            </ul>
-          </div>
-        ) : (
-          <>
-            {aiAnalytics.objections?.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-                {aiAnalytics.objections.slice(0, 6).map((o: any) => {
-                  const max = aiAnalytics.objections[0].count || 1;
-                  return (
-                    <div key={o.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 170, fontSize: 12, flexShrink: 0 }}>{o.label}</div>
-                      <div style={{ flex: 1, height: 8, background: 'var(--bg-3)', borderRadius: 6, overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.max(6, (o.count / max) * 100)}%`, height: '100%', background: '#f97316', borderRadius: 6 }} />
-                      </div>
-                      <div style={{ width: 28, fontSize: 12, fontWeight: 700, textAlign: 'right' }}>{o.count}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14 }}>Bu davrda e'tiroz aniqlanmadi.</div>
-            )}
-            <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)', marginBottom: aiAnalytics.topRecommendation ? 12 : 0 }}>
-              <span>😊 Ijobiy: <b style={{ color: '#10b981' }}>{aiAnalytics.sentiment?.positive || 0}</b></span>
-              <span>😐 Neytral: <b style={{ color: '#94a3b8' }}>{aiAnalytics.sentiment?.neutral || 0}</b></span>
-              <span>😟 Salbiy: <b style={{ color: '#ef4444' }}>{aiAnalytics.sentiment?.negative || 0}</b></span>
-            </div>
-            {aiAnalytics.topRecommendation && (
-              <div style={{ padding: '10px 12px', background: 'rgba(61,126,255,0.08)', border: '1px solid rgba(61,126,255,0.25)', borderRadius: 8, fontSize: 12 }}>
-                💡 <b>{aiAnalytics.topRecommendation.label}</b> e'tirozi eng ko'p chiqmoqda — tavsiya: {aiAnalytics.topRecommendation.tip}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      )}
 
       {byDay.length > 0 && (
         <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>

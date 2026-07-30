@@ -398,6 +398,12 @@ export const callsApi = {
   objectionsStats: (days = 30, agentId?: string) => api.get('/calls/objections-stats', { params: { days, agentId } }),
 };
 
+// v19: "Bugungi ustuvorlik" — AI kunlik brifing (kuniga 1 marta generatsiya, DB'da keshlanadi)
+export const briefingApi = {
+  today: () => api.get('/briefing/today'),
+  refresh: () => api.post('/briefing/refresh'),
+};
+
 // ── AI MARKETING (Reklama generatori — TurMaker-uslubida) ────
 export const aiMarketingApi = {
   // 1-bosqich: rasm + 3 ta tayyor post (Instagram/Telegram/Facebook)
