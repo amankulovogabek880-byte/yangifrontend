@@ -393,6 +393,8 @@ export const callsApi = {
   // v15: AI qo'ng'iroq tahlili — xulosa, e'tirozlar, keyingi qadam, agent bahosi
   setTranscript: (id: string, transcript: string) => api.post(`/calls/${id}/transcript`, { transcript }),
   analyze: (id: string) => api.post(`/calls/${id}/analyze`),
+  // v18: AI tahlil xato bergan bo'lsa (masalan sozlama yo'q edi, keyin tuzatildi) — qayta urinish
+  retryAi: (id: string) => api.post(`/calls/${id}/retry-ai`),
   objectionsStats: (days = 30, agentId?: string) => api.get('/calls/objections-stats', { params: { days, agentId } }),
 };
 

@@ -786,6 +786,82 @@ function fmtDurLong(totalSec: number) {
   return `${sec}s`;
 }
 
+/**
+ * v18: Bitta qo'ng'iroq uchun AI holatini ko'rsatadi:
+ *   - tahlil qilingan bo'lsa → kayfiyat + baho (hover'da xulosa)
+ *   - xato bo'lsa (masalan OPENAI_API_KEY yo'q edi) → ANIQ sababi
+ *     ko'rinadi (hover) + "🔄 Qayta urinish" tugmasi
+ *   - yozuv bor lekin hali navbatda bo'lsa → "AI kutmoqda"
+ *   - suhbat juda qisqa (<15s) bo'lsa → umuman tahlil qilinmaydi, shuni aytadi
+ */
+function AiBadge({ call: c, missed, onUpdated }: { call: any; missed: boolean; onUpdated: (updated: any) => void }) {
+  const [retrying, setRetrying] = useState(false);
+
+  async function retry() {
+    setRetrying(true);
+    try {
+      const r: any = await callsApi.retryAi(c.id);
+      onUpdated(r.data || {});
+      if (r.data?.aiAnalyzedAt) toast.success("AI tahlil qildi ✅");
+      else if (r.data?.aiError) toast.error(r.data.aiError);
+      else toast.success("Qayta urinildi, natija bir necha soniyada ko'rinadi");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Qayta urinishda xato');
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  if (c.aiAnalyzedAt) {
+    return (
+      <span
+        title={c.aiSummary || ''}
+        style={{
+          fontSize: 10.5, flexShrink: 0, whiteSpace: 'nowrap', cursor: c.aiSummary ? 'help' : 'default',
+          padding: '3px 7px', borderRadius: 6, background: 'var(--bg-3)', border: '1px solid var(--border)',
+        }}
+      >
+        🤖 {AI_SENTIMENT_EMOJI[c.aiSentiment] || ''}{c.aiFeedback?.score ? ` ${c.aiFeedback.score}/10` : ''}
+      </span>
+    );
+  }
+
+  if (c.aiError) {
+    return (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <span
+          title={c.aiError}
+          style={{
+            fontSize: 10.5, whiteSpace: 'nowrap', cursor: 'help', color: '#ef4444',
+            padding: '3px 7px', borderRadius: 6, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+          }}
+        >
+          ❌ AI xato
+        </span>
+        <button
+          onClick={retry}
+          disabled={retrying}
+          title="Sozlamani tuzatgandan keyin bosing"
+          style={{
+            fontSize: 10.5, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)',
+            background: 'var(--bg-2)', cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1,
+          }}
+        >
+          {retrying ? '…' : '🔄'}
+        </button>
+      </span>
+    );
+  }
+
+  if (!c.recordingUrl || missed) return null;
+
+  if (c.duration > 0 && c.duration < 15) {
+    return <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }} title="Suhbat 15 soniyadan qisqa — AI tahlil qilinmaydi">— qisqa</span>;
+  }
+
+  return <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }}>⏳ AI kutmoqda</span>;
+}
+
 function AgentCallsRow({ agent }: any) {
   const [open, setOpen] = useState(false);
   const [calls, setCalls] = useState<any[] | null>(null);
@@ -895,19 +971,9 @@ function AgentCallsRow({ agent }: any) {
                         {missed ? '—' : '⏳ yozuvsiz'}
                       </span>
                     )}
-                    {c.aiAnalyzedAt ? (
-                      <span
-                        title={c.aiSummary || ''}
-                        style={{
-                          fontSize: 10.5, flexShrink: 0, whiteSpace: 'nowrap', cursor: c.aiSummary ? 'help' : 'default',
-                          padding: '3px 7px', borderRadius: 6, background: 'var(--bg-3)', border: '1px solid var(--border)',
-                        }}
-                      >
-                        🤖 {AI_SENTIMENT_EMOJI[c.aiSentiment] || ''}{c.aiFeedback?.score ? ` ${c.aiFeedback.score}/10` : ''}
-                      </span>
-                    ) : c.recordingUrl && !missed ? (
-                      <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }}>⏳ AI kutmoqda</span>
-                    ) : null}
+                    <AiBadge call={c} missed={missed} onUpdated={(updated) => {
+                      setCalls((prev) => prev ? prev.map((x) => x.id === c.id ? { ...x, ...updated } : x) : prev);
+                    }} />
                   </div>
                 );
               })}
