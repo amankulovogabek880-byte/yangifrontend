@@ -700,48 +700,68 @@ function CallsTab({ data, isAgent }: any) {
         ))}
       </div>
 
-      {/* v15: AI tahlil — eng ko'p uchragan e'tirozlar, kayfiyat, agent bahosi */}
-      {aiAnalytics && aiAnalytics.analyzedCount > 0 && (
-        <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
-              🤖 {isAgent ? "Mening AI tahlilim — nega sotolmayapman?" : "AI tahlil — jamoada eng ko'p uchragan e'tirozlar"}
-            </h3>
+      {/* v15: AI tahlil — eng ko'p uchragan e'tirozlar, kayfiyat, agent bahosi.
+          v21 TUZATISH: avval bu bo'lim analyzedCount=0 bo'lsa BUTUNLAY
+          yashiringan edi — foydalanuvchiga xuddi bunday funksiya UMUMAN
+          yo'qdek ko'rinardi. Endi HAR DOIM ko'rinadi, "0" bo'lsa ham aniq
+          sababi bilan (masalan API kalit sozlanmagan yoki hali tahlil
+          qilingan qo'ng'iroq yo'q) — shunda muammo yashirin qolmaydi. */}
+      <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
+            🤖 {isAgent ? "Mening AI tahlilim — nega sotolmayapman?" : "AI tahlil — jamoada eng ko'p uchragan e'tirozlar"}
+          </h3>
+          {aiAnalytics && aiAnalytics.analyzedCount > 0 && (
             <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
               {aiAnalytics.analyzedCount} ta qo'ng'iroq tahlil qilingan
               {aiAnalytics.avgAgentScore != null && <> · O'rtacha {isAgent ? 'bahoyingiz' : 'agent bahosi'}: <b style={{ color: aiAnalytics.avgAgentScore >= 7 ? '#10b981' : aiAnalytics.avgAgentScore >= 5 ? '#f59e0b' : '#ef4444' }}>{aiAnalytics.avgAgentScore}/10</b></>}
             </span>
-          </div>
-          {aiAnalytics.objections?.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-              {aiAnalytics.objections.slice(0, 6).map((o: any) => {
-                const max = aiAnalytics.objections[0].count || 1;
-                return (
-                  <div key={o.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 170, fontSize: 12, flexShrink: 0 }}>{o.label}</div>
-                    <div style={{ flex: 1, height: 8, background: 'var(--bg-3)', borderRadius: 6, overflow: 'hidden' }}>
-                      <div style={{ width: `${Math.max(6, (o.count / max) * 100)}%`, height: '100%', background: '#f97316', borderRadius: 6 }} />
-                    </div>
-                    <div style={{ width: 28, fontSize: 12, fontWeight: 700, textAlign: 'right' }}>{o.count}</div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14 }}>Bu davrda e'tiroz aniqlanmadi.</div>
-          )}
-          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)', marginBottom: aiAnalytics.topRecommendation ? 12 : 0 }}>
-            <span>😊 Ijobiy: <b style={{ color: '#10b981' }}>{aiAnalytics.sentiment?.positive || 0}</b></span>
-            <span>😐 Neytral: <b style={{ color: '#94a3b8' }}>{aiAnalytics.sentiment?.neutral || 0}</b></span>
-            <span>😟 Salbiy: <b style={{ color: '#ef4444' }}>{aiAnalytics.sentiment?.negative || 0}</b></span>
-          </div>
-          {aiAnalytics.topRecommendation && (
-            <div style={{ padding: '10px 12px', background: 'rgba(61,126,255,0.08)', border: '1px solid rgba(61,126,255,0.25)', borderRadius: 8, fontSize: 12 }}>
-              💡 <b>{aiAnalytics.topRecommendation.label}</b> e'tirozi eng ko'p chiqmoqda — tavsiya: {aiAnalytics.topRecommendation.tip}
-            </div>
           )}
         </div>
-      )}
+
+        {(!aiAnalytics || aiAnalytics.analyzedCount === 0) ? (
+          <div style={{ fontSize: 12.5, color: 'var(--fg-3)', lineHeight: 1.6, padding: '8px 0' }}>
+            Hali hech qanday qo'ng'iroq AI tomonidan tahlil qilinmagan.
+            Buning odatiy sabablari:
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              <li>Serverda <code>OPENAI_API_KEY</code> va <code>ANTHROPIC_API_KEY</code> hali sozlanmagan bo'lishi mumkin (Render → Environment).</li>
+              <li>Hali yozuvi bor va 15 soniyadan uzunroq qo'ng'iroq bo'lmagan (qisqa suhbatlar tahlil qilinmaydi).</li>
+              <li>Tahlil fon jarayoni hali navbatga yetib bormagan (bir necha daqiqa kutish kerak bo'lishi mumkin).</li>
+            </ul>
+          </div>
+        ) : (
+          <>
+            {aiAnalytics.objections?.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                {aiAnalytics.objections.slice(0, 6).map((o: any) => {
+                  const max = aiAnalytics.objections[0].count || 1;
+                  return (
+                    <div key={o.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 170, fontSize: 12, flexShrink: 0 }}>{o.label}</div>
+                      <div style={{ flex: 1, height: 8, background: 'var(--bg-3)', borderRadius: 6, overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.max(6, (o.count / max) * 100)}%`, height: '100%', background: '#f97316', borderRadius: 6 }} />
+                      </div>
+                      <div style={{ width: 28, fontSize: 12, fontWeight: 700, textAlign: 'right' }}>{o.count}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14 }}>Bu davrda e'tiroz aniqlanmadi.</div>
+            )}
+            <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-3)', marginBottom: aiAnalytics.topRecommendation ? 12 : 0 }}>
+              <span>😊 Ijobiy: <b style={{ color: '#10b981' }}>{aiAnalytics.sentiment?.positive || 0}</b></span>
+              <span>😐 Neytral: <b style={{ color: '#94a3b8' }}>{aiAnalytics.sentiment?.neutral || 0}</b></span>
+              <span>😟 Salbiy: <b style={{ color: '#ef4444' }}>{aiAnalytics.sentiment?.negative || 0}</b></span>
+            </div>
+            {aiAnalytics.topRecommendation && (
+              <div style={{ padding: '10px 12px', background: 'rgba(61,126,255,0.08)', border: '1px solid rgba(61,126,255,0.25)', borderRadius: 8, fontSize: 12 }}>
+                💡 <b>{aiAnalytics.topRecommendation.label}</b> e'tirozi eng ko'p chiqmoqda — tavsiya: {aiAnalytics.topRecommendation.tip}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {byDay.length > 0 && (
         <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
