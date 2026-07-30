@@ -18,6 +18,8 @@ import { Trophy, DollarSign, TrendingUp, Calendar, Wallet, TrendingUp as TrendUp
 import { fmtDate, fmtMoney } from '@/lib/helpers';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
+const AI_SENTIMENT_EMOJI: Record<string, string> = { positive: '😊', neutral: '😐', negative: '😟' };
+
 // Pul summalarini har doim ko'pi bilan 2 xona (tiyin) gacha ko'rsatadi —
 // standart toLocaleString() default holatda 3 xonagacha chiqarib yuborishi
 // mumkin (masalan $57,374.852), bu funksiya buni oldini oladi.
@@ -833,6 +835,21 @@ function AgentCallsRow({ agent }: any) {
             <div style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>
               {agent.totalCalls} qo'ng'iroq · {agent.answered} javob berildi · 🎙️ {agent.recordingsCount} yozuv
             </div>
+            {agent.aiAnalyzedCount > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {agent.aiAvgScore != null && (
+                  <span>
+                    🤖 Bahosi:{' '}
+                    <b style={{ color: agent.aiAvgScore >= 7 ? '#10b981' : agent.aiAvgScore >= 5 ? '#f59e0b' : '#ef4444' }}>
+                      {agent.aiAvgScore}/10
+                    </b>
+                  </span>
+                )}
+                {agent.aiTopObjection && (
+                  <span>· Ko'p e'tiroz: <b style={{ color: '#f97316' }}>{agent.aiTopObjection.label}</b> ({agent.aiTopObjection.count})</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
@@ -878,6 +895,19 @@ function AgentCallsRow({ agent }: any) {
                         {missed ? '—' : '⏳ yozuvsiz'}
                       </span>
                     )}
+                    {c.aiAnalyzedAt ? (
+                      <span
+                        title={c.aiSummary || ''}
+                        style={{
+                          fontSize: 10.5, flexShrink: 0, whiteSpace: 'nowrap', cursor: c.aiSummary ? 'help' : 'default',
+                          padding: '3px 7px', borderRadius: 6, background: 'var(--bg-3)', border: '1px solid var(--border)',
+                        }}
+                      >
+                        🤖 {AI_SENTIMENT_EMOJI[c.aiSentiment] || ''}{c.aiFeedback?.score ? ` ${c.aiFeedback.score}/10` : ''}
+                      </span>
+                    ) : c.recordingUrl && !missed ? (
+                      <span style={{ fontSize: 10, color: 'var(--fg-4)', flexShrink: 0 }}>⏳ AI kutmoqda</span>
+                    ) : null}
                   </div>
                 );
               })}
