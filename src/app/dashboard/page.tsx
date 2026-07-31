@@ -1135,6 +1135,66 @@ function AgentCallsRow({ agent }: any) {
 
       {open && (
         <div style={{ borderTop: '1px solid var(--border, #e5e7eb)', padding: '10px 14px', background: 'var(--bg-3, #fafafa)' }}>
+          {/* v22: KOCHING XULOSASI — agentning barcha tahlil qilingan
+              qo'ng'iroqlaridan yig'ilgan eng muhim xulosalar, ro'yxatni
+              skroll qilmasdan darhol ko'rinadi. */}
+          {agent.aiAnalyzedCount > 0 && (agent.aiBestPhrases?.length > 0 || agent.aiMissedInfos?.length > 0 || agent.aiImprovements?.length > 0) && (
+            <div style={{ marginBottom: 12, padding: '12px 14px', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
+                📊 Koching xulosasi ({agent.aiAnalyzedCount} ta tahlil asosida)
+                {agent.aiAvgSaleReadiness != null && (
+                  <span style={{ fontWeight: 500, fontSize: 11, color: '#6b7280' }}>
+                    · O'rtacha sotuvga yaqinlik: <b style={{ color: agent.aiAvgSaleReadiness >= 7 ? '#10b981' : agent.aiAvgSaleReadiness >= 4 ? '#f59e0b' : '#ef4444' }}>{agent.aiAvgSaleReadiness}/10</b>
+                  </span>
+                )}
+              </div>
+
+              {agent.aiBestPhrases?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#10b981', marginBottom: 4 }}>🏆 Eng kuchli ishlatilgan gaplar:</div>
+                  {agent.aiBestPhrases.map((p: string, i: number) => (
+                    <div key={i} style={{ fontSize: 11.5, color: '#065f46', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, padding: '5px 8px', marginBottom: 4 }}>
+                      "{p}"
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {agent.aiWhatWouldClose?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#3d7eff', marginBottom: 4 }}>✅ Mijozni nima ishontirar edi:</div>
+                  {agent.aiWhatWouldClose.map((p: string, i: number) => (
+                    <div key={i} style={{ fontSize: 11.5, color: '#1e3a8a', background: 'rgba(61,126,255,0.08)', border: '1px solid rgba(61,126,255,0.25)', borderRadius: 6, padding: '5px 8px', marginBottom: 4 }}>
+                      {p}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {agent.aiMissedInfos?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#ef4444', marginBottom: 4 }}>❌ Aytmay qoldirgan ma'lumotlar:</div>
+                  {agent.aiMissedInfos.map((p: string, i: number) => (
+                    <div key={i} style={{ fontSize: 11.5, color: '#991b1b', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, padding: '5px 8px', marginBottom: 4 }}>
+                      {p}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {agent.aiImprovements?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#f59e0b', marginBottom: 4 }}>△ Yaxshilash kerak bo'lgan tomonlar:</div>
+                  {agent.aiImprovements.map((p: string, i: number) => (
+                    <div key={i} style={{ fontSize: 11.5, color: '#92400e', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 6, padding: '5px 8px', marginBottom: 4 }}>
+                      {p}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {loading ? (
             <div style={{ padding: 20, textAlign: 'center', color: '#6b7280', fontSize: 12.5 }}>⏳ Yuklanmoqda...</div>
           ) : loadError ? (

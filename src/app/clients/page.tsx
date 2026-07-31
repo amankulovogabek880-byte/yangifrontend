@@ -7,11 +7,12 @@ import { Btn, Input, Select, Card, Skeleton, Badge, Modal, Label, Textarea, Avat
 import { TIER_LABELS, SOURCE_LABELS, STAGE_LABELS, STAGE_COLORS, errMsg, timeAgo } from '@/lib/helpers';
 import {
   Users, UserPlus, Search, Download, GitBranch, UserCheck, X, Loader2, CheckSquare,
-  Globe, Phone as PhoneIcon, Handshake, Footprints, HelpCircle, UserX,
+  Globe, Phone as PhoneIcon, Handshake, Footprints, HelpCircle, UserX, Maximize2,
 } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaWhatsapp, FaFacebook } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n';
+import { ClientQuickView } from '@/components/ClientQuickView';
 
 // ─── Manba indikatori: har bir manba uchun mos brand ikoni + rangi ──────────────
 const SOURCE_META: Record<string, { label: string; color: string; Icon: any }> = {
@@ -53,6 +54,14 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', source: '', stage: '', sortBy: 'recent' });
   const [showAdd, setShowAdd] = useState(false);
+  // v30: mijozga bosilganda ilgari DOIM to'liq sahifaga (/clients/[id])
+  // o'tib ketilardi — ko'p mijoz bilan ketma-ket ishlaydigan agent uchun
+  // bu noqulay edi (har safar ro'yxatga qaytish kerak). Endi bosilganda
+  // avval kichkina "tezkor ko'rinish" paneli (drawer) ochiladi — ro'yxat
+  // orqada ko'rinib turadi. Kimga to'liq profil (bron/to'lov/xabarlar
+  // tarixi) kerak bo'lsa, drawer ichidagi "To'liq profil" tugmasi orqali
+  // katta ekranga o'tadi.
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   // v29: Dashboard'dagi "Boshlash uchun qadamlar" kartasidan "/clients?new=1"
   // orqali kelinsa, mijoz qo'shish oynasi avtomatik ochiladi — foydalanuvchi
   // yana "Yangi mijoz" tugmasini qidirib yurishi shart emas.
@@ -260,7 +269,7 @@ export default function ClientsPage() {
                   </thead>
                   <tbody>
                     {rows.map((c: any) => (
-                      <tr key={c.id} onClick={() => selectMode ? toggleOne(c.id, !selected.has(c.id)) : router.push(`/clients/${c.id}`)}
+                      <tr key={c.id} onClick={() => selectMode ? toggleOne(c.id, !selected.has(c.id)) : setQuickViewId(c.id)}
                           style={{ borderTop: '1px solid var(--border-2)', cursor: 'pointer', background: selected.has(c.id) ? 'var(--primary-soft, rgba(61,126,255,.06))' : 'transparent' }}
                           onMouseEnter={(e) => !selected.has(c.id) && (e.currentTarget.style.background = 'var(--bg-3)')}
                           onMouseLeave={(e) => !selected.has(c.id) && (e.currentTarget.style.background = 'transparent')}>
@@ -276,6 +285,23 @@ export default function ClientsPage() {
                               <div style={{ fontWeight: 600 }}>{c.fullName}</div>
                               {c.email && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{c.email}</div>}
                             </div>
+                            {/* v30: ro'yxatdan chiqmasdan, to'g'ridan-to'g'ri
+                                to'liq profilga (katta ekran) o'tish tugmasi —
+                                bosilganda tezkor ko'rinish drawer'i OCHILMAYDI. */}
+                            {!selectMode && (
+                              <button
+                                title="To'liq profilda ochish"
+                                onClick={(e) => { e.stopPropagation(); router.push(`/clients/${c.id}`); }}
+                                style={{
+                                  marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+                                  color: 'var(--fg-4)', padding: 6, borderRadius: 6, display: 'flex', flexShrink: 0,
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)'; e.currentTarget.style.background = 'var(--bg)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--fg-4)'; e.currentTarget.style.background = 'none'; }}
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td style={{ padding: 12, fontSize: 12 }}>
@@ -311,6 +337,9 @@ export default function ClientsPage() {
 
         {showAdd && <AddClientModal onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
         {showLostLeads && <LostLeadsModal onClose={() => setShowLostLeads(false)} router={router} />}
+        {quickViewId && (
+          <ClientQuickView clientId={quickViewId} onClose={() => setQuickViewId(null)} />
+        )}
       </div>
     </CrmLayout>
   );

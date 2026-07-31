@@ -394,6 +394,40 @@ tbody td { padding: 10px 13px; vertical-align: middle; }
   animation: scaleIn 0.17s cubic-bezier(0.34,1.56,0.64,1) both;
 }
 
+/* ── DRAWER (mijoz tezkor ko'rinishi — "kichkina ekran") ──
+   Modal'dan farqi: ro'yxatni to'liq to'smaydi, o'ng chetdan chiqadi.
+   Shu tufayli foydalanuvchi ro'yxatni ko'rib turgan holda bir necha
+   mijozni ketma-ket ochib-yopib chiqishi mumkin — sahifa almashtirmasdan. */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.32);
+  z-index: 1000;
+  animation: fadeIn 0.15s ease both;
+}
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 440px;
+  max-width: 94vw;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  animation: drawerSlideIn 0.22s cubic-bezier(0.32,0.72,0,1) both;
+}
+@keyframes drawerSlideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@media (max-width: 767px) {
+  .drawer-panel { width: 100%; max-width: 100%; }
+}
+
 /* ── TABS ── */
 .tabs-bar {
   display: flex;
