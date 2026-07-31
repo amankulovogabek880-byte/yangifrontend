@@ -10,6 +10,9 @@ import { fmtDate, fmtDateTime, fmtMoney, timeAgo, errMsg, SOURCE_LABELS, TIER_LA
 import toast from 'react-hot-toast';
 import { FaWhatsapp, FaTelegramPlane, FaPen, FaEllipsisH, FaTrash, FaPhoneAlt, FaPaperPlane, FaLock, FaChevronDown } from 'react-icons/fa';
 import { EditBookingModal } from '@/components/EditBookingModal';
+// v26: mijoz profilidagi qo'ng'iroq yozuvlarida ham "dashboard"dagi
+// (/calls sahifasidagi) bilan bir xil AI tahlil oynasi ishlatiladi.
+import { AiAnalysisModal, SENTIMENT_EMOJI } from '@/components/AiAnalysisModal';
 
 const TIER_COLORS: Record<string, string> = {
   VIP: '#a855f7', GOLD: '#f59e0b', SILVER: '#94a3b8', REGULAR: 'var(--fg-3)',
@@ -693,6 +696,8 @@ export default function Client360Page() {
 function ClientCalls({ clientId }: { clientId: string }) {
   const [calls, setCalls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // v26: AI tahlil oynasi shu yerda ham ochilishi uchun
+  const [aiCall, setAiCall] = useState<any>(null);
 
   useEffect(() => {
     let alive = true;
@@ -709,6 +714,12 @@ function ClientCalls({ clientId }: { clientId: string }) {
     const t = setInterval(load, 30000);
     return () => { alive = false; clearInterval(t); };
   }, [clientId]);
+
+  // AI tahlil oynasida yangilangan qo'ng'iroqni ro'yxatda ham yangilaymiz —
+  // aks holda oyna yopilgach ro'yxatda eski (tahlilsiz) holat ko'rinib qolardi.
+  const updateCallInList = (updated: any) => {
+    setCalls((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)));
+  };
 
   if (loading) return null;
   if (!calls.length) return null;
@@ -834,6 +845,48 @@ function ClientCalls({ clientId }: { clientId: string }) {
                   >
                     ⬇
                   </a>
+                  {/* v26: /calls sahifasidagi bilan bir xil AI tahlil tugmasi —
+                      har bir tugagan qo'ng'iroqda mijoz profilidan chiqmasdan
+                      tahlil qilish/ko'rish mumkin. */}
+                  {c.status === 'COMPLETED' && (
+                    <button
+                      onClick={() => setAiCall(c)}
+                      title={c.aiError || 'AI tahlil'}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        padding: '0 12px', height: 32, borderRadius: 8, flexShrink: 0,
+                        border: c.aiError ? '1px solid rgba(239,68,68,0.4)' : '1px solid var(--border)',
+                        background: c.aiError ? 'rgba(239,68,68,0.1)' : (c.aiAnalyzedAt ? 'rgba(16,185,129,0.15)' : 'var(--bg-3)'),
+                        color: c.aiError ? '#ef4444' : (c.aiAnalyzedAt ? '#10b981' : 'var(--fg)'),
+                        cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {c.aiError ? '❌ AI xato' : (c.aiAnalyzedAt ? `🤖 ${SENTIMENT_EMOJI[c.aiSentiment] || ''}` : '🤖 AI')}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* v26: yozuv hali kelmagan bo'lsa ham, agar qo'ng'iroq
+                  tugagan bo'lsa, matnni qo'lda kiritib AI tahlil qilish
+                  imkoniyati baribir kerak (masalan yozuv integratsiyasi
+                  hali ulanmagan tenantlarda). */}
+              {!c.recordingUrl && c.status === 'COMPLETED' && (
+                <div style={{ padding: '0 14px 12px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setAiCall(c)}
+                    title={c.aiError || 'AI tahlil'}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      padding: '0 12px', height: 32, borderRadius: 8,
+                      border: c.aiError ? '1px solid rgba(239,68,68,0.4)' : '1px solid var(--border)',
+                      background: c.aiError ? 'rgba(239,68,68,0.1)' : (c.aiAnalyzedAt ? 'rgba(16,185,129,0.15)' : 'var(--bg-3)'),
+                      color: c.aiError ? '#ef4444' : (c.aiAnalyzedAt ? '#10b981' : 'var(--fg)'),
+                      cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {c.aiError ? '❌ AI xato' : (c.aiAnalyzedAt ? `🤖 ${SENTIMENT_EMOJI[c.aiSentiment] || ''}` : '🤖 AI')}
+                  </button>
                 </div>
               )}
 
@@ -846,6 +899,14 @@ function ClientCalls({ clientId }: { clientId: string }) {
           );
         })}
       </div>
+
+      {aiCall && (
+        <AiAnalysisModal
+          call={aiCall}
+          onClose={() => setAiCall(null)}
+          onUpdated={(updated) => { updateCallInList(updated); setAiCall(updated); }}
+        />
+      )}
     </div>
   );
 }

@@ -396,15 +396,10 @@ tbody td { padding: 10px 13px; vertical-align: middle; }
 
 /* ── DRAWER (mijoz tezkor ko'rinishi — "kichkina ekran") ──
    Modal'dan farqi: ro'yxatni to'liq to'smaydi, o'ng chetdan chiqadi.
-   Shu tufayli foydalanuvchi ro'yxatni ko'rib turgan holda bir necha
-   mijozni ketma-ket ochib-yopib chiqishi mumkin — sahifa almashtirmasdan. */
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.32);
-  z-index: 1000;
-  animation: fadeIn 0.15s ease both;
-}
+   v25 FIX: ilgari to'liq ekranni qoplaydigan qorong'i overlay bor edi —
+   shu sabab panel ochiq turganda agent ro'yxatdagi boshqa hech narsaga
+   bosa olmasdi. Endi overlay UMUMAN yo'q — orqa fon to'liq interaktiv
+   qolaveradi, agent ko'p mijozni ketma-ket ochib-yopib chiqishi mumkin. */
 .drawer-panel {
   position: fixed;
   top: 0;
