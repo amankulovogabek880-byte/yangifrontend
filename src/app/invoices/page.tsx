@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/store';
 import { Card, Btn, Input, Label, Select, Modal, Empty, Skeleton, Badge, Textarea } from '@/components/ui';
 import { fmtDate, errMsg, fmtMoney } from '@/lib/helpers';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'var(--fg-3)',
@@ -30,6 +31,7 @@ export default function InvoicesPage() {
   const { t } = useI18n();
   const router = useRouter();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('');
@@ -52,10 +54,10 @@ export default function InvoicesPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{t('inv.title')}</h1>
+            <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, marginBottom: 4 }}>{t('inv.title')}</h1>
             <p style={{ color: 'var(--fg-3)', fontSize: 13, margin: 0 }}>
               Mijozlarga yuborilgan hisob-fakturalar
             </p>
@@ -92,6 +94,30 @@ export default function InvoicesPage() {
         )}
 
         {!loading && invoices.length > 0 && (
+          isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {invoices.map((inv) => (
+                <div key={inv.id} onClick={() => router.push(`/invoices/${inv.id}`)} style={{
+                  background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12,
+                  padding: 12, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontFamily: 'monospace', fontSize: 12 }}>{inv.invoiceNumber}</div>
+                      <div style={{ fontSize: 13, marginTop: 2 }}>{inv.client?.fullName || '—'}</div>
+                    </div>
+                    <Badge color={STATUS_COLORS[inv.status]}>{STATUS_LABELS[inv.status]}</Badge>
+                  </div>
+                  {inv.booking?.bookingRef && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>Booking: {inv.booking.bookingRef}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: '1px solid var(--border-2)', paddingTop: 8 }}>
+                    <span style={{ fontWeight: 700 }}>{inv.currency} {inv.salePrice?.toFixed(0)}</span>
+                    <span style={{ color: 'var(--info)' }}>{t('inbox.paid')}: {inv.currency} {inv.paidAmount?.toFixed(0) || '0'}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-3)', textAlign: 'right' }}>{fmtDate(inv.issuedAt)}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -160,6 +186,7 @@ export default function InvoicesPage() {
               </table>
             </div>
           </Card>
+          )
         )}
 
         {showCreate && (
@@ -256,7 +283,7 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
             <Label>{t('inv.salePriceReq')}</Label>
             <Input type="number" required value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
@@ -267,7 +294,7 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
             <Label>{t('inbox.discount')}</Label>
             <Input type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
@@ -278,7 +305,7 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
             <Label>{t('common.currency')}</Label>
             <Select value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
@@ -295,7 +322,7 @@ function CreateInvoiceModal({ onClose, onDone }: any) {
         </div>
 
         {/* Profit ko'rsatkichi */}
-        <div style={{
+        <div className="grid-auto" style={{
           padding: 14, background: 'var(--bg-3)', borderRadius: 10, marginBottom: 12,
           display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
         }}>

@@ -167,7 +167,7 @@ export function ClientQuickView({
               </div>
 
               {/* v25: Moliya/faollik statistikasi bir qarashda ko'rinsin */}
-              <div style={{
+              <div className="grid-auto" style={{
                 display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14,
               }}>
                 <StatBox label="Bronlar" value={c._count?.bookings ?? c.totalBookings ?? 0} />

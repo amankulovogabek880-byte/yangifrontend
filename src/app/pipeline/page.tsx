@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // Pul formati: $12.5K ko'rinishida (kanban ustuni tor bo'lgani uchun)
 function fmtSum(n: number): string {
@@ -34,6 +35,7 @@ export default function PipelinePage() {
   const { user } = useAuth();
   const router = useRouter();
   const isAdmin = ['TENANT_ADMIN', 'MANAGER'].includes(user?.role || '');
+  const isMobile = useIsMobile();
 
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [activePl, setActivePl] = useState<any>(null);
@@ -105,7 +107,7 @@ export default function PipelinePage() {
 
   return (
     <CrmLayout>
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: isMobile ? 'calc(100vh - 114px)' : 'calc(100vh - 56px)', overflow: 'hidden' }}>
         {/* Topbar */}
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-2)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
           {pipelines.map(pl => (
@@ -144,9 +146,9 @@ export default function PipelinePage() {
 
         {/* Board */}
         {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-3)' }}>{t('pl.loading')}</div> : (
-          <div style={{ flex: 1, overflowX: 'auto', display: 'flex', gap: 10, padding: '12px', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, overflowX: 'auto', display: 'flex', gap: 10, padding: '12px', alignItems: 'flex-start', scrollSnapType: isMobile ? 'x mandatory' : undefined }}>
             {columns.map((col: any) => (
-              <KanbanCol key={col.stage?.id} col={col}
+              <KanbanCol key={col.stage?.id} col={col} isMobile={isMobile}
                 onCardClick={id => router.push(`/clients/${id}`)}
                 onMove={moveClient}
                 onCall={c => setCallModal(c)}
@@ -175,7 +177,7 @@ export default function PipelinePage() {
   );
 }
 
-function KanbanCol({ col, onCardClick, onMove, onCall, allStages }: any) {
+function KanbanCol({ col, onCardClick, onMove, onCall, allStages, isMobile }: any) {
   const { t } = useI18n();
   const stage = col.stage || {};
   const clients: any[] = col.clients || [];
@@ -185,7 +187,9 @@ function KanbanCol({ col, onCardClick, onMove, onCall, allStages }: any) {
   const totalValue = clients.reduce((sum, c) => sum + (Number(c.totalRevenue) || 0), 0);
 
   return (
-    <div style={{ minWidth: 220, maxWidth: 250, flex: '0 0 235px', display: 'flex', flexDirection: 'column', background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border)', maxHeight: 'calc(100vh - 130px)' }}>
+    <div style={isMobile
+      ? { minWidth: '86vw', maxWidth: '86vw', flex: '0 0 86vw', scrollSnapAlign: 'start', display: 'flex', flexDirection: 'column', background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border)', maxHeight: 'calc(100vh - 180px)' }
+      : { minWidth: 220, maxWidth: 250, flex: '0 0 235px', display: 'flex', flexDirection: 'column', background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border)', maxHeight: 'calc(100vh - 130px)' }}>
       <div style={{ padding: '8px 12px', borderBottom: `3px solid ${color}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
@@ -307,8 +311,8 @@ function LostModal({ onClose, onConfirm }: any) {
   const { t } = useI18n();
   const [reason, setReason] = useState('PRICE');
   const [detail, setDetail] = useState('');
-  const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 440, boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
+  const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 440, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto' as const, boxSizing: 'border-box' as const, boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
   const inp: any = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
   return (
     <div style={S}>
@@ -336,8 +340,8 @@ function CallModal({ client, onClose, onSaved }: any) {
   const [nextCallAt, setNextCallAt] = useState(() => new Date(Date.now() + 24 * 3600000).toISOString().slice(0, 16));
   const [saving, setSaving] = useState(false);
   const attempts = client?.noContactAttempts || 0;
-  const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 440, boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
+  const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 440, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto' as const, boxSizing: 'border-box' as const, boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
   const inp: any = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', marginBottom: 10 };
 
   async function save() {
@@ -383,8 +387,8 @@ function StagesModal({ pipeline, onClose }: any) {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3d7eff');
-  const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 500, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
+  const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 500, maxWidth: '92vw', maxHeight: '80vh', boxSizing: 'border-box' as const, display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
 
   useEffect(() => {
     pipelinesApi.stagesList(pipeline.id).then(r => setStages(r.data || [])).finally(() => setLoading(false));
@@ -443,8 +447,8 @@ function AddPipelineModal({ onClose, onSaved }: any) {
   const [name, setName] = useState('');
   const [type, setType] = useState('NEW_SALE');
   const [saving, setSaving] = useState(false);
-  const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' };
-  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 400, boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
+  const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
+  const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 400, maxWidth: '92vw', maxHeight: '90vh', overflowY: 'auto' as const, boxSizing: 'border-box' as const, boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
   const inp: any = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', marginBottom: 12 };
 
   async function save() {

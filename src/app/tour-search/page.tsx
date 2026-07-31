@@ -5,6 +5,7 @@ import CrmLayout from '@/components/layout/CrmLayout';
 import { tourSearchApi, clientsApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 /**
  * ═══════════════════════════════════════════════════════════════
@@ -69,6 +70,7 @@ function dayFromNow(n: number): string {
 export default function TourSearchPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const isMobile = useIsMobile();
 
   // Netto narx va foydani faqat rahbariyat ko'radi
   const canSeeCost = ['TENANT_ADMIN', 'MANAGER', 'PLATFORM_OWNER'].includes(user?.role || '');
@@ -213,7 +215,7 @@ export default function TourSearchPage() {
 
   return (
     <CrmLayout>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: isMobile ? '14px 12px 40px' : '4px 24px 40px' }}>
 
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Tur qidirish</h1>
@@ -463,7 +465,7 @@ export default function TourSearchPage() {
             </div>
 
             {canSeeCost && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={lbl}>Sotuv narxi ({booking.currency})</label>
                   <input style={inp} type="number" placeholder="avtomatik"

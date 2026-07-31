@@ -16,6 +16,7 @@ import { useDialer } from '@/lib/dialer';
 import { useSocket, getSocket } from '@/hooks/useSocket';
 import { Trophy, DollarSign, TrendingUp, Calendar, Wallet, TrendingUp as TrendUpIc, Users as UsersIc, UserPlus as UserPlusIc, Banknote, CalendarCheck, Percent, Briefcase, PhoneCall, Plus, ClipboardCheck, Sparkles, Target, RefreshCw, MessageCircle, ListTodo, ChevronDown, ChevronUp } from 'lucide-react';
 import { fmtDate, fmtMoney } from '@/lib/helpers';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const AI_SENTIMENT_EMOJI: Record<string, string> = { positive: '😊', neutral: '😐', negative: '😟' };
@@ -95,6 +96,7 @@ function ExportButton() {
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
@@ -227,7 +229,7 @@ export default function DashboardPage() {
         {/* Tab bar */}
         <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-2)', flexShrink: 0 }}>
           {/* Tabs + Date range */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px', overflowX: 'auto', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: isMobile ? '0 12px' : '0 24px', overflowX: 'auto', gap: 4 }}>
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
                 padding: '12px 18px', fontSize: 13, fontWeight: 600, border: 'none',
@@ -258,7 +260,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 24 }}>
           <DailyBriefingCard isAgent={isAgent} />
           {loading ? <Skeleton height={400} /> : (
             <>
@@ -497,7 +499,7 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
         <RevenueChart data={revenueChart} />
 
         <div style={{ padding: '16px 18px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
@@ -510,7 +512,7 @@ function OverviewTab({ stats, isAgent, revenueChart, todayTasks, totalRevenue, r
                 description="Hammasi nazoratda. Tezkor amallardan foydalaning:"
               />
               {/* Tezkor amallar — bo'sh joy o'rniga */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
+              <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
                 {[
                   { label: t('dash.newLead'), icon: <UserPlusIc size={14} />, href: '/clients' },
                   { label: t('dash.newBooking'), icon: <Plus size={14} />, href: '/bookings' },

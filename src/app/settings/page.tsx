@@ -15,6 +15,7 @@ import {
   Target, Bot, ClipboardList, DollarSign, Lock, Building2,
 } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-icons/fa';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const ICON = 15;
 const TABS = [
@@ -42,6 +43,7 @@ export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const { lang, setLang } = useI18n();
   const [tab, setTab] = useState('general');
+  const isMobile = useIsMobile();
 
   // Facebook OAuth redirect qaytganda (?tab=facebook&fb=success kabi)
   // to'g'ri tab'ni ochib qo'yish uchun
@@ -55,7 +57,7 @@ export default function SettingsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 1100, margin: '0 auto' }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>⚙ Sozlamalar</h1>
         <p style={{ color: 'var(--fg-3)', fontSize: 13, margin: 0, marginBottom: 20 }}>
           Profil, kompaniya va integratsiyalarni boshqaring
@@ -319,7 +321,7 @@ function AgentExtensionsCard({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 2fr auto', gap: 10, padding: '6px 10px', fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 2fr auto', gap: 10, padding: '6px 10px', fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
             <div>Agent</div>
             {isMoiZvonki ? <div>CRM Email (avtomatik)</div> : <div>Telefon raqami</div>}
             <div>{isMoiZvonki ? "MoiZvonki email (farqli bo'lsa)" : 'Extension (ATS)'}</div>
@@ -327,7 +329,7 @@ function AgentExtensionsCard({
           </div>
 
           {agents.map((a: any) => (
-            <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 2fr auto', gap: 10, padding: '10px 10px', background: 'var(--bg-3)', borderRadius: 10, alignItems: 'center' }}>
+            <div key={a.id} className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 2fr auto', gap: 10, padding: '10px 10px', background: 'var(--bg-3)', borderRadius: 10, alignItems: 'center' }}>
               {/* Agent info */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
@@ -542,7 +544,7 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
               <div style={{ padding: '10px 12px', background: '#f59e0b10', borderRadius: 8, marginBottom: 12, fontSize: 12 }}>
                 <b>Asterisk AMI</b> yoki <b>FreePBX / FusionPBX REST API</b> orqali ishlaydi.
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div style={{ gridColumn: '1/-1' }}>
                   <Label>Ulanish turi</Label>
                   <Select
@@ -1051,7 +1053,7 @@ function TeamTab() {
                     {m.role}
                   </Badge>
                 </div>
-                <div style={{
+                <div className="grid-auto" style={{
                   display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
                   gap: 8, marginTop: 14, padding: '12px 0',
                   borderTop: '1px solid var(--border-2)',
@@ -1179,7 +1181,7 @@ function EditTeamMemberModal({ member, onClose, onSaved }: any) {
           <Label>To'liq ism *</Label>
           <input style={inputStyle} value={form.name} onChange={(e) => set('name', e.target.value)} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div>
             <Label>Telefon</Label>
             <input style={inputStyle} value={form.phone} onChange={(e) => set('phone', e.target.value)} />
@@ -1189,7 +1191,7 @@ function EditTeamMemberModal({ member, onClose, onSaved }: any) {
             <input style={inputStyle} value={form.callbackPhone} onChange={(e) => set('callbackPhone', e.target.value)} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div>
             <Label>Rol</Label>
             <select style={inputStyle} value={form.role} onChange={(e) => set('role', e.target.value)}>
@@ -1259,7 +1261,7 @@ function CreateAgentModal({ onClose, onCreated }: any) {
         <Btn variant="gradient" onClick={submit} loading={loading}>+ Yaratish</Btn>
       </>
     }>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
         <div>
           <Label>To'liq ism *</Label>
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Aziz Aliyev" />
@@ -2308,7 +2310,7 @@ function TemplateFormModal({ editing, onClose, onSaved }: any) {
         <Btn variant="gradient" onClick={save} loading={loading}>Saqlash</Btn>
       </>
     }>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
         <div>
           <Label>Shablon nomi *</Label>
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Salomlashish" />
@@ -2470,7 +2472,7 @@ document.getElementById('leadForm').onsubmit = async (e) => {
         🔑 <b>{apiKey.name}</b> • <code>{apiKey.prefix}</code>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
         <div style={{ gridColumn: '1 / -1' }}>
           <Label>Klient ismi *</Label>
           <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
@@ -2796,7 +2798,7 @@ function LogDetailModal({ log, onClose }: any) {
     <Modal open onClose={onClose} title={`📜 Log: ${log.id.substring(0, 12)}...`} maxWidth={680} footer={
       <Btn variant="secondary" onClick={onClose}>Yopish</Btn>
     }>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14, fontSize: 12 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14, fontSize: 12 }}>
         <div><b>Status:</b> {log.success ? '✅ Muvaffaq' : '❌ Xato'}</div>
         <div><b>Code:</b> {log.statusCode}</div>
         <div><b>Method:</b> {log.method}</div>
@@ -3072,7 +3074,7 @@ function FormsTab() {
               )}
 
               {(form.fields as any[]).map((field: any, idx: number) => (
-                <div key={field.id} style={{
+                <div key={field.id} className="grid-auto" style={{
                   display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: 6,
                   alignItems: 'center', marginBottom: 8, padding: 8,
                   background: 'var(--bg-3)', borderRadius: 8,
@@ -3598,7 +3600,7 @@ function WhatsAppTab() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div>
             <Label>Instance ID *</Label>
             <Input value={cfg.instanceId} onChange={e => setCfg({...cfg, instanceId: e.target.value})} placeholder="instance123456" />
@@ -3733,7 +3735,7 @@ function InstagramTab() {
 
       {/* Stats */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
           {[
             { label: 'Jami Instagram leadlar', value: stats.total ?? 0, color: '#e1306c' },
             { label: 'Bu oy', value: stats.thisMonth ?? 0, color: '#f97316' },
@@ -3828,7 +3830,7 @@ function InstagramTab() {
           <b> avtomatik to'ldiriladi</b>. Quyidagilar faqat qo'lda sozlash yoki
           bot matnlarini o'zgartirish uchun.
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>Access Token (Page Token) *</label>
             {/* v13.0: server endi ochiq tokenni QAYTARMAYDI (xavfsizlik).
@@ -3899,7 +3901,7 @@ function InstagramTab() {
               { id: 'phone', question: 'Telefon raqamingiz?', field: 'phone' },
               { id: 'date', question: 'Qachon ketmoqchisiz?', field: 'date' },
             ]).map((step: any, i: number) => (
-              <div key={step.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 100px auto', gap: 6, alignItems: 'center', padding: '8px 10px', background: 'var(--bg-3)', borderRadius: 8 }}>
+              <div key={step.id} className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 100px auto', gap: 6, alignItems: 'center', padding: '8px 10px', background: 'var(--bg-3)', borderRadius: 8 }}>
                 <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
                 <input
                   style={{ ...inp, marginBottom: 0 }}
@@ -4243,7 +4245,7 @@ function FacebookLeadsTab() {
 
       {/* Stats */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
           {[
             { label: 'Jami Facebook leadlar', value: stats.total ?? 0, color: '#1877f2' },
             { label: 'Bu oy', value: stats.thisMonth ?? 0, color: '#f97316' },
@@ -4543,7 +4545,7 @@ function FacebookLeadsTab() {
       {/* Qo'lda kiritish (ixtiyoriy — masalan boshqa server orqali oldindan olingan token bo'lsa) */}
       <Card>
         <h3 style={{ marginTop: 0, fontSize: 15 }}>⚙️ Qo'lda ulash (ixtiyoriy)</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>
               Page Access Token {hasToken && <span style={{ color: 'var(--success)', fontWeight: 700 }}>✓ ulangan ({maskedToken})</span>}

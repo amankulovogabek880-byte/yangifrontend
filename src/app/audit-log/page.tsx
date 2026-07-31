@@ -5,6 +5,7 @@ import CrmLayout from '@/components/layout/CrmLayout';
 import { auditApi } from '@/services/api';
 import { fmtDate, errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // v17: Audit jurnali — tizimda kim, qachon, nimani o'zgartirgani.
 // Backend allaqachon tenantId bo'yicha izolyatsiya qilingan (faqat
@@ -18,6 +19,7 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 export default function AuditLogPage() {
+  const isMobile = useIsMobile();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -68,7 +70,7 @@ export default function AuditLogPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 1100, margin: '0 auto' }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>📜 Audit jurnali</h1>
         <p style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 20 }}>
           Kompaniyangizdagi barcha o'zgarishlar tarixi — kim, qachon, nimani yaratgan/o'zgartirgan/o'chirgan.
@@ -92,7 +94,8 @@ export default function AuditLogPage() {
         </div>
 
         <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 640 }}>
             <thead>
               <tr style={{ background: 'var(--bg-2)', textAlign: 'left' }}>
                 <th style={{ padding: '10px 14px' }}>Vaqt</th>
@@ -124,6 +127,7 @@ export default function AuditLogPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         {totalPages > 1 && (

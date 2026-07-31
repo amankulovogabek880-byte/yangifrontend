@@ -6,6 +6,7 @@ import { usersApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // v17: Moslashtiriladigan ruxsatlar (custom permissions) — TENANT_ADMIN
 // har bir xodimga (MANAGER/AGENT/ACCOUNTANT) standart rol ruxsatlaridan
@@ -36,6 +37,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function TeamPermissionsPage() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [team, setTeam] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export default function TeamPermissionsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 900, margin: '0 auto' }}>
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>🔐 Xodimlar ruxsatlari</h1>
         <p style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 20 }}>
           Har bir xodimga standart rol ruxsatlaridan tashqari qo'shimcha (yoki kamroq) huquq belgilashingiz mumkin.

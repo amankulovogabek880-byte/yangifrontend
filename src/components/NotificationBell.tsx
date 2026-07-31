@@ -116,7 +116,7 @@ export default function NotificationBell() {
       {open && (
         <div className="fade-in" style={{
           position: 'absolute', top: 44, right: 0,
-          width: 360, maxHeight: 500,
+          width: 'min(360px, calc(100vw - 24px))', maxHeight: 500,
           background: 'var(--bg-2)', border: ' 1px solid var(--border)',
           borderRadius: 12, boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
           zIndex: 1000, display: 'flex', flexDirection: 'column',

@@ -6,9 +6,11 @@ import { Card, Empty, Skeleton, Badge, Btn } from '@/components/ui';
 import { PAYMENT_METHOD_LABELS, fmt, fmtDateTime, errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export default function PaymentsPage() {
   const { t } = useI18n();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<'payments'|'invoices'>('payments');
   const [invoices, setInvoices] = useState<any[]>([]);
   const [data, setData] = useState<any>(null);
@@ -34,8 +36,8 @@ export default function PaymentsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>{t('pay.title')}</h1>
+      <div style={{ padding: isMobile ? '14px 12px' : 24 }}>
+        <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, marginBottom: 16 }}>{t('pay.title')}</h1>
         <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
           {[{id:"payments",l:"💳 To'lovlar"},{id:"invoices",l:"🧾 Invoicelar"}].map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id as any)} style={{ padding: '8px 18px', fontSize: 13, fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer', borderBottom: activeTab === t.id ? '2px solid #3d7eff' : '2px solid transparent', color: activeTab === t.id ? '#3d7eff' : 'var(--fg-2)' }}>{t.l}</button>
@@ -78,7 +80,36 @@ export default function PaymentsPage() {
         )}
 
         {!loading && activeTab === 'payments' && data && (
+          data.data.length === 0 ? (
+            <Card><Empty title={t('pay.noPayment')} /></Card>
+          ) : isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {data.data.map((p: any) => (
+                <div key={p.id} style={{
+                  background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12,
+                  padding: 12, display: 'flex', flexDirection: 'column', gap: 6,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{p.client?.fullName}</div>
+                      {p.booking?.bookingRef && <div style={{ fontSize: 11, color: 'var(--fg-3)', fontFamily: 'monospace' }}>{p.booking.bookingRef}</div>}
+                    </div>
+                    <Badge color={p.status === 'COMPLETED' ? 'var(--success)' : p.status === 'REFUNDED' ? 'var(--danger)' : 'var(--warning)'}>{p.status}</Badge>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: '1px solid var(--border-2)', paddingTop: 8 }}>
+                    <span style={{ fontWeight: 700, color: 'var(--success)' }}>{fmt(p.amount)}</span>
+                    <span style={{ color: 'var(--fg-3)' }}>{PAYMENT_METHOD_LABELS[p.method]}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--fg-3)' }}>
+                    <span>{fmtDateTime(p.paidAt)}</span>
+                    {p.status === 'COMPLETED' && <Btn size="sm" variant="ghost" onClick={() => refund(p.id)}>{t('pay.refund')}</Btn>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <Card style={{ padding: 0 }}>
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead style={{ background: 'var(--bg)' }}>
                 <tr style={{ color: 'var(--fg-3)', fontSize: 11, textTransform: 'uppercase' }}>
@@ -110,7 +141,9 @@ export default function PaymentsPage() {
                 {data.data.length === 0 && <tr><td colSpan={7}><Empty title={t('pay.noPayment')} /></td></tr>}
               </tbody>
             </table>
+            </div>
           </Card>
+          )
         )}
       </div>
     </CrmLayout>

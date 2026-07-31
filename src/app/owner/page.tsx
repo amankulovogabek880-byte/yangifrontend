@@ -8,6 +8,7 @@ import { fmt, fmtDate, errMsg } from '@/lib/helpers';
 import NotificationBell from '@/components/NotificationBell';
 import GlobalSearch from '@/components/GlobalSearch';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const PLAN_COLORS: Record<string, string> = {
   FREE: 'var(--fg-3)', STARTER: 'var(--primary)', PROFESSIONAL: '#8b5cf6', ENTERPRISE: 'var(--warning)',
@@ -19,6 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function OwnerPage() {
   const router = useRouter();
   const { user, logout, hydrate, hydrated } = useAuth();
+  const isMobile = useIsMobile();
   const [stats, setStats] = useState<any>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
@@ -60,8 +62,8 @@ export default function OwnerPage() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 24px', background: 'var(--bg)',
-        borderBottom: '1px solid var(--border)',
+        padding: isMobile ? '10px 12px' : '12px 24px', background: 'var(--bg)',
+        borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: 10,
       }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 800, background: 'linear-gradient(135deg,#f59e0b,#ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
@@ -76,7 +78,7 @@ export default function OwnerPage() {
         </div>
       </header>
 
-      <main style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+      <main style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 1400, margin: '0 auto' }}>
         {loading && <Skeleton height={500} />}
 
         {!loading && stats && (
@@ -96,7 +98,8 @@ export default function OwnerPage() {
                 <Btn size="sm" onClick={() => setShowCreate(true)}>+ Yangi Kompaniya</Btn>
               </div>
               {companies.length === 0 ? <Empty title="Kompaniya yo'q" /> : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 640 }}>
                   <thead>
                     <tr style={{ color: 'var(--fg-3)', fontSize: 11, textTransform: 'uppercase' }}>
                       <th style={{ padding: 10, textAlign: 'left' }}>Nom</th>
@@ -134,6 +137,7 @@ export default function OwnerPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </Card>
 
@@ -159,8 +163,8 @@ export default function OwnerPage() {
             <Card>
               <h3 style={{ marginTop: 0, fontSize: 15 }}>👁 Oxirgi 50 ta kirish</h3>
               {recentLogins.length === 0 ? <Empty title="Hozircha kirish yo'q" /> : (
-                <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <div style={{ maxHeight: 400, overflow: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 480 }}>
                     <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-2)' }}>
                       <tr style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', textAlign: 'left' }}>
                         <th style={{ padding: 8 }}>Email</th>
@@ -244,7 +248,7 @@ function CreateCompanyModal({ onClose, onSaved }: any) {
 
   return (
     <Modal open onClose={onClose} title="Yangi kompaniya" maxWidth={500}>
-      <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <form onSubmit={submit} className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div><Label>Kompaniya nomi *</Label><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
         <div><Label>Slug *</Label><Input required value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} placeholder="my-agency" /></div>
         <div style={{ gridColumn: '1/-1' }}>

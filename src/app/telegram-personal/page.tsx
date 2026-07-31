@@ -5,6 +5,7 @@ import { api } from '@/services/api';
 import toast from 'react-hot-toast';
 import { useSocket, getSocket } from '@/hooks/useSocket';
 import { useAuth } from '@/lib/store';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // ─── API ────────────────────────────────────────────────────────
 const tgApi = {
@@ -189,6 +190,7 @@ function ConnectFlow({ onConnected }: { onConnected: () => void }) {
 // ─── MAIN INBOX ─────────────────────────────────────────────────
 export default function TelegramPersonalPage() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [status, setStatus]     = useState<any>(null);
   const [convs, setConvs]       = useState<any[]>([]);
   const [active, setActive]     = useState<any>(null);
@@ -346,10 +348,10 @@ export default function TelegramPersonalPage() {
 
   return (
     <CrmLayout>
-      <div style={{ display: 'flex', height: 'calc(100vh - 62px)', background: '#0a0c16', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', height: isMobile ? 'calc(100vh - 116px)' : 'calc(100vh - 62px)', background: '#0a0c16', overflow: 'hidden' }}>
 
         {/* ── LEFT PANEL ── */}
-        <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid #1e2440', display: 'flex', flexDirection: 'column', background: '#0c0e1a' }}>
+        <div style={{ width: isMobile ? '100%' : 320, display: isMobile && active ? 'none' : 'flex', flexShrink: 0, borderRight: '1px solid #1e2440', flexDirection: 'column', background: '#0c0e1a' }}>
 
           {/* Header */}
           <div style={{ padding: '16px 14px 12px', borderBottom: '1px solid #1e2440' }}>
@@ -439,6 +441,14 @@ export default function TelegramPersonalPage() {
 
             {/* Chat header */}
             <div style={{ padding: '13px 20px', borderBottom: '1px solid #1e2440', display: 'flex', alignItems: 'center', gap: 12, background: '#0c0e1a' }}>
+              {isMobile && (
+                <button onClick={() => setActive(null)} style={{
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid #1e2440',
+                  borderRadius: 8, width: 32, height: 32, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#9aa0c0', fontSize: 15,
+                }}>←</button>
+              )}
               <Avatar
                 url={active.avatarUrl}
                 name={[active.firstName, active.lastName].filter(Boolean).join(' ') || active.username || '?'}
@@ -575,7 +585,7 @@ export default function TelegramPersonalPage() {
             </div>
           </div>
         ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: '#3d4568' }}>
+          <div style={{ flex: 1, display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: '#3d4568' }}>
             <div style={{ fontSize: 48 }}>✈️</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>Suhbat tanlang</div>
             <div style={{ fontSize: 13 }}>Chap paneldan suhbat tanlang yoki yangi boshlang</div>

@@ -13,6 +13,7 @@ import { FaTelegram, FaInstagram, FaWhatsapp, FaFacebook } from 'react-icons/fa'
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n';
 import { ClientQuickView } from '@/components/ClientQuickView';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // ─── Manba indikatori: har bir manba uchun mos brand ikoni + rangi ──────────────
 const SOURCE_META: Record<string, { label: string; color: string; Icon: any }> = {
@@ -50,6 +51,7 @@ function SourceBadge({ source }: { source?: string }) {
 export default function ClientsPage() {
   const router = useRouter();
   const { t } = useI18n();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', source: '', stage: '', sortBy: 'recent' });
@@ -161,27 +163,28 @@ export default function ClientsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Users size={22} style={{ color: 'var(--primary)' }} /> {t('clients.title')}
+      <div style={{ padding: isMobile ? '14px 12px' : 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Users size={isMobile ? 18 : 22} style={{ color: 'var(--primary)' }} /> {t('clients.title')}
             {data?.meta?.total != null && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-3)' }}>({data.meta.total})</span>}
           </h1>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
             {/* Tanlash rejimi: bosilganda checkboxlar chiqadi */}
             <Btn variant={selectMode ? 'primary' : 'secondary'} icon={<CheckSquare size={14} />}
-              onClick={() => { setSelectMode(!selectMode); if (selectMode) setSelected(new Set()); }}>
+              onClick={() => { setSelectMode(!selectMode); if (selectMode) setSelected(new Set()); }}
+              style={isMobile ? { flex: '1 1 auto' } : undefined}>
               {selectMode ? t('clients.selectClose') : t('clients.select')}
             </Btn>
-            <Btn variant="secondary" icon={<Download size={14} />} onClick={exportCsv}>CSV</Btn>
-            <Btn variant="secondary" icon={<UserX size={14} />} onClick={() => setShowLostLeads(true)}>{t('clients.lost')}</Btn>
-            <Btn icon={<UserPlus size={14} />} onClick={() => setShowAdd(true)}>{t('clients.newClient')}</Btn>
+            {!isMobile && <Btn variant="secondary" icon={<Download size={14} />} onClick={exportCsv}>CSV</Btn>}
+            <Btn variant="secondary" icon={<UserX size={14} />} onClick={() => setShowLostLeads(true)} style={isMobile ? { flex: '1 1 auto' } : undefined}>{t('clients.lost')}</Btn>
+            <Btn icon={<UserPlus size={14} />} onClick={() => setShowAdd(true)} style={isMobile ? { flex: '1 1 100%' } : undefined}>{t('clients.newClient')}</Btn>
           </div>
         </div>
 
         {/* Filters */}
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
             <div style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-3)', pointerEvents: 'none' }} />
               <Input style={{ paddingLeft: 32 }} placeholder={t('clients.searchPh')} value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
@@ -249,6 +252,54 @@ export default function ClientsPage() {
                   onAction={() => setShowAdd(true)}
                 />
               </Card>
+            ) : isMobile ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {rows.map((c: any) => (
+                  <div
+                    key={c.id}
+                    onClick={() => selectMode ? toggleOne(c.id, !selected.has(c.id)) : setQuickViewId(c.id)}
+                    style={{
+                      background: selected.has(c.id) ? 'var(--primary-soft, rgba(61,126,255,.08))' : 'var(--bg-2)',
+                      border: '1px solid ' + (selected.has(c.id) ? 'var(--primary)' : 'var(--border)'),
+                      borderRadius: 12, padding: 12, cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {selectMode && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Checkbox checked={selected.has(c.id)} onChange={(v) => toggleOne(c.id, v)} />
+                        </div>
+                      )}
+                      <Avatar name={c.fullName} size={34} />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fullName}</div>
+                        <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>{c.phone || '—'}</div>
+                      </div>
+                      {!selectMode && (
+                        <button
+                          title="To'liq profilda ochish"
+                          onClick={(e) => { e.stopPropagation(); router.push(`/clients/${c.id}`); }}
+                          style={{
+                            background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 8,
+                            cursor: 'pointer', color: 'var(--fg-2)', padding: 7, display: 'flex', flexShrink: 0,
+                          }}
+                        >
+                          <Maximize2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      <Badge color={STAGE_COLORS[c.pipelineStage]}>{STAGE_LABELS[c.pipelineStage]?.replace(/^\S+\s/, '')}</Badge>
+                      <SourceBadge source={c.source} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--fg-3)', borderTop: '1px solid var(--border-2)', paddingTop: 8 }}>
+                      <span>{t('clients.colOffers')}: <b style={{ color: 'var(--fg-2)' }}>{(c.preferences?.offers?.length) || 0}</b></span>
+                      <span>{timeAgo(c.lastContactAt)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <Card style={{ padding: 0, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -367,7 +418,7 @@ function AddClientModal({ onClose, onSaved }: any) {
 
   return (
     <Modal open onClose={onClose} title={t('clients.addTitle')} maxWidth={500}>
-      <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <form onSubmit={submit} className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ gridColumn: '1/-1' }}>
           <Label>{t('clients.fish')}</Label>
           <Input required value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />

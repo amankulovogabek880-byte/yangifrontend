@@ -6,6 +6,7 @@ import { marketplaceApi, clientsApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 /**
  * TURLAR BOZORI — agentlar ko'radigan asosiy sahifa.
@@ -45,6 +46,7 @@ export default function MarketplacePage() {
   const { t: tr } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
+  const isMobile = useIsMobile();
 
   // Netto narx va foydani faqat rahbariyat ko'radi — agentga ko'rsatilmaydi
   const canSeeCost = ['TENANT_ADMIN', 'MANAGER', 'PLATFORM_OWNER'].includes(user?.role || '');
@@ -163,7 +165,7 @@ export default function MarketplacePage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24, maxWidth: 1400 }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 1400 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>🧳 {tr('mp.title')}</h1>
           <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{total} {tr('mpo.tours')}</div>
@@ -471,7 +473,7 @@ export default function MarketplacePage() {
                       <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 8 }}>
                         {tr('mp.newClient')}
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                         <input
                           style={inp}
                           autoFocus
@@ -502,7 +504,7 @@ export default function MarketplacePage() {
                   )}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div>
                     <L>{tr('mp.adults')}</L>
                     <input style={inp} type="number" min={1} value={form.adults}

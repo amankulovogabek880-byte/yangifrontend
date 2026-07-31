@@ -5,6 +5,7 @@ import { documentsApi, clientsApi } from '@/services/api';
 import { Card, Empty, Skeleton, Btn, Select, Modal, Label, Input } from '@/components/ui';
 import { fmtDateTime, errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const CATEGORIES: Record<string, string> = {
   PASSPORT: '📕 Pasport', VISA: '📋 Viza', TICKET: '🎫 Chipta',
@@ -13,6 +14,7 @@ const CATEGORIES: Record<string, string> = {
 };
 
 export default function DocumentsPage() {
+  const isMobile = useIsMobile();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('');
@@ -37,9 +39,9 @@ export default function DocumentsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>📁 Hujjatlar</h1>
+      <div style={{ padding: isMobile ? '14px 12px' : 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>📁 Hujjatlar</h1>
           <Btn onClick={() => setShowUpload(true)}>+ Yuklash</Btn>
         </div>
 

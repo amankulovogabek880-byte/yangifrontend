@@ -6,11 +6,13 @@ import { followUpsApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export default function FollowupsPage() {
   const { t } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
@@ -31,9 +33,9 @@ export default function FollowupsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24, maxWidth: 700 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{t('fu.title')}</h1>
+      <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 700 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+          <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0 }}>{t('fu.title')}</h1>
           <button onClick={() => setShowNew(!showNew)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>+ Yangi</button>
         </div>
         {showNew && (

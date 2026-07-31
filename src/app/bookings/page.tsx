@@ -7,10 +7,12 @@ import { bookingsApi, clientsApi, api } from '@/services/api';
 import { Btn, Card, Input, Select, Empty, Skeleton, Badge, Modal, Label, Textarea } from '@/components/ui';
 import { BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS, fmt, fmtDate, errMsg } from '@/lib/helpers';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export default function BookingsPage() {
   const { t } = useI18n();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', status: '' });
@@ -28,14 +30,14 @@ export default function BookingsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>{t('bk.title')}</h1>
-          <Btn onClick={() => setShowAdd(true)}>+ Yangi Booking</Btn>
+      <div style={{ padding: isMobile ? '14px 12px' : 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>{t('bk.title')}</h1>
+          <Btn onClick={() => setShowAdd(true)} style={isMobile ? { flex: '1 1 100%' } : undefined}>+ Yangi Booking</Btn>
         </div>
 
         <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 10 }}>
             <Input placeholder="Qidirish (ref, tur, destinatsiya...)" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
             <Select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
               <option value="">{t('bk.allStatus')}</option>
@@ -55,6 +57,32 @@ export default function BookingsPage() {
                 description="Mijozga taklif yuborib 'Sotildi' belgilang — booking avtomatik yaratiladi, yoki to'g'ridan-to'g'ri qo'shing"
                 action={<button onClick={() => setShowAdd(true)} className="btn btn-primary btn-md">+ Yangi booking</button>}
               />
+            ) : isMobile ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {data.data.map((b: any) => (
+                  <div key={b.id} onClick={() => router.push(`/bookings/${b.id}`)} style={{
+                    background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12,
+                    padding: 12, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{b.tourName}</div>
+                        <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>📍 {b.destination}</div>
+                      </div>
+                      <Badge color={BOOKING_STATUS_COLORS[b.status]}>{BOOKING_STATUS_LABELS[b.status]}</Badge>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>{b.client?.fullName}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--fg-3)', borderTop: '1px solid var(--border-2)', paddingTop: 8 }}>
+                      <span style={{ fontFamily: 'monospace' }}>{b.bookingRef}</span>
+                      <span>{fmtDate(b.departureDate)}</span>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, color: 'var(--success)', fontSize: 14 }}>{fmt(b.totalPrice)}</div>
+                      {b.paidAmount > 0 && <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>{fmt(b.paidAmount)} to&apos;langan</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <Card style={{ padding: 0 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -175,7 +203,7 @@ function AddBookingModal({ onClose, onSaved }: any) {
 
   return (
     <Modal open onClose={onClose} title={t('bk.newTitle')} maxWidth={520}>
-      <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <form onSubmit={submit} className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ gridColumn: '1/-1' }}>
           <Label>{t('bk.clientReq')}</Label>
           <Select required value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
@@ -217,7 +245,7 @@ function AddBookingModal({ onClose, onSaved }: any) {
             💰 Narx va Foyda
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <Label>Klient narxi * <span style={{ color: 'var(--fg-3)', fontWeight: 400, fontSize: 10 }}>(klient to'laydi)</span></Label>
               <Input

@@ -13,6 +13,7 @@ import { EditBookingModal } from '@/components/EditBookingModal';
 // v26: mijoz profilidagi qo'ng'iroq yozuvlarida ham "dashboard"dagi
 // (/calls sahifasidagi) bilan bir xil AI tahlil oynasi ishlatiladi.
 import { AiAnalysisModal, SENTIMENT_EMOJI } from '@/components/AiAnalysisModal';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const TIER_COLORS: Record<string, string> = {
   VIP: '#a855f7', GOLD: '#f59e0b', SILVER: '#94a3b8', REGULAR: 'var(--fg-3)',
@@ -74,6 +75,7 @@ export default function Client360Page() {
   const router = useRouter();
   const { user } = useAuth();
   const { callClient } = useDialer();
+  const isMobile = useIsMobile();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showNote, setShowNote] = useState(false);
@@ -167,7 +169,7 @@ export default function Client360Page() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: '20px 24px', maxWidth: 1520, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '14px 12px' : '20px 24px', maxWidth: 1520, margin: '0 auto' }}>
         {/* ═══ HEADER ═══ */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
@@ -228,10 +230,10 @@ export default function Client360Page() {
         </div>
 
         {/* ═══ MAIN LAYOUT: chap — mijoz kartasi | markaz — tablar | o'ng — bog'langan obyektlar ═══ */}
-        <div className="c360-grid" style={{ display: 'grid', gridTemplateColumns: '260px minmax(0,1fr)', gap: 22, alignItems: 'start' }}>
+        <div className="c360-grid grid-auto" style={{ display: 'grid', gridTemplateColumns: '260px minmax(0,1fr)', gap: 22, alignItems: 'start' }}>
 
           {/* ── CHAP: mijoz kartasi (doim ko'rinadi) ── */}
-          <div style={{ position: 'sticky', top: 76, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto', paddingRight: 2 }}>
+          <div style={isMobile ? { paddingRight: 2 } : { position: 'sticky', top: 76, maxHeight: 'calc(100vh - 96px)', overflowY: 'auto', paddingRight: 2 }}>
 
             {/* v33: HubSpot'dagi kontakt sahifasi tepasidagi doiraviy
                 tezkor-amal tugmalari qatoriga o'xshab — Note/Email/Call/
@@ -973,7 +975,7 @@ function TaskModal({ clientId, onClose, onSaved }: any) {
       <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} style={{ marginBottom: 12 }} />
       <Label>Tavsif</Label>
       <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} style={{ marginBottom: 12 }} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div>
           <Label>Prioritet</Label>
           <Select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
@@ -2054,14 +2056,14 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer, duplicate
             </div>
           )
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Tur nomi *</label><input style={inp} value={f.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Turkiya — Antalya 7 kun" /></div>
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Yo'nalish</label><input style={inp} value={f.destination} onChange={e => set('destination', e.target.value)} /></div>
           <div><label style={lbl}>👤 Kattalar</label><input type="number" min={1} style={inp} value={f.pax} onChange={e => set('pax', e.target.value)} /></div>
           <div><label style={lbl}>🧒 Bolalar (arzon narx)</label><input type="number" min={0} style={inp} value={f.children} onChange={e => set('children', e.target.value)} /></div>
 
           {/* v14: Jo'nab ketish + Qaytish — BIR QATORDA */}
-          <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={lbl}>Jo'nab ketish</label>
               <input type="date" style={{ ...inp, colorScheme: 'light dark', border: dateError ? '1px solid #ef4444' : inp.border }} value={f.departDate} onChange={e => set('departDate', e.target.value)} />
@@ -2078,7 +2080,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer, duplicate
           )}
 
           {/* Parvoz vaqtlari — bir qatorda */}
-          <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={lbl}>Parvoz vaqti (ixtiyoriy)</label>
               <input type="time" style={{ ...inp, colorScheme: 'light dark' }} value={f.departFlightTime} onChange={e => set('departFlightTime', e.target.value)} />
@@ -2281,7 +2283,7 @@ function OfferBookingModal({ offer: o, clientId, onClose, onSaved }: any) {
             <label style={lbl}>Tur nomi *</label>
             <input style={inp} value={form.tourName} onChange={(e) => set('tourName', e.target.value)} placeholder="Masalan: Dubay 7 kunlik" />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={lbl}>Yo'nalish *</label>
               <input style={inp} value={form.destination} onChange={(e) => set('destination', e.target.value)} placeholder="Dubay, UAE" />
@@ -2312,7 +2314,7 @@ function OfferBookingModal({ offer: o, clientId, onClose, onSaved }: any) {
               <input type="number" min={0} style={inp} value={form.children} onChange={(e) => set('children', e.target.value)} />
             </div>
           </div>
-          <div style={{ padding: '12px 14px', background: 'var(--bg-2)', borderRadius: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div className="grid-auto" style={{ padding: '12px 14px', background: 'var(--bg-2)', borderRadius: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <div>
               <label style={lbl}>Klient narxi (Sale Price) *</label>
               <input type="number" min={0} step="0.01" style={{ ...inp, background: 'var(--bg)' }} value={form.totalPrice} onChange={(e) => set('totalPrice', e.target.value)} placeholder="0" />
@@ -2429,7 +2431,7 @@ function InlineBookingModal({ clientId, clientName, onClose, onSaved }: any) {
           <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>👤 {clientName}</div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>Tur nomi *</label>
             <input style={inp} value={form.tourName} onChange={e => set('tourName', e.target.value)} placeholder="Masalan: Dubay 7 kunlik" />
@@ -2467,7 +2469,7 @@ function InlineBookingModal({ clientId, clientName, onClose, onSaved }: any) {
           </div>
 
           {/* Pricing */}
-          <div style={{ gridColumn: '1/-1', padding: '14px 16px', background: 'var(--bg-3)', borderRadius: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ gridColumn: '1/-1', padding: '14px 16px', background: 'var(--bg-3)', borderRadius: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
             <div>
               <label style={lbl}>Klient narxi (Sale Price) *</label>
               <input type="number" style={inp} value={form.totalPrice} onChange={e => set('totalPrice', e.target.value)} placeholder="0" />
@@ -2669,7 +2671,7 @@ function ClientEditModal({ client, onClose, onSaved }: any) {
         {/* ── Mijoz ma'lumotlari ── */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.3 }}>👤 Mijoz</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div style={{ gridColumn: '1/-1' }}>
               <label style={lbl}>Ismi *</label>
               <input style={inp} value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
@@ -2700,7 +2702,7 @@ function ClientEditModal({ client, onClose, onSaved }: any) {
         {/* ── Sayohat ma'lumotlari ── */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.3 }}>✈️ Sayohat</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={lbl}>Qayerga sayohat qiladi</label>
               <input style={inp} value={form.destination} onChange={(e) => set('destination', e.target.value)} placeholder="Masalan: Antalya, Turkiya" />
@@ -2792,7 +2794,7 @@ function OfferPricingBox({ f, set, inp, lbl, clientPrice }: any) {
   // xabar (OfferSendMenu) faqat "Mijozga narx"ni o'z ichiga oladi —
   // tan narx va foyda hech qachon mijozga chiqarilmaydi.
   return (
-    <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
+    <div className="grid-auto" style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
       <div>
         <label style={{ ...lbl, display: 'flex', alignItems: 'flex-end', minHeight: 28 }}>Operator narxi (1 katta)</label>
         <input type="number" style={inp} value={f.actualPrice} onChange={(e: any) => set('actualPrice', e.target.value)} placeholder="0" />
@@ -3071,7 +3073,7 @@ function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: 
                       color: isPaid ? 'var(--success)' : 'var(--warning)',
                     }}>{isPaid ? "✅ TO'LANDI" : "⏳ TO'LANMAGAN"}</span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12 }}>
+                  <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12 }}>
                     <div>
                       <div style={{ color: 'var(--fg-4)', fontSize: 10 }}>Narx</div>
                       <div style={{ fontWeight: 700 }}>{b.currency} {total.toLocaleString()}</div>
@@ -3115,7 +3117,8 @@ function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: 
           )}
         </div>
         {!allPayments.length ? <Empty title="To'lovlar yo'q" icon="💳" /> : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 480 }}>
             <thead>
               <tr style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)' }}>
                 {['Sana','Booking','Usul','Summa'].map(h => <th key={h} style={{ padding: '8px 10px', textAlign: h === 'Summa' ? 'right' : 'left' }}>{h}</th>)}
@@ -3132,6 +3135,7 @@ function ClientPaymentsInvoiceTab({ client: c, bookings, onRefresh }: { client: 
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Card>
 
@@ -3231,7 +3235,7 @@ function CreateInvoiceModal({ client: c, bookings, onClose, onSaved }: any) {
             </select>
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
           <div>
             <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-2)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Summa *</label>
             <input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}

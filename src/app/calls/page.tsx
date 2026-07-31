@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 // v24: AI tahlil oynasi endi umumiy komponent — mijoz profilida ham
 // ishlatiladi (bir joyda saqlanadi, ikki marta yozilmaydi).
 import { AiAnalysisModal, SENTIMENT_EMOJI } from '@/components/AiAnalysisModal';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const STATUS_LABELS: Record<string, string> = {
   QUEUED: '⏳ Navbatda', INITIATED: '📞 Boshlandi', RINGING: '🔔 Jiringlayapti',
@@ -36,6 +37,7 @@ export default function CallsPage() {
   const { callNumber } = useDialer();
   const router = useRouter();
   const isAdmin = ['TENANT_ADMIN', 'MANAGER'].includes(user?.role || '');
+  const isMobile = useIsMobile();
 
   const [calls, setCalls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,9 +93,9 @@ export default function CallsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{t('calls.title')}</h1>
+          <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0 }}>{t('calls.title')}</h1>
         </div>
 
         {/* Stats */}
@@ -166,7 +168,70 @@ export default function CallsPage() {
                 </div>
               </div>
             )}
-            {calls.length > 0 && (
+            {calls.length > 0 && (isMobile ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {calls.map((c: any) => (
+                  <div key={c.id} style={{
+                    background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 12,
+                    padding: 12, display: 'flex', flexDirection: 'column', gap: 6,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        {c.client ? (
+                          <span onClick={() => router.push(`/clients/${c.client.id}`)}
+                            style={{ color: '#3d7eff', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+                            {c.client.fullName}
+                          </span>
+                        ) : <span style={{ color: 'var(--fg-3)', fontWeight: 700, fontSize: 13 }}>Noma&apos;lum</span>}
+                        <div style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>
+                          {c.direction === 'OUTBOUND' ? '📤' : '📥'} {c.toMasked || c.fromMasked || '—'}
+                        </div>
+                      </div>
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700, flexShrink: 0,
+                        background: `${STATUS_COLORS[c.status] || '#94a3b8'}20`,
+                        color: STATUS_COLORS[c.status] || '#94a3b8',
+                      }}>
+                        {STATUS_LABELS[c.status] || c.status}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--fg-3)' }}>
+                      <span>{c.startedAt ? new Date(c.startedAt).toLocaleString('uz-UZ') : fmtDate(c.createdAt)}</span>
+                      <span>⏱ {fmtDuration(c.duration)}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--border-2)', paddingTop: 8 }}>
+                      {c.recordingUrl && (
+                        <button onClick={() => playRecording(c.recordingUrl, c.id)} style={{
+                          padding: '4px 10px', borderRadius: 7, border: 'none',
+                          background: playing === c.id ? '#10b981' : '#3d7eff',
+                          color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                        }}>
+                          {playing === c.id ? '⏸ Stop' : '▶ Play'}
+                        </button>
+                      )}
+                      {(c.toMasked || c.fromMasked) && (c.status === 'NO_ANSWER' || c.status === 'BUSY') && (
+                        <button onClick={() => callBack(c.toMasked || c.fromMasked, c.client?.id, c.client?.fullName)} style={{
+                          padding: '4px 10px', borderRadius: 7, border: 'none',
+                          background: '#f97316', color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                        }}>📞 Qayta</button>
+                      )}
+                      {c.status === 'COMPLETED' && (
+                        <button onClick={() => setAiCall(c)} title={c.aiError || 'AI tahlil'}
+                          style={{
+                            padding: '4px 10px', borderRadius: 7,
+                            border: c.aiError ? '1px solid rgba(239,68,68,0.4)' : '1px solid var(--border)',
+                            background: c.aiError ? 'rgba(239,68,68,0.1)' : (c.aiAnalyzedAt ? 'rgba(16,185,129,0.15)' : 'var(--bg-3)'),
+                            color: c.aiError ? '#ef4444' : (c.aiAnalyzedAt ? '#10b981' : 'var(--fg)'),
+                            cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                          }}>
+                          {c.aiError ? '❌ AI xato' : (c.aiAnalyzedAt ? `🤖 ${SENTIMENT_EMOJI[c.aiSentiment] || ''}` : '🤖 AI')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
               <div style={{ background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
@@ -251,7 +316,7 @@ export default function CallsPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+            ))}
 
             {total > 30 && (
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>

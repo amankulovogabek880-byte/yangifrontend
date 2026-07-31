@@ -10,10 +10,11 @@ import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { errMsg, fmtMoney } from '@/lib/helpers';
 import { useSocket, getSocket } from '@/hooks/useSocket';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import {
   User, Bot, Users2, Wallet, CalendarCheck, PhoneCall,
   ClipboardList, ExternalLink, PanelRightClose, PanelRightOpen,
-  GitBranch, Clock, Plane, Search, Plus,
+  GitBranch, Clock, Plane, Search, Plus, ArrowLeft,
 } from 'lucide-react';
 import { FaTelegramPlane, FaWhatsapp, FaInstagram } from 'react-icons/fa';
 import { Globe as GlobeIc } from 'lucide-react';
@@ -74,6 +75,7 @@ function InboxPageInner() {
   const params = useSearchParams();
   const { user } = useAuth();
   const { callClient } = useDialer();
+  const isMobile = useIsMobile();
 
   const [convs, setConvs] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -440,13 +442,14 @@ function InboxPageInner() {
 
   return (
     <CrmLayout>
-      <div style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
+      <div style={{ display: 'flex', height: isMobile ? 'calc(100vh - 114px)' : 'calc(100vh - 60px)' }}>
         {/* ═══ LEFT: Conversations list ═══ */}
         <div style={{
-          width: 320,
+          width: isMobile ? '100%' : 320,
+          display: isMobile && active ? 'none' : 'flex',
           background: 'var(--bg-2)',
           borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column',
+          flexDirection: 'column',
         }}>
           <div style={{ padding: 14, borderBottom: '1px solid var(--border)', display: 'flex', gap: 8 }}>
             <div style={{ flex: 1, position: 'relative' }}>
@@ -635,7 +638,7 @@ function InboxPageInner() {
         </div>
 
         {/* ═══ RIGHT: Active conversation ═══ */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, display: isMobile && !active ? 'none' : 'flex', flexDirection: 'column', minWidth: 0 }}>
           {!active ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
               <Empty title={t('inbox.selectConv')} description="Chap tomondan suhbatni tanlang" icon="💬" />
@@ -644,12 +647,23 @@ function InboxPageInner() {
             <>
               {/* Chat header */}
               <div style={{
-                padding: '12px 20px',
+                padding: isMobile ? '10px 12px' : '12px 20px',
                 borderBottom: '1px solid var(--border)',
                 background: 'var(--bg-2)',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                  {isMobile && (
+                    <button onClick={() => setActive(null)} style={{
+                      background: 'var(--bg-3)', border: '1px solid var(--border)',
+                      borderRadius: 8, width: 32, height: 32, flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', color: 'var(--fg-2)',
+                    }}>
+                      <ArrowLeft size={16} />
+                    </button>
+                  )}
                   <Avatar src={active.avatarUrl} name={active.client?.fullName || [active.firstName, active.lastName].filter(Boolean).join(' ') || active.username || '?'} size={40} />
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>
@@ -1225,7 +1239,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
               <Label>Sotuv narxi *</Label>
               <Input type="number" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
@@ -1238,7 +1252,7 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
               <Label>{t('inbox.discount')}</Label>
               <Input type="number" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
@@ -1461,7 +1475,7 @@ function ClientContextPanel({ clientId, onOpen, onCall, onClose }: {
           </div>
 
           {/* Pul */}
-          <div style={{ ...sect, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div className="grid-auto" style={{ ...sect, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div>
               <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 3 }}>{t('inbox.paid')}</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#10b981' }}>${paidTotal.toLocaleString()}</div>

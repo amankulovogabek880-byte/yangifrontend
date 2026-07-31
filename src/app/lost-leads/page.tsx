@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { clientsApi } from '@/services/api';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 function fmtDate(d: any): string {
   if (!d) return '—';
@@ -31,6 +32,7 @@ const SOURCE_LABEL: Record<string, string> = {
 export default function LostLeadsPage() {
   const { t } = useI18n();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [items, setItems] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
@@ -56,7 +58,7 @@ export default function LostLeadsPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ padding: isMobile ? '14px 12px' : '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>

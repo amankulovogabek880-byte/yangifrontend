@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { aiMarketingApi, usersApi } from '@/services/api';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 /**
  * ═══════════════════════════════════════════════════════════════
@@ -500,6 +501,7 @@ function LivePreview({
 }
 
 export default function AiMarketingPage() {
+  const isMobile = useIsMobile();
   const [form, setForm] = useState<any>(emptyForm);
   const [template, setTemplate] = useState<any>({ agencyName: '', agencyContact: '', primaryColor: '#FF6A2B' });
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -1026,7 +1028,7 @@ export default function AiMarketingPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 20, maxWidth: 1320, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1320, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
           <div>
             <h1 style={{ fontSize: 21, fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1198,7 +1200,7 @@ export default function AiMarketingPage() {
         )}
 
         {/* ── Asosiy: forma (chap) + jonli preview (o'ng) ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(300px, 1fr)', gap: 18, alignItems: 'start' }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(300px, 1fr)', gap: 18, alignItems: 'start' }}>
 
           {/* ── CHAP: forma ── */}
           <div className="card">
@@ -1600,7 +1602,7 @@ export default function AiMarketingPage() {
           </div>
 
           {/* ── O'NG: jonli preview + yuborish ── */}
-          <div style={{ position: 'sticky', top: 70, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={isMobile ? { display: 'flex', flexDirection: 'column', gap: 14 } : { position: 'sticky', top: 70, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"

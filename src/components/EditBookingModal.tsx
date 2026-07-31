@@ -272,7 +272,7 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
           <Label>Tur nomi *</Label>
           <Input value={form.tourName} onChange={(e) => set('tourName', e.target.value)} style={mb} />
 
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div>
               <Label>Manzil *</Label>
               <Input value={form.destination} onChange={(e) => set('destination', e.target.value)} />
@@ -283,7 +283,7 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
             </div>
           </div>
 
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div>
               <Label>Tur turi</Label>
               <Select value={form.tourType} onChange={(e) => set('tourType', e.target.value)}>
@@ -306,7 +306,7 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
             </div>
           </div>
 
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div>
               <Label>Jo'nash sanasi</Label>
               <Input type="date" value={form.departureDate} onChange={(e) => set('departureDate', e.target.value)} />
@@ -317,7 +317,7 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
             <div><Label>Kun</Label><Input type="number" value={form.duration} onChange={(e) => set('duration', e.target.value)} /></div>
             <div><Label>Kattalar</Label><Input type="number" value={form.adults} onChange={(e) => set('adults', e.target.value)} /></div>
             <div><Label>Bolalar</Label><Input type="number" value={form.children} onChange={(e) => set('children', e.target.value)} /></div>
@@ -328,7 +328,7 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
           <Textarea value={form.description} onChange={(e: any) => set('description', e.target.value)} style={mb} rows={3} />
 
           <Label>Tarkibiga kiradi</Label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 13 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 13 }}>
             {[
               ['includesFlights', '✈️ Aviachipta'],
               ['includesHotel', '🏨 Mehmonxona'],
@@ -348,7 +348,7 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
 
       {edTab === 'price' && (
         <div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div>
               <Label>Sotuv narxi ({form.currency}) *</Label>
               <Input type="number" value={form.totalPrice} onChange={(e) => set('totalPrice', e.target.value)} placeholder="0" />
@@ -379,7 +379,7 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
 
           {/* v11: agent ham admin bilan bir xil to'liq narx/provayder formasini ko'radi —
               komissiyasi shu yerdagi foydadan (totalPrice - supplierCost - discount) hisoblanadi. */}
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div>
               <Label>Tannarx / Provayder narxi 🔒</Label>
               <Input type="number" value={form.supplierCost} onChange={(e) => set('supplierCost', e.target.value)} placeholder="0" />
@@ -406,11 +406,11 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
           <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>
             Provayder ma'lumotlari 🔒
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Provayder nomi</Label><Input value={form.supplierName} onChange={(e) => set('supplierName', e.target.value)} /></div>
             <div><Label>Provayder kontakt</Label><Input value={form.supplierContact} onChange={(e) => set('supplierContact', e.target.value)} /></div>
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Provayder ref</Label><Input value={form.supplierRef} onChange={(e) => set('supplierRef', e.target.value)} /></div>
             <div><Label>Provayderga to'langan</Label><Input type="number" value={form.supplierPaid} onChange={(e) => set('supplierPaid', e.target.value)} /></div>
           </div>
@@ -421,15 +421,15 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
 
       {edTab === 'hotel' && (
         <div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Mehmonxona nomi</Label><Input value={form.hotelName} onChange={(e) => set('hotelName', e.target.value)} /></div>
             <div><Label>Shahar</Label><Input value={form.hotelCity} onChange={(e) => set('hotelCity', e.target.value)} /></div>
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Yulduzlar</Label><Input type="number" min={1} max={7} value={form.hotelStars} onChange={(e) => set('hotelStars', e.target.value)} /></div>
             <div><Label>Xona turi</Label><Input value={form.roomType} onChange={(e) => set('roomType', e.target.value)} /></div>
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Check-in</Label><Input type="date" value={form.hotelCheckIn} onChange={(e) => set('hotelCheckIn', e.target.value)} /></div>
             <div><Label>Check-out</Label><Input type="date" value={form.hotelCheckOut} onChange={(e) => set('hotelCheckOut', e.target.value)} /></div>
           </div>
@@ -445,19 +445,19 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
           <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8 }}>
             Borish reysi
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Aviakompaniya</Label><Input value={form.airline} onChange={(e) => set('airline', e.target.value)} /></div>
             <div><Label>Reys raqami</Label><Input value={form.flightNumber} onChange={(e) => set('flightNumber', e.target.value)} /></div>
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Jo'nash aeroporti</Label><Input value={form.departureAirport} onChange={(e) => set('departureAirport', e.target.value)} /></div>
             <div><Label>Kelish aeroporti</Label><Input value={form.arrivalAirport} onChange={(e) => set('arrivalAirport', e.target.value)} /></div>
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Jo'nash vaqti</Label><Input type="datetime-local" value={form.departureTime} onChange={(e) => set('departureTime', e.target.value)} /></div>
             <div><Label>Kelish vaqti</Label><Input type="datetime-local" value={form.arrivalTime} onChange={(e) => set('arrivalTime', e.target.value)} /></div>
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Klass</Label><Input value={form.flightClass} onChange={(e) => set('flightClass', e.target.value)} placeholder="Economy/Business" /></div>
             <div><Label>PNR</Label><Input value={form.pnr} onChange={(e) => set('pnr', e.target.value)} /></div>
           </div>
@@ -465,11 +465,11 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
           <div style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase', fontWeight: 700, margin: '14px 0 8px' }}>
             Qaytish reysi
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Aviakompaniya</Label><Input value={form.returnAirline} onChange={(e) => set('returnAirline', e.target.value)} /></div>
             <div><Label>Reys raqami</Label><Input value={form.returnFlightNumber} onChange={(e) => set('returnFlightNumber', e.target.value)} /></div>
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Jo'nash vaqti</Label><Input type="datetime-local" value={form.returnDepartureTime} onChange={(e) => set('returnDepartureTime', e.target.value)} /></div>
             <div><Label>Kelish vaqti</Label><Input type="datetime-local" value={form.returnArrivalTime} onChange={(e) => set('returnArrivalTime', e.target.value)} /></div>
           </div>
@@ -480,13 +480,13 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
 
       {edTab === 'taxi' && (
         <div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Olib ketish manzili</Label><Input value={form.taxiPickupAddress} onChange={(e) => set('taxiPickupAddress', e.target.value)} /></div>
             <div><Label>Tushirish manzili</Label><Input value={form.taxiDropoffAddress} onChange={(e) => set('taxiDropoffAddress', e.target.value)} /></div>
           </div>
           <Label>Olib ketish vaqti</Label>
           <Input type="datetime-local" value={form.taxiPickupTime} onChange={(e) => set('taxiPickupTime', e.target.value)} style={mb} />
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Haydovchi</Label><Input value={form.taxiDriverName} onChange={(e) => set('taxiDriverName', e.target.value)} /></div>
             <div><Label>Haydovchi telefoni</Label><Input value={form.taxiDriverPhone} onChange={(e) => set('taxiDriverPhone', e.target.value)} /></div>
           </div>
@@ -497,11 +497,11 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
 
       {edTab === 'insurance' && (
         <div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Sug'urta kompaniyasi</Label><Input value={form.insuranceCompany} onChange={(e) => set('insuranceCompany', e.target.value)} /></div>
             <div><Label>Polis raqami</Label><Input value={form.insurancePolicyNo} onChange={(e) => set('insurancePolicyNo', e.target.value)} /></div>
           </div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Boshlanish sanasi</Label><Input type="date" value={form.insuranceStartDate} onChange={(e) => set('insuranceStartDate', e.target.value)} /></div>
             <div><Label>Tugash sanasi</Label><Input type="date" value={form.insuranceEndDate} onChange={(e) => set('insuranceEndDate', e.target.value)} /></div>
           </div>
@@ -512,13 +512,13 @@ export function EditBookingModal({ booking, onClose, onSaved }: any) {
 
       {edTab === 'visa' && (
         <div>
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Viza statusi</Label><Input value={form.visaStatus} onChange={(e) => set('visaStatus', e.target.value)} placeholder="Topshirildi/Tayyor/Rad etildi" /></div>
             <div><Label>Viza turi</Label><Input value={form.visaType} onChange={(e) => set('visaType', e.target.value)} /></div>
           </div>
           <Label>Viza raqami</Label>
           <Input value={form.visaNumber} onChange={(e) => set('visaNumber', e.target.value)} style={mb} />
-          <div style={row2}>
+          <div className="grid-auto" style={row2}>
             <div><Label>Berilgan sana</Label><Input type="date" value={form.visaIssueDate} onChange={(e) => set('visaIssueDate', e.target.value)} /></div>
             <div><Label>Amal qilish muddati</Label><Input type="date" value={form.visaExpiryDate} onChange={(e) => set('visaExpiryDate', e.target.value)} /></div>
           </div>

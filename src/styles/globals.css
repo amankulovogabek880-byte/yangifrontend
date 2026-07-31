@@ -750,7 +750,7 @@ tbody td { padding: 10px 13px; vertical-align: middle; }
   }
 
   /* Grid 1 column */
-  .grid-2, .grid-3, .grid-4 {
+  .grid-2, .grid-3, .grid-4, .grid-auto {
     grid-template-columns: 1fr !important;
   }
 

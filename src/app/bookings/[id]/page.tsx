@@ -13,6 +13,7 @@ import {
   FileText, MessageCircle, Plane, Paperclip, DollarSign,
   User, Calendar, Users, ClipboardCheck,
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'var(--fg-3)',
@@ -46,6 +47,7 @@ export default function BookingDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [b, setB] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,7 +92,7 @@ export default function BookingDetailPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 4, cursor: 'pointer' }} onClick={() => router.push('/bookings')}>
@@ -254,7 +256,7 @@ export default function BookingDetailPage() {
         )}
 
         {tab === 'flight' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Card>
               <h3 style={{ marginTop: 0 }}>✈️ Borish</h3>
               <div style={{ display: 'grid', gap: 10 }}>
@@ -383,7 +385,8 @@ export default function BookingDetailPage() {
             {payments.length === 0 ? (
               <p style={{ color: 'var(--fg-3)' }}>To'lovlar yo'q</p>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 420 }}>
                 <thead>
                   <tr style={{ fontSize: 11, color: 'var(--fg-3)', textTransform: 'uppercase' }}>
                     <th style={{ padding: 8, textAlign: 'left' }}>Sana</th>
@@ -405,6 +408,7 @@ export default function BookingDetailPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </Card>
         )}
@@ -700,7 +704,7 @@ function PassengerForm({ bookingId, editing, onClose, onSaved }: any) {
         <Btn variant="gradient" onClick={save} loading={loading}>Saqlash</Btn>
       </>
     }>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ gridColumn: '1 / -1' }}>
           <Label>To'liq ism *</Label>
           <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
@@ -783,7 +787,7 @@ function PassengerForm({ bookingId, editing, onClose, onSaved }: any) {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
             Parvoz malumotlari
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
             <div>
               <Label>Bilet raqami</Label>
               <Input value={form.ticketNo} onChange={(e) => setForm({ ...form, ticketNo: e.target.value })} placeholder="TK-123456789" />
@@ -989,7 +993,7 @@ function ServiceForm({ bookingId, editing, onClose, onSaved }: any) {
         <Btn variant="gradient" onClick={save} loading={loading}>Saqlash</Btn>
       </>
     }>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
           <Label>Xizmat turi *</Label>
           <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
@@ -1202,7 +1206,7 @@ function SendInvoiceModal({ booking, onClose, onSent }: any) {
       </div>
 
       {/* Qo'shimcha sozlamalar */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+      <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
         <div>
           <Label>Chegirma (ixtiyoriy)</Label>
           <Input type="number" value={discount} onChange={(e) => setDiscount(Number(e.target.value) || 0)} placeholder="0" />
@@ -1364,7 +1368,7 @@ function DocumentsTab({ bookingId, booking }: any) {
 
       {/* Booking summary card */}
       {booking && (
-        <div style={{ padding: '14px 16px', background: 'var(--bg-3)', borderRadius: 10, marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div className="grid-auto" style={{ padding: '14px 16px', background: 'var(--bg-3)', borderRadius: 10, marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           <div>
             <div style={{ fontSize: 10, color: 'var(--fg-3)', fontWeight: 700, textTransform: 'uppercase' }}>Tur</div>
             <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{booking.tourName}</div>

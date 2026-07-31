@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useDialer } from '@/lib/dialer';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
@@ -30,6 +31,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function DialerWidget() {
   const { state, hangup, close, addNote, saveCallback } = useDialer();
+  const isMobile = useIsMobile();
   const [note, setNote] = useState('');
   // v14: javob bo'lmaganda keyingi qo'ng'iroq vaqti (default +1 kun)
   const [nextCallAt, setNextCallAt] = useState(() => new Date(Date.now() + 24 * 3600000).toISOString().slice(0, 16));
@@ -73,7 +75,7 @@ export default function DialerWidget() {
       <div
         onClick={() => setMinimized(false)}
         style={{
-          position: 'fixed', bottom: 20, right: 20, zIndex: 9000,
+          position: 'fixed', bottom: isMobile ? 76 : 20, right: isMobile ? 12 : 20, zIndex: 9000,
           background: 'var(--bg-2)', border: '1px solid var(--border)',
           borderRadius: 50, padding: '8px 14px',
           boxShadow: 'var(--shadow-lg)',
@@ -99,8 +101,8 @@ export default function DialerWidget() {
   return (
     <div
       style={{
-        position: 'fixed', bottom: 20, right: 20, zIndex: 9000,
-        width: 340,
+        position: 'fixed', bottom: isMobile ? 76 : 20, right: isMobile ? 12 : 20, left: isMobile ? 12 : undefined, zIndex: 9000,
+        width: isMobile ? undefined : 340,
         background: 'var(--bg-2)',
         border: '1px solid var(--border)',
         borderRadius: 16,

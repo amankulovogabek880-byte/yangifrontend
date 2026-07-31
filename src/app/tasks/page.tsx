@@ -6,11 +6,13 @@ import { tasksApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import toast from 'react-hot-toast';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 export default function TasksPage() {
   const { user } = useAuth();
   const { t: tr } = useI18n();
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sf, setSf] = useState('');
@@ -33,13 +35,13 @@ export default function TasksPage() {
 
   return (
     <CrmLayout>
-      <div style={{ padding: 24, maxWidth: 800 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>☑ {tr('tasks.title')}</h1>
+      <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 800 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+          <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0 }}>☑ {tr('tasks.title')}</h1>
           <button onClick={() => setShowNew(!showNew)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>{tr('common.new')}</button>
         </div>
         {showNew && (
-          <div style={{ padding: 16, background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="grid-auto" style={{ padding: 16, background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)', marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <input style={{ gridColumn: '1/-1', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 13 }} value={nt.title} onChange={e => setNt(n => ({ ...n, title: e.target.value }))} placeholder={tr('tasks.namePlaceholder')} />
             <input type="datetime-local" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 13 }} value={nt.dueAt} onChange={e => setNt(n => ({ ...n, dueAt: e.target.value }))} />
             <select style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 13 }} value={nt.priority} onChange={e => setNt(n => ({ ...n, priority: e.target.value }))}>
@@ -51,7 +53,7 @@ export default function TasksPage() {
             </div>
           </div>
         )}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           {[['','common.all'],['TODO','tasks.todo'],['IN_PROGRESS','tasks.inProgress'],['DONE','tasks.done']].map(([v,l]) => (
             <button key={v} onClick={() => setSf(v)} style={{ padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', background: sf === v ? '#3d7eff' : 'var(--bg-3)', color: sf === v ? 'white' : 'var(--fg-2)' }}>{tr(l)}</button>
           ))}
