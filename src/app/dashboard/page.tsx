@@ -1013,6 +1013,43 @@ function AiBadge({ call: c, missed, onUpdated }: { call: any; missed: boolean; o
  *     holatda XOM SERVER JAVOBI to'g'ridan-to'g'ri ekranda (yig'iladigan panelda)
  *     ko'rsatiladi, konsolga kirish shart emas.
  */
+/**
+ * v23: XATO USHLAGICH (Error Boundary).
+ *
+ * SABAB: agent kartalarida ba'zan "bo'sh joy" (hech narsa ko'rinmaydigan,
+ * lekin scroll paneli bor joy) ko'rinishi kuzatilgan edi. Buning ENG
+ * EHTIMOLIY sababi — bitta qo'ng'iroq qatorini (AiCallRow) chizishda
+ * (masalan eski/kutilmagan formatdagi AI ma'lumoti tufayli) JavaScript
+ * xatosi yuz berishi va React'ning bu xatoni HECH QANDAY xabarsiz butun
+ * ro'yxatni yashirib qo'yishi edi. Bu klass shu muammoni butunlay
+ * yo'q qiladi: endi qatorda xato bo'lsa, faqat O'SHA BITTA qator o'rniga
+ * aniq xato matni chiqadi, qolgan barcha qatorlar normal ko'rinishda
+ * qoladi.
+ */
+class RowErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(err: any) {
+    return { error: err?.message || 'Nomaʼlum xato' };
+  }
+  componentDidCatch(err: any) {
+    // eslint-disable-next-line no-console
+    console.error('[AiCallRow xatosi]', err);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: '8px 10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 8, fontSize: 11.5, color: '#991b1b' }}>
+          ❌ Bu qo'ng'iroqni chizishda xato: {this.state.error}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function AgentCallsRow({ agent }: any) {
   const [open, setOpen] = useState(false);
   const [calls, setCalls] = useState<any[] | null>(null);
@@ -1223,14 +1260,15 @@ function AgentCallsRow({ agent }: any) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
               {calls.map((c: any) => (
-                <AiCallRow
-                  key={c.id}
-                  call={c}
-                  fmtShortDur={fmtShortDur}
-                  onUpdated={(updated) => {
-                    setCalls((prev) => prev ? prev.map((x) => x.id === c.id ? { ...x, ...updated } : x) : prev);
-                  }}
-                />
+                <RowErrorBoundary key={c.id}>
+                  <AiCallRow
+                    call={c}
+                    fmtShortDur={fmtShortDur}
+                    onUpdated={(updated: any) => {
+                      setCalls((prev) => prev ? prev.map((x) => x.id === c.id ? { ...x, ...updated } : x) : prev);
+                    }}
+                  />
+                </RowErrorBoundary>
               ))}
             </div>
           )}
@@ -1349,14 +1387,14 @@ function AiCallRow({ call: c, fmtShortDur, onUpdated }: { call: any; fmtShortDur
               <b>🤖 Xulosa:</b> {c.aiSummary}
             </div>
           )}
-          {c.aiObjections?.length > 0 && (
+          {Array.isArray(c.aiObjections) && c.aiObjections.length > 0 && (
             <div style={{ fontSize: 12 }}>
               <b>E'tirozlar:</b>
               <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
                 {c.aiObjections.map((o: any, i: number) => (
                   <li key={i} style={{ marginBottom: 2 }}>
-                    <span style={{ color: '#f97316', fontWeight: 600 }}>{o.label}</span>
-                    {o.quote && <span style={{ color: 'var(--fg-3)' }}> — "{o.quote}"</span>}
+                    <span style={{ color: '#f97316', fontWeight: 600 }}>{o?.label || o?.category || 'E\'tiroz'}</span>
+                    {o?.quote && <span style={{ color: 'var(--fg-3)' }}> — "{o.quote}"</span>}
                   </li>
                 ))}
               </ul>
@@ -1391,14 +1429,14 @@ function AiCallRow({ call: c, fmtShortDur, onUpdated }: { call: any; fmtShortDur
               <span style={{ fontWeight: 700, color: c.aiFeedback.score >= 7 ? '#10b981' : c.aiFeedback.score >= 5 ? '#f59e0b' : '#ef4444' }}>
                 {c.aiFeedback.score}/10
               </span>
-              {c.aiFeedback.strengths?.length > 0 && (
+              {Array.isArray(c.aiFeedback.strengths) && c.aiFeedback.strengths.length > 0 && (
                 <div style={{ marginTop: 4, color: '#10b981' }}>
-                  {c.aiFeedback.strengths.map((s: string, i: number) => <div key={i}>✓ {s}</div>)}
+                  {c.aiFeedback.strengths.map((s: string, i: number) => <div key={i}>✓ {String(s)}</div>)}
                 </div>
               )}
-              {c.aiFeedback.improvements?.length > 0 && (
+              {Array.isArray(c.aiFeedback.improvements) && c.aiFeedback.improvements.length > 0 && (
                 <div style={{ marginTop: 4, color: '#f59e0b' }}>
-                  {c.aiFeedback.improvements.map((s: string, i: number) => <div key={i}>△ {s}</div>)}
+                  {c.aiFeedback.improvements.map((s: string, i: number) => <div key={i}>△ {String(s)}</div>)}
                 </div>
               )}
             </div>
