@@ -157,12 +157,53 @@ export function AiAnalysisModal({ call, onClose, onUpdated }: { call: any; onClo
 
         {current.aiAnalyzedAt && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            {(feedback?.overallScore != null || feedback?.churnRisk != null || feedback?.saleProbability != null) && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {feedback?.overallScore != null && (
+                  <div style={{ flex: '1 1 140px', padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>🎯 Umumiy ball</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{feedback.overallScore}/100</div>
+                  </div>
+                )}
+                {feedback?.churnRisk != null && (
+                  <div style={{ flex: '1 1 140px', padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>🔥 Mijozni yo'qotish xavfi</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: feedback.churnRisk >= 60 ? '#ef4444' : feedback.churnRisk >= 30 ? '#f59e0b' : '#10b981' }}>{feedback.churnRisk}%</div>
+                  </div>
+                )}
+                {feedback?.saleProbability != null && (
+                  <div style={{ flex: '1 1 140px', padding: '10px 12px', background: 'var(--bg-3)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>💰 Taxminiy sotuv ehtimoli</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: feedback.saleProbability >= 60 ? '#10b981' : feedback.saleProbability >= 30 ? '#f59e0b' : '#ef4444' }}>{feedback.saleProbability}%</div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-3)', marginBottom: 6 }}>
                 Xulosa {current.aiSentiment && <span>· {SENTIMENT_EMOJI[current.aiSentiment]} {SENTIMENT_LABEL[current.aiSentiment]}</span>}
               </div>
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>{current.aiSummary}</div>
             </div>
+
+            {feedback?.mistakes?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-3)', marginBottom: 6 }}>📋 Top xatolar va ideal javoblar</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {feedback.mistakes.map((m: any, i: number) => (
+                    <div key={i} style={{ padding: '8px 10px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 3 }}>💡 {m.mistake}</div>
+                      {m.idealResponse && (
+                        <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+                          🗣️ Ideal javob: <span style={{ color: 'var(--fg)' }}>"{m.idealResponse}"</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {objections.length > 0 && (
               <div>
