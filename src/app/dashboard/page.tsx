@@ -3,7 +3,7 @@ import KalendarTab from './KalendarTab';
 import dynamic from 'next/dynamic';
 const OnboardingWizard = dynamic(() => import('@/components/OnboardingWizard'), { ssr: false });
 import GettingStartedCard from '@/components/GettingStartedCard';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 import { useRouter } from 'next/navigation';
@@ -998,12 +998,29 @@ function AiBadge({ call: c, missed, onUpdated }: { call: any; missed: boolean; o
   return <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>⏳ AI kutmoqda</span>;
 }
 
+/**
+ * v21 TUZATISH: butunlay qayta yozildi. Avvalgi versiyada 3 ta nozik xato bor edi:
+ *  1) Poyga holati (race condition): foydalanuvchi accordionni tez-tez ochib-yopsa,
+ *     eski so'rov javobi keyingi (yangi) so'rovdan KEYIN kelib, ro'yxatni eskisiga
+ *     qaytarib yuborishi mumkin edi — natijada panel "muzlab" bo'sh ko'rinardi.
+ *     Endi har bir so'rov o'zining tartib raqami (reqId) bilan belgilanadi va
+ *     faqat ENG OXIRGI so'rov natijasi qabul qilinadi.
+ *  2) Backend javobi shakli faqat BITTA ko'rinishda (`r.data.data`) qidirilardi —
+ *     agar u boshqacha nomlangan bo'lsa (masalan `r.data.calls` yoki to'g'ridan-to'g'ri
+ *     massiv), ro'yxat "bo'sh" deb hisoblanardi. Endi bir nechta mumkin bo'lgan
+ *     shaklni tekshiradi.
+ *  3) Debug ma'lumoti FAQAT brauzer konsolida (F12) ko'rinardi — endi xato/kutilmagan
+ *     holatda XOM SERVER JAVOBI to'g'ridan-to'g'ri ekranda (yig'iladigan panelda)
+ *     ko'rsatiladi, konsolga kirish shart emas.
+ */
 function AgentCallsRow({ agent }: any) {
   const [open, setOpen] = useState(false);
   const [calls, setCalls] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
-
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [rawDebug, setRawDebug] = useState<any>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const reqIdRef = useRef(0);
 
   async function toggle() {
     const next = !open;
@@ -1013,32 +1030,49 @@ function AgentCallsRow({ agent }: any) {
     }
   }
 
+  function extractRows(payload: any): any[] {
+    // Backend hozir { data, total, page, limit } qaytaradi (data = massiv).
+    // Kelajakda shakli o'zgarsa ham (masalan to'g'ridan-to'g'ri massiv,
+    // yoki { calls: [...] }), shu funksiya baribir topib oladi.
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.calls)) return payload.calls;
+    if (Array.isArray(payload?.data?.data)) return payload.data.data;
+    if (Array.isArray(payload?.items)) return payload.items;
+    return [];
+  }
+
   async function loadCalls() {
+    const myReqId = ++reqIdRef.current;
     setLoading(true);
     setLoadError(null);
     try {
-      // v20: `agent.agentId` "unassigned" bo'lsa (Agentsiz guruh) — filtrsiz
+      // `agent.agentId` "unassigned" bo'lsa (Agentsiz guruh) — filtrsiz
       // (backend tenant bo'yicha hammasini beradi), aks holda aynan shu
       // agentning ID'si bilan so'raladi.
-      const r: any = await callsApi.list({ agentId: agent.agentId === 'unassigned' ? undefined : agent.agentId, limit: 100 });
-      const rows = Array.isArray(r?.data?.data) ? r.data.data : [];
+      const r: any = await callsApi.list({
+        agentId: agent.agentId === 'unassigned' ? undefined : agent.agentId,
+        limit: 100,
+      });
+      // Poyga holatidan himoya: bu javob eskirgan (keyinroq so'rov allaqachon
+      // yuborilgan) bo'lsa — e'tiborsiz qoldiramiz.
+      if (myReqId !== reqIdRef.current) return;
+
+      const rows = extractRows(r?.data);
       setCalls(rows);
-      // v20 DEBUG: agar server "N ta yozuv bor" desa-yu ro'yxat bo'sh kelsa —
-      // buni konsolga aniq yozamiz, shunda brauzer konsolidan (F12) sababini
-      // ko'rish mumkin (masalan agentId mos kelmayapti yoki server xatosi).
-      if (rows.length === 0 && (agent.totalCalls > 0 || agent.recordingsCount > 0)) {
-        // eslint-disable-next-line no-console
-        console.warn('[AgentCallsRow] Kutilmagan bo\'sh natija:', {
-          agentId: agent.agentId, agentName: agent.agentName,
-          expectedTotalCalls: agent.totalCalls, expectedRecordings: agent.recordingsCount,
-          apiResponse: r?.data,
-        });
-      }
+      setRawDebug({ agentId: agent.agentId, httpStatus: r?.status, responseBody: r?.data });
     } catch (e: any) {
+      if (myReqId !== reqIdRef.current) return;
       setCalls([]);
+      setRawDebug({
+        agentId: agent.agentId,
+        httpStatus: e?.response?.status,
+        responseBody: e?.response?.data,
+        errorMessage: e?.message,
+      });
       setLoadError(e?.response?.data?.message || e?.message || "Qo'ng'iroqlarni yuklashda xato");
     } finally {
-      setLoading(false);
+      if (myReqId === reqIdRef.current) setLoading(false);
     }
   }
 
@@ -1047,6 +1081,9 @@ function AgentCallsRow({ agent }: any) {
     const m = Math.floor(s / 60);
     return m > 0 ? `${m}:${String(s % 60).padStart(2, '0')}` : `${s} son`;
   };
+
+  const unexpectedEmpty = !loading && !loadError && (!calls || calls.length === 0) &&
+    (agent.totalCalls > 0 || agent.recordingsCount > 0);
 
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -1103,23 +1140,24 @@ function AgentCallsRow({ agent }: any) {
           ) : loadError ? (
             <div style={{ padding: 12, textAlign: 'center' }}>
               <div style={{ color: '#ef4444', fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>❌ {loadError}</div>
-              <button onClick={loadCalls} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
+              <button onClick={loadCalls} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', marginRight: 6 }}>
                 🔄 Qayta urinish
               </button>
+              <DebugToggle show={showDebug} onToggle={() => setShowDebug((v) => !v)} data={rawDebug} />
             </div>
           ) : !calls || calls.length === 0 ? (
             <div style={{ padding: 12, textAlign: 'center', color: '#4b5563', fontSize: 12.5 }}>
               Bu agent uchun qo'ng'iroq topilmadi.
-              {(agent.totalCalls > 0 || agent.recordingsCount > 0) && (
+              {unexpectedEmpty && (
                 <div style={{ marginTop: 6, padding: '8px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#b91c1c', fontSize: 11.5, textAlign: 'left' }}>
-                  ⚠️ Bu kutilmagan holat: yuqorida <b>{agent.totalCalls} qo'ng'iroq / {agent.recordingsCount} yozuv</b> bor deb ko'rsatilgan, lekin ro'yxat bo'sh keldi.
-                  Brauzerda <b>F12 → Console</b> ni oching, shu yerdagi log'ni (qizil <code>[AgentCallsRow]</code> yozuvi) menga ko'chirib bering — sababini aniq topib beraman.
+                  ⚠️ Kutilmagan holat: yuqorida <b>{agent.totalCalls} qo'ng'iroq / {agent.recordingsCount} yozuv</b> bor deb ko'rsatilgan, lekin ro'yxat bo'sh keldi. Pastdagi "Xom javobni ko'rish" tugmasini bosib, server nima qaytarganini to'g'ridan-to'g'ri shu yerda ko'rishingiz mumkin.
                 </div>
               )}
-              <div style={{ marginTop: 8 }}>
+              <div style={{ marginTop: 8, display: 'flex', gap: 6, justifyContent: 'center' }}>
                 <button onClick={loadCalls} style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>
                   🔄 Qayta yuklash
                 </button>
+                <DebugToggle show={showDebug} onToggle={() => setShowDebug((v) => !v)} data={rawDebug} />
               </div>
             </div>
           ) : (
@@ -1136,9 +1174,31 @@ function AgentCallsRow({ agent }: any) {
               ))}
             </div>
           )}
+          {showDebug && rawDebug && (
+            <pre style={{
+              marginTop: 8, padding: 10, borderRadius: 8, background: '#111827', color: '#d1fae5',
+              fontSize: 10.5, lineHeight: 1.5, maxHeight: 260, overflow: 'auto', textAlign: 'left',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            }}>
+              {JSON.stringify(rawDebug, null, 2)}
+            </pre>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+/** Server javobini konsolsiz, to'g'ridan-to'g'ri ekranda ko'rsatish/yashirish tugmasi */
+function DebugToggle({ show, onToggle, data }: { show: boolean; onToggle: () => void; data: any }) {
+  if (!data) return null;
+  return (
+    <button
+      onClick={onToggle}
+      style={{ fontSize: 11.5, padding: '5px 12px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}
+    >
+      {show ? 'Xom javobni yashirish' : "🔍 Xom javobni ko'rish"}
+    </button>
   );
 }
 
