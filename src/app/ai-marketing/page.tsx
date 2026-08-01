@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { aiMarketingApi, usersApi } from '@/services/api';
+import { useAuth } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
@@ -502,6 +503,7 @@ function LivePreview({
 
 export default function AiMarketingPage() {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
   const [form, setForm] = useState<any>(emptyForm);
   const [template, setTemplate] = useState<any>({ agencyName: '', agencyContact: '', primaryColor: '#FF6A2B' });
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -1025,6 +1027,28 @@ export default function AiMarketingPage() {
     instagram: { label: 'Instagram', icon: '📸' },
     facebook: { label: 'Facebook', icon: '👍' },
   };
+
+  // 🩹 TUZATISH: bu sahifa ilgari tenant.aiEnabled holatiga umuman
+  // qaramasdan to'liq ishlab turardi (forma, "Postlarni yaratish" tugmasi
+  // va h.k.) — hatto owner shu kompaniyada AI'ni o'chirgan bo'lsa ham.
+  // Endi calls/briefing sahifalari kabi shu bitta bayroqqa bo'ysunadi:
+  // o'chiq bo'lsa, forma o'rniga tushuntirish ko'rsatiladi, hech qanday
+  // AI so'rovi (demak token sarfi) bo'lmaydi. Barcha hook'lar shu
+  // tekshiruvdan OLDIN chaqirilgani uchun React qoidalariga zid emas.
+  if (user && !user.tenantAiEnabled) {
+    return (
+      <CrmLayout>
+        <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 640, margin: '60px auto', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🤖🚫</div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>AI Reklama Generatori o'chirilgan</h2>
+          <p style={{ fontSize: 13.5, color: 'var(--fg-3)', lineHeight: 1.6 }}>
+            Bu kompaniyada AI xizmati (transkripsiya, tahlil va reklama matni yozish) hozircha o'chiq —
+            shuning uchun token sarflanmaydi. Yoqish uchun platforma administratoriga murojaat qiling.
+          </p>
+        </div>
+      </CrmLayout>
+    );
+  }
 
   return (
     <CrmLayout>

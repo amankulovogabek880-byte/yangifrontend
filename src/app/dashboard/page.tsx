@@ -261,7 +261,7 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 24 }}>
-          <DailyBriefingCard isAgent={isAgent} />
+          <DailyBriefingCard isAgent={isAgent} aiEnabled={!!user?.tenantAiEnabled} />
           {loading ? <Skeleton height={400} /> : (
             <>
               {activeTab === 'overview' && (
@@ -306,7 +306,7 @@ const BRIEFING_ITEM_ICON: Record<string, any> = {
   coaching: Target,
 };
 
-function DailyBriefingCard({ isAgent }: { isAgent: boolean }) {
+function DailyBriefingCard({ isAgent, aiEnabled }: { isAgent: boolean; aiEnabled: boolean }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -320,7 +320,18 @@ function DailyBriefingCard({ isAgent }: { isAgent: boolean }) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    // 🩹 TUZATISH: bu komponent ilgari AI yoqilgan/o'chirilganidan qat'iy
+    // nazar HAR SAFAR /briefing/today so'rovini yuborardi. Backend token
+    // sarflamasdan darhol "disabled" javob qaytarardi (xavfsiz edi), lekin
+    // shunga qaramay keraksiz tarmoq so'rovi ketardi va karta bir lahza
+    // "yuklanmoqda" holatida ko'rinib turardi. Endi AI o'chiq bo'lsa —
+    // so'rov umuman yuborilmaydi, karta boshidanoq ko'rinmaydi.
+    if (!aiEnabled) { setLoading(false); return; }
+    load();
+  }, [aiEnabled]);
+
+  if (!aiEnabled) return null;
 
   const refresh = () => {
     setRefreshing(true);
