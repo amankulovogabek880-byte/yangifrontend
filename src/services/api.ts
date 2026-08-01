@@ -362,6 +362,8 @@ export const ownerApi = {
   companies: () => api.get('/owner/companies'),
   createCompany: (data: any) => api.post('/owner/companies', data),
   setStatus: (id: string, status: string) => api.patch(`/owner/companies/${id}/status`, { status }),
+  // v26: kompaniyaga AI (transkripsiya + tahlil) xizmatini yoqish/o'chirish
+  setAi: (id: string, aiEnabled: boolean) => api.patch(`/owner/companies/${id}/ai`, { aiEnabled }),
   // v7: Oxirgi 50 ta login urinishlari
   recentLogins: (limit = 50) => api.get('/owner/recent-logins', { params: { limit } }),
 };

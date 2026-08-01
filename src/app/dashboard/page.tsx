@@ -274,7 +274,7 @@ export default function DashboardPage() {
                 <AgentsTab agents={agentsList} from={dateFrom} to={dateTo} onDateChange={(f,t)=>{setDateFrom(f);setDateTo(t);}} isAgent={isAgent} />
               )}
               {activeTab === 'calls' && (
-                <CallsTab data={callData} isAgent={isAgent} />
+                <CallsTab data={callData} isAgent={isAgent} aiEnabled={!!user?.tenantAiEnabled} />
               )}
               {activeTab === 'leads' && !isAgent && (
                 <LeadsTab data={leadData} from={dateFrom} to={dateTo} />
@@ -818,7 +818,7 @@ function SalaryStatCard({ icon, label, value, color, sub }: any) {
     </div>
   );
 }
-function CallsTab({ data, isAgent }: any) {
+function CallsTab({ data, isAgent, aiEnabled }: any) {
   const { t } = useI18n();
   if (!data) return <div style={{ padding: 60, textAlign: 'center', color: 'var(--fg-3)' }}>{t('common.loading')}</div>;
   const { summary = {}, byDay = [], byAgent = [], aiAnalytics } = data;
@@ -838,8 +838,9 @@ function CallsTab({ data, isAgent }: any) {
         ))}
       </div>
 
-      {/* v15: AI tahlil — eng ko'p uchragan e'tirozlar, kayfiyat, agent bahosi */}
-      {aiAnalytics && aiAnalytics.analyzedCount > 0 && (
+      {/* v15: AI tahlil — eng ko'p uchragan e'tirozlar, kayfiyat, agent bahosi.
+          v26: kompaniyada AI xizmati o'chiq bo'lsa umuman ko'rsatilmaydi. */}
+      {aiEnabled && aiAnalytics && aiAnalytics.analyzedCount > 0 && (
         <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
@@ -899,13 +900,24 @@ function CallsTab({ data, isAgent }: any) {
       )}
 
       {/* v14.2: admin/manager uchun — har bir agent qancha gaplashgani va
-          yozuvlari, alohida-alohida ko'rinadi */}
-      {!isAgent && byAgent.length > 0 && (
+          yozuvlari, alohida-alohida ko'rinadi.
+          v25 TUZATISH: ilgari bu blok FAQAT admin/manager uchun ko'rinardi
+          (`!isAgent &&`) — agent esa o'zining qo'ng'iroqlari ro'yxatini,
+          audio yozuvlarini va AI koching xulosasini bu sahifada UMUMAN
+          KO'RA OLMASDI (faqat yig'indi statistikani ko'rardi). Backend
+          (`/reports/call-analytics`) AGENT role uchun `byAgent`ni allaqachon
+          faqat o'ziga tegishli qatorga filtrlaydi (report'lar controller'ida
+          `agentId = u.role === 'AGENT' ? u.sub : ...`), shuning uchun bu
+          blokni ochish xavfsiz — agent baribir faqat o'z qatorini ko'radi,
+          boshqa agentlarnikini emas. */}
+      {byAgent.length > 0 && (
         <div style={{ padding: '16px 20px', background: 'var(--bg-2)', borderRadius: 12, border: '1px solid var(--border)' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>Agentlar bo'yicha (gaplashgan vaqt va yozuvlar)</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 12px' }}>
+            {isAgent ? "Mening qo'ng'iroqlarim (yozuvlar va AI tahlil)" : "Agentlar bo'yicha (gaplashgan vaqt va yozuvlar)"}
+          </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {byAgent.map((a: any) => (
-              <AgentCallsRow key={a.agentId} agent={a} />
+              <AgentCallsRow key={a.agentId} agent={a} defaultOpen={isAgent} aiEnabled={aiEnabled} />
             ))}
           </div>
         </div>
@@ -1052,14 +1064,24 @@ class RowErrorBoundary extends React.Component<{ children: React.ReactNode }, { 
   }
 }
 
-function AgentCallsRow({ agent }: any) {
-  const [open, setOpen] = useState(false);
+function AgentCallsRow({ agent, defaultOpen, aiEnabled }: any) {
+  const [open, setOpen] = useState(!!defaultOpen);
   const [calls, setCalls] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rawDebug, setRawDebug] = useState<any>(null);
   const [showDebug, setShowDebug] = useState(false);
   const reqIdRef = useRef(0);
+
+  // v25: agent uchun bu qator boshida ochiq holda ko'rsatiladi (u faqat
+  // 1 ta — o'zining — qatorini ko'radi), shuning uchun sahifa ochilishi
+  // bilanoq yozuvlar/AI tahlil darhol yuklanishi kerak.
+  useEffect(() => {
+    if (defaultOpen && calls === null) {
+      loadCalls();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function toggle() {
     const next = !open;
@@ -1146,7 +1168,7 @@ function AgentCallsRow({ agent }: any) {
             <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
               {agent.totalCalls} qo'ng'iroq · {agent.answered} javob berildi · 🎙️ {agent.recordingsCount} yozuv
             </div>
-            {agent.aiAnalyzedCount > 0 && (
+            {aiEnabled && agent.aiAnalyzedCount > 0 && (
               <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {agent.aiAvgScore != null && (
                   <span>
@@ -1177,7 +1199,7 @@ function AgentCallsRow({ agent }: any) {
           {/* v22: KOCHING XULOSASI — agentning barcha tahlil qilingan
               qo'ng'iroqlaridan yig'ilgan eng muhim xulosalar, ro'yxatni
               skroll qilmasdan darhol ko'rinadi. */}
-          {agent.aiAnalyzedCount > 0 && (agent.aiBestPhrases?.length > 0 || agent.aiMissedInfos?.length > 0 || agent.aiImprovements?.length > 0) && (
+          {aiEnabled && agent.aiAnalyzedCount > 0 && (agent.aiBestPhrases?.length > 0 || agent.aiMissedInfos?.length > 0 || agent.aiImprovements?.length > 0) && (
             <div style={{ marginBottom: 12, padding: '12px 14px', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
                 📊 Koching xulosasi ({agent.aiAnalyzedCount} ta tahlil asosida)
@@ -1266,6 +1288,7 @@ function AgentCallsRow({ agent }: any) {
                   <AiCallRow
                     call={c}
                     fmtShortDur={fmtShortDur}
+                    aiEnabled={aiEnabled}
                     onUpdated={(updated: any) => {
                       setCalls((prev) => prev ? prev.map((x) => x.id === c.id ? { ...x, ...updated } : x) : prev);
                     }}
@@ -1346,10 +1369,13 @@ function LazyAudio({ url }: { url: string }) {
   );
 }
 
-function AiCallRow({ call: c, fmtShortDur, onUpdated }: { call: any; fmtShortDur: (s: number) => string; onUpdated: (u: any) => void }) {
+function AiCallRow({ call: c, fmtShortDur, onUpdated, aiEnabled }: { call: any; fmtShortDur: (s: number) => string; onUpdated: (u: any) => void; aiEnabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const missed = ['NO_ANSWER', 'MISSED', 'BUSY', 'FAILED'].includes(c.status);
-  const hasAiContent = !!(c.transcript || (c.aiAnalyzedAt && (c.aiSummary || c.aiFeedback || c.aiObjections?.length)));
+  // v26: AI o'chiq kompaniyada `hasAiContent` baribir `false` bo'ladi
+  // (chunki transcript/aiAnalyzedAt hech qachon to'ldirilmaydi), lekin
+  // aniqlik uchun bu yerda ham tekshiramiz.
+  const hasAiContent = !!(aiEnabled && (c.transcript || (c.aiAnalyzedAt && (c.aiSummary || c.aiFeedback || c.aiObjections?.length))));
 
   return (
     <div style={{ background: 'var(--bg-2)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
@@ -1376,9 +1402,11 @@ function AiCallRow({ call: c, fmtShortDur, onUpdated }: { call: any; fmtShortDur
             {missed ? '—' : '⏳ yozuvsiz'}
           </span>
         )}
-        <span onClick={(e) => e.stopPropagation()}>
-          <AiBadge call={c} missed={missed} onUpdated={onUpdated} />
-        </span>
+        {aiEnabled && (
+          <span onClick={(e) => e.stopPropagation()}>
+            <AiBadge call={c} missed={missed} onUpdated={onUpdated} />
+          </span>
+        )}
         {hasAiContent && <span style={{ fontSize: 11, color: '#6b7280' }}>{open ? '▲' : '▼'}</span>}
       </div>
 

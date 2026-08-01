@@ -56,6 +56,17 @@ export default function OwnerPage() {
     } catch (e: any) { toast.error(errMsg(e)); }
   }
 
+  // v26: bitta bosishda kompaniyaga AI (transkripsiya + Claude tahlil)ni
+  // yoqish/o'chirish — o'chiq bo'lsa o'sha kompaniyada faqat qo'ng'iroq
+  // yozuvlari (recording) bo'ladi, AI xarajat qilinmaydi.
+  async function toggleAi(id: string, current: boolean) {
+    try {
+      await ownerApi.setAi(id, !current);
+      toast.success(!current ? '🤖 AI yoqildi' : '🤖 AI o\'chirildi');
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
   if (!hydrated || !user) return <div style={{ padding: 40, color: 'var(--fg-3)' }}>Yuklanmoqda...</div>;
 
   return (
@@ -109,6 +120,7 @@ export default function OwnerPage() {
                       <th style={{ padding: 10, textAlign: 'left' }}>Bookings</th>
                       <th style={{ padding: 10, textAlign: 'left' }}>Yaratilgan</th>
                       <th style={{ padding: 10, textAlign: 'left' }}>Status</th>
+                      <th style={{ padding: 10, textAlign: 'left' }}>🤖 AI</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -132,6 +144,20 @@ export default function OwnerPage() {
                             <option value="TRIAL" style={{ background: 'var(--bg-2)' }}>TRIAL</option>
                             <option value="SUSPENDED" style={{ background: 'var(--bg-2)' }}>SUSPENDED</option>
                           </select>
+                        </td>
+                        <td style={{ padding: 10 }}>
+                          <button
+                            onClick={() => toggleAi(c.id, !!c.aiEnabled)}
+                            title={c.aiEnabled ? "AI yoqilgan — bosib o'chirish" : "AI o'chiq — bosib yoqish (pullik xizmat)"}
+                            style={{
+                              background: c.aiEnabled ? 'var(--success)' + '20' : 'var(--fg-3)' + '20',
+                              color: c.aiEnabled ? 'var(--success)' : 'var(--fg-3)',
+                              border: 'none', padding: '4px 10px', borderRadius: 6,
+                              fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                            }}
+                          >
+                            {c.aiEnabled ? '🤖 Yoqilgan' : "○ O'chiq"}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -225,6 +251,7 @@ function CreateCompanyModal({ onClose, onSaved }: any) {
   const [form, setForm] = useState({
     name: '', slug: '', plan: 'STARTER',
     adminName: '', adminEmail: '', adminPassword: '',
+    aiEnabled: false,
   });
   const [loading, setLoading] = useState(false);
 
@@ -259,6 +286,12 @@ function CreateCompanyModal({ onClose, onSaved }: any) {
             <option value="PROFESSIONAL">PROFESSIONAL — 20 xodim, 5000 klient</option>
             <option value="ENTERPRISE">ENTERPRISE — cheksiz</option>
           </Select>
+        </div>
+        <div style={{ gridColumn: '1/-1' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', padding: '8px 10px', borderRadius: 8, background: 'var(--bg-3)' }}>
+            <input type="checkbox" checked={form.aiEnabled} onChange={(e) => setForm({ ...form, aiEnabled: e.target.checked })} />
+            🤖 AI (transkripsiya + Claude tahlil) yoqilsin — pullik qo'shimcha xizmat. O'chiq bo'lsa, qo'ng'iroqlarda faqat yozuv (recording) bo'ladi.
+          </label>
         </div>
         <div style={{ gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
           <div style={{ fontSize: 12, color: 'var(--fg-2)', marginBottom: 8 }}>Administrator</div>

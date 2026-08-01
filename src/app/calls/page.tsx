@@ -38,6 +38,10 @@ export default function CallsPage() {
   const router = useRouter();
   const isAdmin = ['TENANT_ADMIN', 'MANAGER'].includes(user?.role || '');
   const isMobile = useIsMobile();
+  // v26: bu kompaniyada AI (transkripsiya + tahlil) xizmati sotib olinganmi —
+  // bo'lmasa "AI" tugmasi va e'tirozlar bannerini ko'rsatmaymiz, faqat
+  // yozuv (recording) tugmalari qoladi.
+  const aiEnabled = !!user?.tenantAiEnabled;
 
   const [calls, setCalls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +65,7 @@ export default function CallsPage() {
       setTotal(d?.total || 0);
     }).finally(() => setLoading(false));
     callsApi.stats().then(r => setStats(r.data)).catch(() => {});
-    callsApi.objectionsStats(30).then(r => setObjStats(r.data)).catch(() => {});
+    if (aiEnabled) callsApi.objectionsStats(30).then(r => setObjStats(r.data)).catch(() => {});
   };
 
   useEffect(() => { load(); }, [filter, page]);
@@ -117,7 +121,7 @@ export default function CallsPage() {
         )}
 
         {/* v16: AI — bu oyda eng ko'p uchragan e'tiroz + tavsiya */}
-        {objStats?.objections?.length > 0 && (
+        {aiEnabled && objStats?.objections?.length > 0 && (
           <div style={{
             display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16,
             padding: '10px 16px', background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.3)',
@@ -215,7 +219,7 @@ export default function CallsPage() {
                           background: '#f97316', color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
                         }}>📞 Qayta</button>
                       )}
-                      {c.status === 'COMPLETED' && (
+                      {aiEnabled && c.status === 'COMPLETED' && (
                         <button onClick={() => setAiCall(c)} title={c.aiError || 'AI tahlil'}
                           style={{
                             padding: '4px 10px', borderRadius: 7,
@@ -297,7 +301,7 @@ export default function CallsPage() {
                                 background: '#f97316', color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 700,
                               }}>📞 Qayta</button>
                             )}
-                            {c.status === 'COMPLETED' && (
+                            {aiEnabled && c.status === 'COMPLETED' && (
                               <button onClick={() => setAiCall(c)} title={c.aiError || 'AI tahlil'}
                                 style={{
                                   padding: '4px 10px', borderRadius: 7,

@@ -11,6 +11,8 @@ interface User {
   tenantName?: string;
   tenantSlug?: string;
   tenantPlan?: string;
+  // v26: shu kompaniyada AI (qo'ng'iroq transkripsiyasi + tahlil) yoqilganmi
+  tenantAiEnabled?: boolean;
   twoFactorEnabled?: boolean;
   avatarUrl?: string;
 }
