@@ -99,10 +99,9 @@ export default function Client360Page() {
   const [showPersonalMsg, setShowPersonalMsg] = useState(false);
   const [showClientEdit, setShowClientEdit] = useState(false);
   const [showMoreInfo, setShowMoreInfo] = useState(false);
-  // v32: chap panel endi bitta uzun ro'yxat emas — ichki segmentli tab
-  // (Umumiy / Maydonlar / Boshqa). Faqat bittasi ko'rinadi, shuning uchun
-  // tepada hammasi ustma-ust chiqib "chalkash" ko'rinmaydi.
-  const [sideTab, setSideTab] = useState<'general' | 'fields' | 'more'>('general');
+  // v35: chap panel — HubSpot "Key information" uslubida BITTA uzluksiz
+  // ro'yxat (avval Umumiy/Maydonlar/Boshqa 3 ta ichki tabga bo'lingan edi —
+  // endi hammasi bitta joyda, tabsiz, tepadan pastga ketma-ket ko'rinadi).
   const [keyInfoOpen, setKeyInfoOpen] = useState(true);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
@@ -322,10 +321,10 @@ export default function Client360Page() {
             {/* Mijoz qayerga bormoqchi + byudjet — ajralib turadigan kartа */}
             <KeyInfoBlock client={c} />
 
-            {/* v33: HubSpot'dagi chap paneldagi "Key information" kartasiga
+            {/* v33/v35: HubSpot'dagi chap paneldagi "Key information" kartasiga
                 o'xshab — chegaralangan, boshi bilan (chevron + sarlavha +
-                ⚙) yig'iladigan/kengaytiriladigan karta. Ichida — avvalgi
-                Umumiy/Maydonlar/Boshqa segmentli tab saqlanib qoladi. */}
+                ⚙) yig'iladigan/kengaytiriladigan karta. Ichi BITTA uzluksiz
+                ro'yxat (tab yo'q). */}
             <div style={{ border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-2)', marginBottom: 12, overflow: 'hidden' }}>
               <div
                 style={{
@@ -350,106 +349,63 @@ export default function Client360Page() {
                 </div>
               </div>
 
+              {/* v35: Avvalgi Umumiy/Maydonlar/Boshqa 3 ta ichki tab OLIB
+                  TASHLANDI — endi hammasi bitta uzluksiz ro'yxatda, HubSpot
+                  "Key information" kartasiga o'xshab tepadan pastga ketma-ket
+                  ko'rinadi (tab bosish shart emas). */}
               {keyInfoOpen && (
-                <div style={{ padding: '12px' }}>
-                  <div style={{
-                    display: 'flex', gap: 3, padding: 3, borderRadius: 9, background: 'var(--bg-3)', marginBottom: 12,
-                  }}>
-                    {([
-                      ['general', "Umumiy"],
-                      ['fields', "Maydonlar"],
-                      ['more', "Boshqa"],
-                    ] as [typeof sideTab, string][]).map(([key, label]) => {
-                      const active = sideTab === key;
-                      return (
-                        <button
-                          key={key}
-                          onClick={() => setSideTab(key)}
-                          style={{
-                            flex: 1, padding: '6px 4px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                            fontSize: 11.5, fontWeight: active ? 700 : 500,
-                            background: active ? 'var(--bg-2)' : 'none',
-                            color: active ? 'var(--fg)' : 'var(--fg-4)',
-                            boxShadow: active ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
-                            transition: 'all .15s ease',
-                          }}
-                        >{label}</button>
-                      );
-                    })}
+                <div style={{ padding: '4px 12px 12px' }}>
+                  {/* ── Umumiy ma'lumot ── */}
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {c.assignedAgent && <Info label="Mas'ul agent" value={c.assignedAgent.name} />}
+                    {c.firstContactAt && <Info label="Birinchi murojaat" value={fmtDate(c.firstContactAt)} />}
+                    <Info label="Manba" value={c.source ? c.source + (c.tier ? ' · ' + c.tier : '') : ''} />
+                    <Info label="Email" value={c.email} />
+                    <Info label="Telefon 2" value={c.phone2} />
+                    <Info label="Tug'ilgan sana" value={c.dateOfBirth && fmtDate(c.dateOfBirth)} />
+                    <Info label="Davlat / Shahar" value={[c.country, c.city].filter(Boolean).join(', ')} />
+                    <Info label="Manzil" value={c.address} />
+                    {(c.passportNo || c.passportExpiry) && <Info label="Passport" value={c.passportNo} mono />}
+                    {c.passportExpiry && <Info label="Passport amal qilish muddati" value={fmtDate(c.passportExpiry)} />}
+                    {c.nationality && <Info label="Millati" value={c.nationality} />}
+                    <Info label="Yaratilgan" value={fmtDateTime(c.createdAt)} />
+                    <Info label="Bosqichdan beri" value={c.pipelineStageAt && timeAgo(c.pipelineStageAt)} />
+                    {c.utmSource && <Info label="UTM Source" value={c.utmSource} />}
                   </div>
 
-                  {/* ── UMUMIY ── */}
-                  {sideTab === 'general' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13 }}>
-                      {c.assignedAgent && (
-                        <div>
-                          <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Mas'ul agent</div>
-                          <div>{c.assignedAgent.name}</div>
-                        </div>
-                      )}
-                      {c.firstContactAt && (
-                        <div>
-                          <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Birinchi murojaat</div>
-                          <div>{fmtDate(c.firstContactAt)}</div>
-                        </div>
-                      )}
-                      <div>
-                        <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 2 }}>Manba</div>
-                        <div>{c.source}{c.tier ? ' · ' + c.tier : ''}</div>
-                      </div>
+                  {/* ── Admin belgilagan savollar / agent javoblari ── */}
+                  <CustomFields client={c} isAdmin={isAdmin} />
 
-                      {/* v15: So'nggi booking qisqacha */}
-                      {bookings.length > 0 && (() => {
-                        const latest = bookings[0];
-                        return (
-                          <div
-                            onClick={() => setActiveTab('bookings')}
-                            style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg-3)', border: '1px solid var(--border)', cursor: 'pointer' }}
-                          >
-                            <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>So'nggi booking</div>
-                            <div style={{ fontSize: 13, fontWeight: 600 }}>{latest.tourName}</div>
-                            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{latest.status}{latest.destination ? ' · ' + latest.destination : ''}</div>
-                            <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{latest.currency} {latest.paidAmount || 0} / {latest.totalPrice}</div>
-                          </div>
-                        );
-                      })()}
-
-                      <div style={{ paddingTop: 4 }}>
-                        <button onClick={() => setShowTask(true)} style={{ fontSize: 12, padding: '5px 0', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Vazifa qo'shish</button>
+                  {/* ── Lead score ── */}
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                    <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>Lead score</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${c.leadScore || 0}%`, background: c.leadScore >= 80 ? '#ef4444' : c.leadScore >= 50 ? '#eab308' : '#0ea5e9' }} />
                       </div>
+                      <span style={{ fontSize: 11, fontWeight: 700 }}>{c.leadScore || 0}</span>
                     </div>
-                  )}
+                  </div>
 
-                  {/* ── MAYDONLAR (custom fields) ── */}
-                  {sideTab === 'fields' && (
-                    <CustomFields client={c} />
-                  )}
-
-                  {/* ── BOSHQA (kengaytirilgan ma'lumot) ── */}
-                  {sideTab === 'more' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
-                      <Info label="Email" value={c.email} />
-                      <Info label="Telefon 2" value={c.phone2} />
-                      <Info label="Tug'ilgan sana" value={c.dateOfBirth && fmtDate(c.dateOfBirth)} />
-                      <Info label="Davlat / Shahar" value={[c.country, c.city].filter(Boolean).join(', ')} />
-                      <Info label="Manzil" value={c.address} />
-                      {(c.passportNo || c.passportExpiry) && <Info label="Passport" value={c.passportNo} mono />}
-                      {c.passportExpiry && <Info label="Passport amal qilish muddati" value={fmtDate(c.passportExpiry)} />}
-                      {c.nationality && <Info label="Millati" value={c.nationality} />}
-                      <Info label="Yaratilgan" value={fmtDateTime(c.createdAt)} />
-                      <Info label="Bosqichdan beri" value={c.pipelineStageAt && timeAgo(c.pipelineStageAt)} />
-                      {c.utmSource && <Info label="UTM Source" value={c.utmSource} />}
-                      <div style={{ marginTop: 4 }}>
-                        <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>Lead score</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ flex: 1, height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${c.leadScore || 0}%`, background: c.leadScore >= 80 ? '#ef4444' : c.leadScore >= 50 ? '#eab308' : '#0ea5e9' }} />
-                          </div>
-                          <span style={{ fontSize: 11, fontWeight: 700 }}>{c.leadScore || 0}</span>
-                        </div>
+                  {/* v15: So'nggi booking qisqacha */}
+                  {bookings.length > 0 && (() => {
+                    const latest = bookings[0];
+                    return (
+                      <div
+                        onClick={() => setActiveTab('bookings')}
+                        style={{ marginTop: 12, padding: '10px 12px', borderRadius: 8, background: 'var(--bg-3)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                      >
+                        <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>So'nggi booking</div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{latest.tourName}</div>
+                        <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{latest.status}{latest.destination ? ' · ' + latest.destination : ''}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{latest.currency} {latest.paidAmount || 0} / {latest.totalPrice}</div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
+
+                  <div style={{ paddingTop: 10 }}>
+                    <button onClick={() => setShowTask(true)} style={{ fontSize: 12, padding: '5px 0', color: 'var(--fg-3)', background: 'none', border: 'none', cursor: 'pointer' }}>+ Vazifa qo'shish</button>
+                  </div>
                 </div>
               )}
             </div>
@@ -916,9 +872,9 @@ function ClientCalls({ clientId }: { clientId: string }) {
 function Info({ label, value, mono }: { label: string; value: any; mono?: boolean }) {
   if (!value) return null;
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13, fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</div>
+    <div style={{ padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 500, fontFamily: mono ? 'monospace' : 'inherit', wordBreak: 'break-word' }}>{value}</div>
     </div>
   );
 }
@@ -1208,32 +1164,17 @@ function KeyInfoBlock({ client }: any) {
   );
 }
 
-// v29: amoCRM uslubida — maydon NOMINI agent har safar o'zi o'ylab
-// yozmaydi (natijada "dfdf", "asd" kabi mazmunsiz yozuvlar chiqardi).
-// Buning o'rniga tayyor, sayohat agentligiga xos nomlar ro'yxatidan
-// tanlanadi; kerak bo'lsa "Boshqa..." orqali o'zi ham kiritishi mumkin.
-const PRESET_FIELD_LABELS = [
-  "Pasport seriyasi",
-  "Pasport amal qilish muddati",
-  "Tug'ilgan sana",
-  "Viza holati",
-  "Necha kishi safar qiladi",
-  "Bolalar yoshi",
-  "Otel darajasi (masalan: 5*)",
-  "Ovqatlanish turi",
-  "Uy manzili",
-  "Qo'shimcha telefon raqami",
-  "Izoh",
-];
-
-function CustomFields({ client }: any) {
+// v35: Endi "Nomini tanlang" preset-dropdown YO'Q. Admin savol (maydon
+// nomi)ni o'zi qo'lda, erkin matn sifatida yozadi — masalan "Qayerga",
+// "Necha kun", "Nechta kotta". Bu savollar BARCHA agentlarga bir xil
+// ko'rinadi; faqat ADMIN ularni qo'sha/o'zgartira/o'chira oladi. Agent
+// esa faqat javobni (qiymatni) to'ldiradi — savol matnini ko'radi, lekin
+// tahrirlay olmaydi. Server tomonda ham xuddi shu qoida amal qiladi
+// (clients.service.ts → setCustomFields), shuning uchun bu — faqat
+// qulaylik uchun UI cheklovi emas, haqiqiy ruxsat nazorati.
+function CustomFields({ client, isAdmin }: any) {
   const initial = Array.isArray(client?.preferences?.customFields) ? client.preferences.customFields : [];
   const [fields, setFields] = useState<{ key: string; value: string }[]>(initial);
-  // v29: qaysi qatorlar "erkin nom" rejimida ekanini kuzatib boradi (preset
-  // ro'yxatida bo'lmagan, eski saqlangan nomlar uchun).
-  const [customKeyMode, setCustomKeyMode] = useState<Set<number>>(() => new Set(
-    initial.map((f: any, i: number) => (f.key && !PRESET_FIELD_LABELS.includes(f.key) ? i : -1)).filter((i: number) => i >= 0)
-  ));
   const [baseline, setBaseline] = useState<{ key: string; value: string }[]>(initial);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1242,12 +1183,13 @@ function CustomFields({ client }: any) {
     setFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, [k]: v } : f)));
   const add = () => setFields((prev) => [...prev, { key: '', value: '' }]);
   const remove = (i: number) => setFields((prev) => prev.filter((_, idx) => idx !== i));
-  const markCustom = (i: number) => setCustomKeyMode((prev) => new Set(prev).add(i));
 
   function startEdit() {
-    const base = baseline.length ? baseline : [{ key: '', value: '' }];
+    // Agent uchun: savollar tuzilmasi o'zgarmaydi, faqat bo'sh bo'lsa ham
+    // ro'yxat ko'rsatiladi (to'ldirish uchun). Admin uchun: hech narsa
+    // bo'lmasa bitta bo'sh qator bilan boshlanadi.
+    const base = baseline.length ? baseline : (isAdmin ? [{ key: '', value: '' }] : []);
     setFields(base);
-    setCustomKeyMode(new Set(base.map((f, i) => (f.key && !PRESET_FIELD_LABELS.includes(f.key) ? i : -1)).filter((i) => i >= 0)));
     setEditing(true);
   }
   function cancel() {
@@ -1258,11 +1200,15 @@ function CustomFields({ client }: any) {
     setSaving(true);
     try {
       const clean = fields.filter((f) => f.key.trim() || f.value.trim());
-      await clientsApi.setCustomFields(client.id, clean);
-      setFields(clean);
-      setBaseline(clean);
+      const res: any = await clientsApi.setCustomFields(client.id, clean);
+      // Backend agent uchun faqat qiymatlarni qo'llaydi, savol tuzilmasini
+      // o'zgartirmaydi — shuning uchun natijani serverdan qaytgani bilan
+      // sinxronlaymiz (agent "yashirin" ravishda savol qo'sholmasligi kk).
+      const applied = Array.isArray(res?.data?.customFields) ? res.data.customFields : clean;
+      setFields(applied);
+      setBaseline(applied);
       setEditing(false);
-      toast.success('Ma\'lumot saqlandi');
+      toast.success('Saqlandi');
     } catch (e: any) { toast.error(errMsg(e)); }
     finally { setSaving(false); }
   }
@@ -1271,25 +1217,25 @@ function CustomFields({ client }: any) {
   const saved = baseline.filter((f) => f.key.trim() || f.value.trim());
 
   return (
-    <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+    <div style={{ marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ color: 'var(--fg-4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
           Qo'shimcha ma'lumot
         </div>
-        {!editing && (
-          <button onClick={startEdit} title="Tahrirlash" style={{
+        {!editing && (isAdmin || saved.length > 0) && (
+          <button onClick={startEdit} title={isAdmin ? 'Savollarni sozlash' : 'Javob yozish'} style={{
             display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11,
             padding: '4px 9px', borderRadius: 6, border: '1px solid var(--border)',
             background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer', fontWeight: 600,
           }}>
-            <FaPen size={9} /> Tahrirlash
+            <FaPen size={9} /> {isAdmin ? 'Tahrirlash' : 'Javob yozish'}
           </button>
         )}
       </div>
 
-      {/* KO'RISH REJIMI — v31: HubSpot "Key information" uslubi — yorliq
-          ustida kichik va xira, qiymat pastda aniq, oralarida ingichka
-          chiziq. Endi qutichalar/fon yo'q — toza, vertikal ro'yxat. */}
+      {/* KO'RISH REJIMI — HubSpot "Key information" uslubi: yorliq (savol)
+          ustida kichik va xira, javob pastda aniq, oralarida ingichka
+          chiziq. Qutichalar/fon yo'q — toza, vertikal ro'yxat. */}
       {!editing && (
         saved.length > 0 ? (
           <div>
@@ -1303,61 +1249,59 @@ function CustomFields({ client }: any) {
               </div>
             ))}
           </div>
+        ) : isAdmin ? (
+          <div style={{ fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic', padding: '4px 0' }}>
+            Hozircha savol yo'q — qo'shish uchun "Tahrirlash"ni bosing
+          </div>
         ) : (
           <div style={{ fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic', padding: '4px 0' }}>
-            Hozircha ma'lumot yo'q — qo'shish uchun "Tahrirlash"ni bosing
+            Admin hali savol qo'shmagan
           </div>
         )
       )}
 
-      {/* TAHRIRLASH REJIMI — v29: "Nomi" endi erkin matn emas, tayyor
-          ro'yxatdan tanlanadi (amoCRM uslubida) — mazmunsiz yozuvlarning
-          oldi olinadi. Kerak bo'lsa "Boshqa..." bilan o'zi ham yozadi. */}
+      {/* TAHRIRLASH REJIMI — v35: Admin — savol (nom) VA javob (qiymat)ni
+          qo'lda, erkin matn sifatida yozadi, qator qo'sha/o'chira oladi.
+          Agent — savol matni statik ko'rsatiladi (tahrirlanmaydi), faqat
+          javob maydoniga yoza oladi; qator qo'shish/o'chirish tugmalari
+          agentga ko'rinmaydi. */}
       {editing && (
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-            {fields.map((f, i) => {
-              const isCustomKey = customKeyMode.has(i);
-              return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {isCustomKey ? (
-                    <input
-                      style={inp}
-                      placeholder="Maydon nomi"
-                      value={f.key}
-                      onChange={(e) => upd(i, 'key', e.target.value)}
-                      autoFocus
-                    />
-                  ) : (
-                    <select
-                      style={inp}
-                      value={f.key}
-                      onChange={(e) => {
-                        if (e.target.value === '__custom__') { upd(i, 'key', ''); markCustom(i); }
-                        else upd(i, 'key', e.target.value);
-                      }}
-                    >
-                      <option value="">— Nomini tanlang —</option>
-                      {PRESET_FIELD_LABELS.map((label) => (
-                        <option key={label} value={label}>{label}</option>
-                      ))}
-                      <option value="__custom__">✏️ Boshqa (o'zim yozaman)</option>
-                    </select>
-                  )}
-                  <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
-                  <input style={inp} placeholder="Qiymati" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} />
+            {fields.map((f, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {isAdmin ? (
+                  <input
+                    style={inp}
+                    placeholder="Savol (masalan: Qayerga)"
+                    value={f.key}
+                    onChange={(e) => upd(i, 'key', e.target.value)}
+                  />
+                ) : (
+                  <div style={{ ...inp, background: 'none', border: 'none', color: 'var(--fg-3)', fontWeight: 600, padding: '7px 2px' }}>
+                    {f.key || '—'}
+                  </div>
+                )}
+                <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
+                <input style={inp} placeholder="Javob" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} autoFocus={i === fields.length - 1} />
+                {isAdmin && (
                   <button onClick={() => remove(i)} title="O'chirish" style={{
                     border: 'none', background: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer',
                     padding: '4px 6px', display: 'flex', alignItems: 'center',
                   }}><FaTrash size={11} /></button>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            ))}
+            {!isAdmin && fields.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic' }}>Admin hali savol qo'shmagan</div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={add} style={{ fontSize: 12, padding: '5px 0', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-              + Ma'lumot qo'shish
-            </button>
+            {isAdmin && (
+              <button onClick={add} style={{ fontSize: 12, padding: '5px 0', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                + Savol qo'shish
+              </button>
+            )}
             <div style={{ flex: 1 }} />
             <button onClick={cancel} disabled={saving} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer' }}>
               Bekor
@@ -1743,6 +1687,7 @@ function OfferRow({ offer: o, isLast, clientId, clientPhone, clientUsername, onS
     o.includesTransfer && '🚕 Transfer',
     o.includesInsurance && "🛡 Sug'urta",
     o.includesVisa && '🛂 Viza',
+    o.includesExcursion && '🗺️ Ekskursiya',
   ].filter(Boolean);
 
   return (
@@ -1878,6 +1823,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer, duplicate
         includesHotel: prefillSource.includesHotel !== false,
         includesTransfer: !!prefillSource.includesTransfer,
         includesInsurance: !!prefillSource.includesInsurance,
+        includesExcursion: !!prefillSource.includesExcursion,
         notes: prefillSource.notes || '',
       };
     }
@@ -1892,7 +1838,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer, duplicate
       hotels: [{ name: '', stars: '', photos: [] as string[] }],
       mealPlan: 'NONE',
       includesVisa: false, includesFlight: true, includesHotel: true,
-      includesTransfer: false, includesInsurance: false,
+      includesTransfer: false, includesInsurance: false, includesExcursion: false,
       notes: '',
     };
   });
@@ -1933,6 +1879,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer, duplicate
       includesHotel: t.includesHotel !== false,
       includesTransfer: !!t.includesTransfer,
       includesInsurance: !!t.includesInsurance,
+      includesExcursion: !!t.includesExcursion,
       notes: t.notes || '',
       // Sana va kishi soni mijozga xos — shablon bilan kelmaydi, agent o'zi kiritadi.
     }));
@@ -2123,7 +2070,7 @@ function OfferCreateModal({ clientId, onClose, onSaved, existingOffer, duplicate
 
           {/* Kiritilgan xizmatlar */}
           <div style={{ gridColumn: '1/-1', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            {[['includesFlight','✈️ Aviabilet'],['includesHotel','🏨 Mehmonxona'],['includesTransfer','🚕 Transfer'],['includesInsurance','🛡 Sug\'urta'],['includesVisa','🛂 Viza']].map(([k,l]) => (
+            {[['includesFlight','✈️ Aviabilet'],['includesHotel','🏨 Mehmonxona'],['includesTransfer','🚕 Transfer'],['includesInsurance','🛡 Sug\'urta'],['includesVisa','🛂 Viza'],['includesExcursion','🗺️ Ekskursiya']].map(([k,l]) => (
               <label key={k} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
                 <input type="checkbox" checked={(f as any)[k]} onChange={e => set(k, e.target.checked)} /> {l}
               </label>
