@@ -695,8 +695,14 @@ export default function AiMarketingPage() {
     }
   };
 
-  // ── 1-bosqich: post + rasm generatsiya ──
+  // ── 1-bosqich: post + rasm generatsiya (Claude'ni chaqiradi — AI o'chiq
+  // bo'lsa ishlamaydi, lekin shu funksiya DOIM mavjud, faqat shu yerda
+  // to'xtatiladi — sahifaning qolgan qismiga ta'sir qilmaydi) ──
   const doGenerate = async () => {
+    if (user && !user.tenantAiEnabled) {
+      toast.error("AI (reklama matni yozish) bu kompaniyada o'chiq. Yoqish uchun platforma administratoriga murojaat qiling.");
+      return;
+    }
     if (!validate()) return;
     setGenerating(true);
     setResult(null);
@@ -1028,27 +1034,17 @@ export default function AiMarketingPage() {
     facebook: { label: 'Facebook', icon: '👍' },
   };
 
-  // 🩹 TUZATISH: bu sahifa ilgari tenant.aiEnabled holatiga umuman
-  // qaramasdan to'liq ishlab turardi (forma, "Postlarni yaratish" tugmasi
-  // va h.k.) — hatto owner shu kompaniyada AI'ni o'chirgan bo'lsa ham.
-  // Endi calls/briefing sahifalari kabi shu bitta bayroqqa bo'ysunadi:
-  // o'chiq bo'lsa, forma o'rniga tushuntirish ko'rsatiladi, hech qanday
-  // AI so'rovi (demak token sarfi) bo'lmaydi. Barcha hook'lar shu
-  // tekshiruvdan OLDIN chaqirilgani uchun React qoidalariga zid emas.
-  if (user && !user.tenantAiEnabled) {
-    return (
-      <CrmLayout>
-        <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 640, margin: '60px auto', textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🤖🚫</div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>AI Reklama Generatori o'chirilgan</h2>
-          <p style={{ fontSize: 13.5, color: 'var(--fg-3)', lineHeight: 1.6 }}>
-            Bu kompaniyada AI xizmati (transkripsiya, tahlil va reklama matni yozish) hozircha o'chiq —
-            shuning uchun token sarflanmaydi. Yoqish uchun platforma administratoriga murojaat qiling.
-          </p>
-        </div>
-      </CrmLayout>
-    );
-  }
+  // 🩹 TUZATISH (v38): ilgari shu yerda BUTUN SAHIFA (forma, mehmonxona
+  // tanlash, banner yaratish, hammasi) `tenant.aiEnabled` o'chiq bo'lsa
+  // butunlay bloklanardi. Bu NOTO'G'RI edi — chunki sahifadagi Claude
+  // (AI) chaqiruvi FAQAT bitta joyda: "✨ Postlarni yaratish" tugmasi
+  // (`doGenerate`, reklama matnini yozadi). Banner yaratish (`doBanner`)
+  // esa Claude'ni UMUMAN chaqirmaydi — u dasturiy ravishda (Pexels rasm +
+  // sharp/SVG) ishlaydi, token sarflamaydi. Shuning uchun endi butun
+  // sahifa emas, FAQAT "Postlarni yaratish" tugmasi cheklanadi (pastda,
+  // tugma joylashgan yerda) — qolgan hamma narsa (tur/mehmonxona
+  // ma'lumotlari, banner yaratish, shablon, Telegram/Facebook'ga
+  // yuborish) AI yoqiq-yo'qligidan qat'i nazar ishlayveradi.
 
   return (
     <CrmLayout>
@@ -1615,12 +1611,18 @@ export default function AiMarketingPage() {
               </div>
             </details>
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center', marginTop: 16, flexWrap: 'wrap' }}>
               <button className="btn btn-lg btn-secondary" disabled={bannering} onClick={doBanner}>
                 {bannering ? 'Banner yaratilmoqda...' : '🖼️ Banner yaratish'}
               </button>
-              <button className="btn btn-lg btn-gradient" disabled={generating} onClick={doGenerate}>
-                {generating ? 'Yaratilmoqda...' : '✨ Postlarni yaratish'}
+              <button
+                className="btn btn-lg btn-gradient"
+                disabled={generating || (user && !user.tenantAiEnabled)}
+                onClick={doGenerate}
+                title={user && !user.tenantAiEnabled ? "AI bu kompaniyada o'chiq — platforma administratoriga murojaat qiling" : undefined}
+                style={user && !user.tenantAiEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              >
+                {generating ? 'Yaratilmoqda...' : (user && !user.tenantAiEnabled) ? '🤖🚫 AI o\'chiq' : '✨ Postlarni yaratish'}
               </button>
             </div>
           </div>
