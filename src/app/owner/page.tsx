@@ -27,6 +27,9 @@ export default function OwnerPage() {
   const [recentLogins, setRecentLogins] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  // v37: STT (ovozni-matnga o'girish) uchun asosiy provayder — Groq (arzon) / OpenAI
+  const [sttProvider, setSttProviderState] = useState<any>(null);
+  const [sttSaving, setSttSaving] = useState(false);
 
   useEffect(() => { hydrate(); }, [hydrate]);
   useEffect(() => {
@@ -36,17 +39,31 @@ export default function OwnerPage() {
 
   const load = () => {
     setLoading(true);
-    Promise.all([ownerApi.stats(), ownerApi.companies(), ownerApi.leaderboard(), ownerApi.recentLogins(50)])
-      .then(([s, c, l, r]: any[]) => {
+    Promise.all([ownerApi.stats(), ownerApi.companies(), ownerApi.leaderboard(), ownerApi.recentLogins(50), ownerApi.getSttProvider()])
+      .then(([s, c, l, r, stt]: any[]) => {
         setStats(s.data);
         setCompanies(c.data || []);
         setLeaderboard(l.data || []);
         setRecentLogins(r.data || []);
+        setSttProviderState(stt.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
   useEffect(() => { if (user?.role === 'PLATFORM_OWNER') load(); }, [user]);
+
+  // v37: Owner istagan payt Groq <-> OpenAI orasida almashtira oladi —
+  // ish vaqtida, deploy/restart shart emas. Ikkalasining kaliti ham
+  // .env'da bo'lsa, tanlangani ishlamay qolsa avtomatik boshqasiga o'tadi.
+  async function changeSttProvider(provider: 'groq' | 'openai') {
+    setSttSaving(true);
+    try {
+      const res = await ownerApi.setSttProvider(provider);
+      setSttProviderState(res.data);
+      toast.success(provider === 'groq' ? '🎙️ Endi Groq asosiy (arzon)' : '🎙️ Endi OpenAI asosiy');
+    } catch (e: any) { toast.error(errMsg(e)); }
+    finally { setSttSaving(false); }
+  }
 
   async function setStatus(id: string, status: string) {
     try {
@@ -101,6 +118,46 @@ export default function OwnerPage() {
               <StatCard icon="✈" label="Bookinglar" value={stats.bookings} />
               <StatCard icon="💰" label="Jami daromad" value={fmt(stats.totalRevenue)} color="#10b981" />
             </div>
+
+            {/* v37: STT (ovozni-matnga o'girish) provayder tugmasi — Groq (arzon) / OpenAI */}
+            <Card style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>🎙️ Transkripsiya provayderi</h3>
+                  <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 3 }}>
+                    Qaysi biri ishlamasa (yoki kaliti bo'lmasa), boshqasi avtomatik zaxira sifatida ishlatiladi.
+                  </div>
+                </div>
+                {sttProvider && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {(['groq', 'openai'] as const).map((p) => {
+                      const active = sttProvider.preferred === p;
+                      const configured = p === 'groq' ? sttProvider.groqConfigured : sttProvider.openaiConfigured;
+                      return (
+                        <button
+                          key={p}
+                          disabled={sttSaving}
+                          onClick={() => changeSttProvider(p)}
+                          title={configured ? undefined : "Kaliti .env'da sozlanmagan"}
+                          style={{
+                            padding: '8px 16px', borderRadius: 9, cursor: sttSaving ? 'default' : 'pointer',
+                            fontSize: 13, fontWeight: 700,
+                            border: '1px solid ' + (active ? 'var(--primary)' : 'var(--border)'),
+                            background: active ? 'var(--primary)' : 'var(--bg-2)',
+                            color: active ? '#fff' : (configured ? 'var(--fg)' : 'var(--fg-4)'),
+                            opacity: sttSaving ? 0.6 : 1,
+                            display: 'flex', alignItems: 'center', gap: 6,
+                          }}
+                        >
+                          {p === 'groq' ? '⚡ Groq (arzon)' : '🔷 OpenAI'}
+                          {!configured && <span style={{ fontSize: 10 }}>⚠️</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </Card>
 
             {/* Companies */}
             <Card style={{ marginBottom: 16 }}>

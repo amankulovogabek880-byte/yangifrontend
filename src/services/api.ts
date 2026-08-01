@@ -366,6 +366,9 @@ export const ownerApi = {
   setAi: (id: string, aiEnabled: boolean) => api.patch(`/owner/companies/${id}/ai`, { aiEnabled }),
   // v7: Oxirgi 50 ta login urinishlari
   recentLogins: (limit = 50) => api.get('/owner/recent-logins', { params: { limit } }),
+  // v37: Ovozni-matnga o'girish (STT) uchun asosiy provayder — Groq (arzon) yoki OpenAI
+  getSttProvider: () => api.get('/owner/stt-provider'),
+  setSttProvider: (provider: 'groq' | 'openai') => api.patch('/owner/stt-provider', { provider }),
 };
 
 // ── API KEYS ─────────────────────────────────────────────────
