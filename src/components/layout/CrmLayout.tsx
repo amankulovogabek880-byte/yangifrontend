@@ -9,7 +9,15 @@ import { useI18n } from '@/lib/i18n';
 import { disconnectSocket } from '@/hooks/useSocket';
 import NotificationBell from '@/components/NotificationBell';
 import GlobalSearch from '@/components/GlobalSearch';
-import CommandPalette from '@/components/CommandPalette';
+// v36: `CommandPalette` OLIB TASHLANDI — u `GlobalSearch` bilan BIR XIL
+// Ctrl+K tugmasiga bog'langan edi, shuning uchun Ctrl+K bosilganda IKKALASI
+// HAM bir vaqtda ochilib qolardi (biri ikkinchisining ustida, ko'rinmas
+// holda). Natijada tashqarisiga bosib yopmoqchi bo'lsangiz, faqat tepadagi
+// (CommandPalette) yopilardi — ostidagi GlobalSearch esa OCHIQ qolardi va
+// "yopilmayapti" bo'lib ko'rinardi. Fayl o'chirilmadi
+// (src/components/CommandPalette.tsx joyida turibdi), agar kelajakda kerak
+// bo'lsa — boshqa tugma (masalan Ctrl+Shift+K) bilan qayta ulash mumkin.
+// import CommandPalette from '@/components/CommandPalette';
 import { Avatar } from '@/components/ui';
 
 // ─── Premium SVG Icons ───────────────────────────────────────────
@@ -201,6 +209,16 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
 
+  // v36: "Sozlamalar/Chiqish" dropdown (userMenu) tashqarisiga bosilganda
+  // yopiladi (backdrop orqali), lekin Escape tugmasi ISHLAMAS edi —
+  // qidiruv oynasidagi kabi izchillik uchun shu yerga ham qo'shildi.
+  useEffect(() => {
+    if (!userMenu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setUserMenu(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [userMenu]);
+
   if (!hydrated) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
       <span className="spinner spinner-lg" />
@@ -373,7 +391,6 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <CommandPalette />
         <style>{`@keyframes slideRight { from { transform: translateX(-100%); } to { transform: translateX(0); } }`}</style>
       </div>
     );
@@ -579,8 +596,6 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
 
         <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
       </div>
-
-      <CommandPalette />
     </div>
   );
 }

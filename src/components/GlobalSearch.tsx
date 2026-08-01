@@ -97,6 +97,20 @@ export default function GlobalSearch() {
                   outline: 'none',
                 }}
               />
+              {/* v36: tashqarisiga bosish/Escape allaqachon yopadi, lekin
+                  ko'rinadigan ✕ tugma qo'shildi — ayniqsa mobil/sensorli
+                  ekranlarda buni topish osonroq bo'lsin uchun. */}
+              <button
+                onClick={() => setOpen(false)}
+                title="Yopish (Esc)"
+                style={{
+                  flexShrink: 0, width: 28, height: 28, marginRight: 6,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'var(--bg-3)', border: '1px solid var(--border)',
+                  borderRadius: 7, color: 'var(--fg-3)', cursor: 'pointer',
+                  fontSize: 14, lineHeight: 1,
+                }}
+              >✕</button>
             </div>
             <div style={{ maxHeight: 480, overflowY: 'auto' }}>
               {loading && <div style={{ padding: 24, textAlign: 'center', color: 'var(--fg-3)' }}>Qidirilmoqda...</div>}
