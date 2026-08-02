@@ -696,7 +696,8 @@ export const facebookLeadsApi = {
   getStats: () => api.get('/facebook-leads/stats'),
   listForms: () => api.get('/facebook-leads/forms'),
   // "Facebook orqali ulash" tugmasi (OAuth) — token/ID qo'lda kiritilmaydi
-  getOAuthStartUrl: () => api.get('/facebook-leads/oauth/start-url'),
+  getOAuthStartUrl: (origin?: 'facebook' | 'instagram') =>
+    api.get('/facebook-leads/oauth/start-url', { params: origin ? { origin } : undefined }),
   getPendingPages: () => api.get('/facebook-leads/oauth/pending-pages'),
   selectPage: (pageId: string) => api.post('/facebook-leads/oauth/select-page', { pageId }),
   // "Nega ishlamayapti?" tashxis + xato leadlarni qo'lda tiklash (backend'da

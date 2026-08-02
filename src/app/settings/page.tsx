@@ -3644,15 +3644,52 @@ function WhatsAppTab() {
 }
 
 function InstagramTab() {
+  const router = useRouter();
   const [cfg, setCfg] = useState<any>({
     accessToken: '', pageId: '', verifyToken: 'omoncrm_verify',
     botName: 'Travel Bot', greetingMessage: '', assignToAgentId: '',
+    hasAccessToken: false, maskedAccessToken: '',
   });
   const [stats, setStats] = useState<any>(null);
   const [agents, setAgents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
+
+  async function loadAll() {
+    try {
+      const [cfgR, statsR, usersR]: any = await Promise.all([
+        import('@/services/api').then(m => m.instagramApi.getConfig()),
+        import('@/services/api').then(m => m.instagramApi.getStats()),
+        import('@/services/api').then(m => m.usersApi.list()),
+      ]);
+      const d = cfgR.data;
+      setCfg({
+        accessToken: '', // xavfsizlik: to'liq token hech qachon qaytarilmaydi
+        // TUZATILDI: `hasAccessToken` va `maskedAccessToken` ilgari bu yerda
+        // butunlay tashlab yuborilardi. Backend ularni to'g'ri qaytarsa ham
+        // (Instagram muvaffaqiyatli ulangan bo'lsa ham), UI doim "ulanmagan"
+        // holatini ko'rsatardi — chunki quyidagi JSX aynan shu ikki maydonga
+        // qarab qaror qabul qiladi.
+        hasAccessToken: !!d.hasAccessToken,
+        maskedAccessToken: d.maskedAccessToken || '',
+        pageId: d.pageId || '',
+        verifyToken: d.verifyToken || 'omoncrm_verify',
+        botName: d.botName || 'Travel Bot',
+        greetingMessage: d.greetingMessage || '',
+        farewell: d.farewell || '',
+        botSteps: d.botSteps || null,
+        assignToAgentId: d.assignToAgentId || '',
+      });
+      setStats(statsR.data);
+      const list = Array.isArray(usersR.data) ? usersR.data : (usersR.data?.data || []);
+      setAgents(list.filter((u: any) => u.role === 'AGENT'));
+    } catch {
+      /* jim */
+    } finally {
+      setLoading(false);
+    }
+  }
 
   /**
    * TEZKOR ULANISH (v12.9).
@@ -3662,14 +3699,15 @@ function InstagramTab() {
    * Facebook orqali bir marta ulansa, backend Instagram sozlamasini
    * ham avtomatik to'ldiradi (facebook-leads OAuth callback).
    *
-   * Ilgari bu yerda faqat qo'lda kiritish maydonlari bor edi va
-   * foydalanuvchi tezkor yo'l borligini bilmasdi.
+   * TUZATILDI: `origin: 'instagram'` endi backend'ga yuboriladi, shunda
+   * OAuth tugagach foydalanuvchi Facebook Ads tab'iga emas, aynan shu
+   * Instagram tab'iga qaytariladi va ulanish natijasini shu yerda ko'radi.
    */
   async function connectWithFacebook() {
     setConnecting(true);
     try {
       const { facebookLeadsApi } = await import('@/services/api');
-      const res: any = await facebookLeadsApi.getOAuthStartUrl();
+      const res: any = await facebookLeadsApi.getOAuthStartUrl('instagram');
       if (res.data?.url) {
         window.location.href = res.data.url;
       } else {
@@ -3683,26 +3721,59 @@ function InstagramTab() {
   }
 
   useEffect(() => {
-    Promise.all([
-      import('@/services/api').then(m => m.instagramApi.getConfig()),
-      import('@/services/api').then(m => m.instagramApi.getStats()),
-      import('@/services/api').then(m => m.usersApi.list()),
-    ]).then(([cfgR, statsR, usersR]: any) => {
-      const d = cfgR.data;
-      setCfg({
-        accessToken: d.accessToken || '',
-        pageId: d.pageId || '',
-        verifyToken: d.verifyToken || 'omoncrm_verify',
-        botName: d.botName || 'Travel Bot',
-        greetingMessage: d.greetingMessage || '',
-        farewell: d.farewell || '',
-        botSteps: d.botSteps || null,
-        assignToAgentId: d.assignToAgentId || '',
-      });
-      setStats(statsR.data);
-      const list = Array.isArray(usersR.data) ? usersR.data : (usersR.data?.data || []);
-      setAgents(list.filter((u: any) => u.role === 'AGENT'));
-    }).catch(() => {}).finally(() => setLoading(false));
+    loadAll();
+  }, []);
+
+  // Facebook Login orqali qaytgandan keyingi natijani ko'rsatish
+  // (?tab=instagram&fb=success|choose|denied|nopages|error|...)
+  //
+  // TUZATILDI: ilgari bu tab bunday natijani umuman kutmasdi — "Facebook
+  // orqali ulash" tugmasi bosilgach foydalanuvchi Facebook Ads tab'iga
+  // qaytarilardi (yuqoridagi origin tuzatishidan oldin) va Instagram
+  // tab'iga qaytib kelganda hech qanday tasdiq/xato ko'rmasdi.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fb = params.get('fb');
+    if (!fb) return;
+    const fbMsg = params.get('fbMsg') || '';
+    const detail = fbMsg ? ` — ${fbMsg}` : '';
+    const ig = params.get('ig'); // '1' | '0' | null — Instagram aynan ulandimi
+    const igMsg = params.get('igMsg') || '';
+
+    if (fb === 'success' || fb === 'connected_no_admin_access' || fb === 'connected_subscribe_failed') {
+      if (ig === '0') {
+        toast.error(
+          `Facebook Page ulandi, lekin Instagram ulanmadi${igMsg ? ` — ${igMsg}` : ''}. ` +
+          `Instagram Business akkauntingiz shu Page'ga bog'langanini tekshiring va qayta urinib ko'ring.`,
+          { duration: 10000 },
+        );
+      } else {
+        toast.success('✅ Instagram ulandi! DM\'lar endi Chat bo\'limiga tushadi.');
+      }
+      loadAll();
+    } else if (fb === 'choose') {
+      toast('Bir nechta Page topildi — "Facebook Ads" bo\'limida birini tanlang 👇');
+    } else if (fb === 'denied') {
+      toast.error('Ulanish bekor qilindi');
+    } else if (fb === 'nopages') {
+      toast.error("Bu Facebook akkauntida siz boshqaradigan Page topilmadi");
+    } else if (fb === 'no_admin_access') {
+      toast.error(`Page uchun admin huquqi yo'q${detail}. Page egasidan "Manage Page" huquqini so'rang.`, { duration: 8000 });
+    } else if (fb === 'missing_permissions') {
+      toast.error(`Facebook ruxsatlari yetarli emas${detail}. Qaytadan ulanishda barcha so'ralgan ruxsatlarni tasdiqlang.`, { duration: 8000 });
+    } else if (fb === 'invalid_token') {
+      toast.error(`Facebook token yaroqsiz${detail}. Qaytadan ulaning.`, { duration: 8000 });
+    } else if (fb === 'token_exchange_failed') {
+      toast.error(`Uzoq muddatli token olishda xatolik${detail}. Birozdan so'ng qaytadan urinib ko'ring.`, { duration: 10000 });
+    } else if (fb === 'error') {
+      toast.error(`Ulanishda xatolik yuz berdi${detail}`);
+    } else {
+      toast.error(`Kutilmagan holat: ${fb}${detail}`);
+    }
+
+    // URL'ni tozalab qo'yamiz — sahifa qayta yuklanganda qayta ishlanmasin
+    router.replace('/settings?tab=instagram');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function save() {
@@ -3711,6 +3782,7 @@ function InstagramTab() {
       const { instagramApi } = await import('@/services/api');
       await instagramApi.saveConfig(cfg);
       toast.success('Instagram sozlamalari saqlandi');
+      await loadAll();
     } catch (e: any) { toast.error(errMsg(e)); }
     finally { setSaving(false); }
   }
@@ -4185,7 +4257,7 @@ function FacebookLeadsTab() {
     setConnecting(true);
     try {
       const { facebookLeadsApi } = await import('@/services/api');
-      const res: any = await facebookLeadsApi.getOAuthStartUrl();
+      const res: any = await facebookLeadsApi.getOAuthStartUrl('facebook');
       if (res.data?.url) {
         window.location.href = res.data.url; // Facebook login oynasiga o'tadi
       } else {
