@@ -153,14 +153,21 @@ export default function DashboardPage() {
       setStats(s?.data || null);
       setRevenueChart(Array.isArray(rc?.data) ? rc.data : (rc?.data?.data || []));
       const fuArr = Array.isArray(fu?.data) ? fu.data : (fu?.data?.data || []);
-      // Backend /followups har qanday bajarilmagan eslatmani (kelajakdagilarini
-      // ham) qaytaradi va `limit` parametrini e'tiborga olmaydi — shuning
-      // uchun "Bugungi eslatmalar" bo'limida faqat bugungi kunga (yoki undan
-      // oldingi, muddati o'tgan) eslatmalarni ko'rsatamiz, kelajakdagilarini
-      // filtrlab tashlaymiz.
+      // Backend /followups har qanday bajarilmagan eslatmani (o'tganlarini va
+      // kelajakdagilarini ham) qaytaradi va `limit` parametrini e'tiborga
+      // olmaydi — shuning uchun "Bugungi eslatmalar" bo'limida faqat aynan
+      // bugungi kunga tegishli eslatmalarni ko'rsatamiz. Kechagi yoki undan
+      // oldingi (muddati o'tgan) eslatmalar bu yerdan avtomatik chiqib
+      // ketadi, kelajakdagilar ham chiqariladi.
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
       const endOfToday = new Date();
       endOfToday.setHours(23, 59, 59, 999);
-      const todayOnly = fuArr.filter((f: any) => f?.dueAt && new Date(f.dueAt) <= endOfToday);
+      const todayOnly = fuArr.filter((f: any) => {
+        if (!f?.dueAt) return false;
+        const due = new Date(f.dueAt);
+        return due >= startOfToday && due <= endOfToday;
+      });
       setTodayTasks(todayOnly.slice(0, 6));
       if (ag) setAgentsList(Array.isArray(ag.data) ? ag.data : (ag?.data?.agents || []));
     }).finally(() => setLoading(false));

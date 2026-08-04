@@ -5,6 +5,7 @@ import { aiMarketingApi, usersApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useI18n } from '@/lib/i18n';
 
 /**
  * ═══════════════════════════════════════════════════════════════
@@ -115,10 +116,10 @@ function normalizeLegacyLayout(layout: any): Record<LayoutKey, LayoutOffset> {
   return merged;
 }
 
-function copyToClipboard(text: string, label: string) {
+function copyToClipboard(text: string, label: string, t: (key: string) => string) {
   navigator.clipboard.writeText(text)
-    .then(() => toast.success(`${label} nusxalandi`))
-    .catch(() => toast.error("Nusxalab bo'lmadi"));
+    .then(() => toast.success(`${label} ${t('aimkt.copied')}`))
+    .catch(() => toast.error(t('aimkt.copyFailed')));
 }
 
 /** Bannerni haqiqiy fayl sifatida yuklab beradi (shunchaki yangi tabda ochish emas). */
@@ -213,11 +214,12 @@ type LayoutKey = 'badge' | 'chips' | 'stars' | 'title' | 'hotel' | 'info' | 'pri
 type LayoutOffset = { dx: number; dy: number };
 
 function LivePreview({
-  form, template, generatedUrl, editMode, onLayoutChange,
+  form, template, generatedUrl, editMode, onLayoutChange, t,
 }: {
   form: any; template: any; generatedUrl?: string;
   editMode?: boolean;
   onLayoutChange?: (key: LayoutKey, dx: number, dy: number) => void;
+  t: (key: string) => string;
 }) {
   const accent = /^#[0-9a-fA-F]{3,8}$/.test(template?.primaryColor) ? template.primaryColor : '#FF6A2B';
   const isRu = form.adLanguage === 'ru';
@@ -314,7 +316,7 @@ function LivePreview({
           flexDirection: 'column', gap: 8, color: 'rgba(255,255,255,0.85)',
         }}>
           <div style={{ fontSize: 44 }}>🏝️</div>
-          <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.85 }}>Rasm tanlanmagan — pastda qidiring</div>
+          <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.85 }}>{t('aimkt.noImageSelected')}</div>
         </div>
       )}
 
@@ -380,7 +382,7 @@ function LivePreview({
             transform: translateOf('title'), ...handleStyle(!!dragRef.current && dragRef.current.key === 'title'),
           }}
         >
-          {form.destination || "Yo'nalishni kiriting"}
+          {form.destination || t('aimkt.enterDestinationPlaceholder')}
         </div>
 
         {form.hotelName && !useHotelList && (
@@ -484,17 +486,17 @@ function LivePreview({
       )}
 
       {generatedUrl && (
-        <span className="badge badge-success" style={{ position: 'absolute', top: 10, right: 10 }}>✓ Tayyor banner</span>
+        <span className="badge badge-success" style={{ position: 'absolute', top: 10, right: 10 }}>✓ {t('aimkt.bannerReadyBadge')}</span>
       )}
       {form.bannerTheme === 'bold' && (
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '0.8%', background: accent }} />
       )}
       {!generatedUrl && !editMode && (
-        <span className="badge badge-gray" style={{ position: 'absolute', top: 10, right: 10 }}>Jonli preview</span>
+        <span className="badge badge-gray" style={{ position: 'absolute', top: 10, right: 10 }}>{t('aimkt.livePreview')}</span>
       )}
       {editMode && (
         <span className="badge badge-gray" style={{ position: 'absolute', top: 10, left: 10 }}>
-          🖱 Bloklarni sudrab ko'chiring
+          🖱 {t('aimkt.dragBlocksHint')}
         </span>
       )}
     </div>
@@ -504,6 +506,7 @@ function LivePreview({
 export default function AiMarketingPage() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  const { t } = useI18n();
   const [form, setForm] = useState<any>(emptyForm);
   const [template, setTemplate] = useState<any>({ agencyName: '', agencyContact: '', primaryColor: '#FF6A2B' });
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -547,14 +550,14 @@ export default function AiMarketingPage() {
 
   const doUploadHotelPhoto = async (file: File) => {
     const hotelName = form.hotelName?.trim();
-    if (!hotelName) { toast.error("Avval mehmonxona nomini kiriting"); return; }
+    if (!hotelName) { toast.error(t('aimkt.enterHotelFirst')); return; }
     setUploadingHotelPhoto(true);
     try {
       const res = await aiMarketingApi.uploadHotelPhoto(hotelName, file);
       setHotelPhotos(res.data || []);
-      toast.success("Rasm mehmonxona kutubxonasiga saqlandi — keyingi safar avtomatik chiqadi");
+      toast.success(t('aimkt.hotelPhotoSaved'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Rasmni yuklab bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.uploadFailed'));
     } finally {
       setUploadingHotelPhoto(false);
     }
@@ -567,7 +570,7 @@ export default function AiMarketingPage() {
       const res = await aiMarketingApi.deleteHotelPhoto(hotelName, url);
       setHotelPhotos(res.data || []);
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "O'chirib bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.deleteFailed'));
     }
   };
 
@@ -616,13 +619,13 @@ export default function AiMarketingPage() {
   };
 
   const previewTelegramTemplate = async () => {
-    if (!form.destination.trim()) { toast.error("Avval yo'nalishni kiriting"); return; }
+    if (!form.destination.trim()) { toast.error(t('aimkt.enterDestinationFirst')); return; }
     setLoadingTgPreview(true);
     try {
       const res = await aiMarketingApi.renderTelegramTemplate(buildPayload());
       setTelegramTemplatePreview(res?.data?.text || '');
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Andozani ko'rsatib bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.templatePreviewFailed'));
     } finally {
       setLoadingTgPreview(false);
     }
@@ -668,8 +671,8 @@ export default function AiMarketingPage() {
   });
 
   const validate = () => {
-    if (!form.destination.trim()) { toast.error("Yo'nalishni kiriting"); return false; }
-    if (!form.price || Number(form.price) <= 0) { toast.error("Narxni to'g'ri kiriting"); return false; }
+    if (!form.destination.trim()) { toast.error(t('aimkt.enterDestination')); return false; }
+    if (!form.price || Number(form.price) <= 0) { toast.error(t('aimkt.enterValidPrice')); return false; }
     return true;
   };
 
@@ -680,16 +683,16 @@ export default function AiMarketingPage() {
   // qolmasligi uchun. Berilmasa, joriy formadagi destination ishlatiladi. ──
   const doSearchImages = async (queryOverride?: string) => {
     const query = (queryOverride ?? form.destination).trim();
-    if (!query) { toast.error("Avval yo'nalishni kiriting"); return; }
+    if (!query) { toast.error(t('aimkt.enterDestinationFirst')); return; }
     setSearchingImages(true);
     setImageResults([]);
     try {
       const res = await aiMarketingApi.images(query, 20, form.hotelName?.trim() || undefined);
       const imgs: string[] = res.data || [];
       setImageResults(imgs);
-      if (!imgs.length) toast("Rasm topilmadi — URL'ni qo'lda kiriting", { icon: 'ℹ️' });
+      if (!imgs.length) toast(t('aimkt.noImagesFound'), { icon: 'ℹ️' });
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Rasm qidirib bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.imageSearchFailed'));
     } finally {
       setSearchingImages(false);
     }
@@ -700,7 +703,7 @@ export default function AiMarketingPage() {
   // to'xtatiladi — sahifaning qolgan qismiga ta'sir qilmaydi) ──
   const doGenerate = async () => {
     if (user && !user.tenantAiEnabled) {
-      toast.error("AI (reklama matni yozish) bu kompaniyada o'chiq. Yoqish uchun platforma administratoriga murojaat qiling.");
+      toast.error(t('aimkt.aiDisabled'));
       return;
     }
     if (!validate()) return;
@@ -709,9 +712,9 @@ export default function AiMarketingPage() {
     try {
       const res = await aiMarketingApi.generate(buildPayload());
       setResult(res.data);
-      toast.success('Postlar tayyor!');
+      toast.success(t('aimkt.postsReady'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Xatolik yuz berdi');
+      toast.error(e?.response?.data?.message || t('aimkt.errorOccurred'));
     } finally {
       setGenerating(false);
     }
@@ -725,9 +728,9 @@ export default function AiMarketingPage() {
     try {
       const res = await aiMarketingApi.banner(buildPayload());
       setBannerUrl(res.data?.bannerUrl || '');
-      toast.success('Banner tayyor!');
+      toast.success(t('aimkt.bannerReady'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Banner yaratib bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.bannerFailed'));
     } finally {
       setBannering(false);
     }
@@ -739,9 +742,9 @@ export default function AiMarketingPage() {
     try {
       const res = await aiMarketingApi.saveTemplate({ ...template, telegramChatId: tgChatId || undefined });
       setTemplate(res.data);
-      toast.success('Shablon saqlandi');
+      toast.success(t('aimkt.templateSaved'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Shablonni saqlab bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.templateSaveFailed'));
     } finally {
       setSavingTemplate(false);
     }
@@ -750,15 +753,15 @@ export default function AiMarketingPage() {
   // ── Brend logotipi: yuklash / o'chirish ──
   const doUploadLogo = async (file: File) => {
     if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
-      toast.error('Faqat PNG/JPG/WEBP rasm yuklang'); return;
+      toast.error(t('aimkt.logoFormatError')); return;
     }
     setUploadingLogo(true);
     try {
       const res = await aiMarketingApi.uploadLogo(file);
       setTemplate(res.data);
-      toast.success('Logotip yuklandi — endi har bir bannerda avtomatik chiqadi');
+      toast.success(t('aimkt.logoUploaded'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Logotipni yuklab bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.logoUploadFailed'));
     } finally {
       setUploadingLogo(false);
     }
@@ -768,9 +771,9 @@ export default function AiMarketingPage() {
     try {
       const res = await aiMarketingApi.removeLogo();
       setTemplate(res.data);
-      toast.success('Logotip olib tashlandi');
+      toast.success(t('aimkt.logoRemoved'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "O'chirib bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.deleteFailed'));
     } finally {
       setUploadingLogo(false);
     }
@@ -790,13 +793,13 @@ export default function AiMarketingPage() {
         footer: { dx: 0, dy: 0 }, logo: { dx: 0, dy: 0 },
       },
     }));
-    toast.success('Joylashuv standart holatga qaytarildi');
+    toast.success(t('aimkt.layoutReset'));
   };
 
   // ── Telegram kanaliga to'g'ridan-to'g'ri yuborish (bot orqali) ──
   const doSendTelegram = async () => {
-    if (!bannerUrl) { toast.error('Avval banner yarating'); return; }
-    if (!tgChatId.trim()) { toast.error("Kanal ID/username kiriting (masalan @kanalim)"); return; }
+    if (!bannerUrl) { toast.error(t('aimkt.createBannerFirst')); return; }
+    if (!tgChatId.trim()) { toast.error(t('aimkt.enterChannelId')); return; }
 
     let caption = '';
     if (useTelegramTemplate) {
@@ -811,7 +814,7 @@ export default function AiMarketingPage() {
     } else {
       caption = result?.posts?.telegram || '';
     }
-    if (!caption) { toast.error('Avval post matnini yarating'); return; }
+    if (!caption) { toast.error(t('aimkt.createPostFirst')); return; }
 
     setSendingTg(true);
     try {
@@ -820,9 +823,9 @@ export default function AiMarketingPage() {
         photoUrl: bannerUrl,
         caption,
       });
-      toast.success('Telegram kanaliga yuborildi!');
+      toast.success(t('aimkt.sentToTelegram'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Yuborib bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.sendFailed'));
     } finally {
       setSendingTg(false);
     }
@@ -830,26 +833,24 @@ export default function AiMarketingPage() {
 
   // ── Yuklab olish (haqiqiy fayl) ──
   const doDownload = async () => {
-    if (!bannerUrl) { toast.error('Avval banner yarating'); return; }
+    if (!bannerUrl) { toast.error(t('aimkt.createBannerFirst')); return; }
     setDownloading(true);
     const ok = await forceDownload(bannerUrl, `tur-banner-${Date.now()}.png`);
-    toast[ok ? 'success' : 'error'](ok ? 'Banner yuklab olindi' : "Avtomatik yuklab bo'lmadi — rasm yangi oynada ochildi, o'ngdan saqlang");
+    toast[ok ? 'success' : 'error'](ok ? t('aimkt.bannerDownloaded') : t('aimkt.autoDownloadFailed'));
     setDownloading(false);
   };
 
   // ── Telefon ulashish oynasi orqali yuborish (Instagram/Telegram/boshqa) ──
   const doShare = async () => {
-    if (!bannerUrl) { toast.error('Avval banner yarating'); return; }
+    if (!bannerUrl) { toast.error(t('aimkt.createBannerFirst')); return; }
     const caption = result?.posts?.[activeTab] || '';
     setSharing(true);
     const status = await shareBanner(bannerUrl, caption);
-    if (status === 'shared') toast.success('Ulashish oynasi orqali yuborildi!');
-    else if (status === 'shared-link') toast.success('Havola ulashildi');
+    if (status === 'shared') toast.success(t('aimkt.sharedViaSheet'));
+    else if (status === 'shared-link') toast.success(t('aimkt.linkShared'));
     else {
       toast(
-        activeTab === 'instagram'
-          ? "Bu qurilmada to'g'ridan-to'g'ri ulashish yo'q. Bannerni yuklab oling va Instagram'ga qo'lda joylang."
-          : "Ulashish qo'llab-quvvatlanmadi — banner yuklab olindi, qo'lda yuboring.",
+        activeTab === 'instagram' ? t('aimkt.noDirectShareInstagram') : t('aimkt.shareUnsupported'),
         { icon: 'ℹ️' },
       );
       await forceDownload(bannerUrl, `tur-banner-${Date.now()}.png`);
@@ -859,15 +860,15 @@ export default function AiMarketingPage() {
 
   // ── Facebook sahifasiga (Page) avtomatik joylash ──
   const doSendFacebook = async () => {
-    if (!bannerUrl) { toast.error('Avval banner yarating'); return; }
-    if (!result?.posts?.facebook) { toast.error('Avval post matnini yarating'); return; }
+    if (!bannerUrl) { toast.error(t('aimkt.createBannerFirst')); return; }
+    if (!result?.posts?.facebook) { toast.error(t('aimkt.createPostFirst')); return; }
 
     setSendingFb(true);
     try {
       await aiMarketingApi.sendFacebook({ photoUrl: bannerUrl, caption: result.posts.facebook });
-      toast.success('Facebook sahifasiga yuborildi!');
+      toast.success(t('aimkt.sentToFacebook'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Yuborib bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.sendFailed'));
     } finally {
       setSendingFb(false);
     }
@@ -878,8 +879,8 @@ export default function AiMarketingPage() {
   // avtomatik yuboriladi, Instagram uchun esa (Meta cheklovi tufayli avtomatik
   // joylash mumkin emasligi sababli) telefon ulashish oynasi ochiladi.
   const doSendAll = async () => {
-    if (!bannerUrl) { toast.error('Avval banner yarating'); return; }
-    if (!result?.posts) { toast.error('Avval post matnlarini yarating'); return; }
+    if (!bannerUrl) { toast.error(t('aimkt.createBannerFirst')); return; }
+    if (!result?.posts) { toast.error(t('aimkt.createPostsFirst')); return; }
 
     setSendingAll(true);
     const done: string[] = [];
@@ -917,23 +918,20 @@ export default function AiMarketingPage() {
 
     if (result.posts.instagram) {
       const status = await shareBanner(bannerUrl, result.posts.instagram);
-      if (status === 'shared' || status === 'shared-link') done.push('Instagram (ulashish orqali)');
+      if (status === 'shared' || status === 'shared-link') done.push(`Instagram (${t('aimkt.viaShare')})`);
     }
 
     setSendingAll(false);
-    if (done.length) toast.success(`Yuborildi: ${done.join(', ')}`);
-    if (failed.length) toast.error(`Yuborilmadi: ${failed.join(', ')} — tegishli tab'da sababini ko'ring`);
+    if (done.length) toast.success(`${t('aimkt.sentPrefix')}: ${done.join(', ')}`);
+    if (failed.length) toast.error(`${t('aimkt.notSentPrefix')}: ${failed.join(', ')} — ${t('aimkt.checkTabForReason')}`);
     if (!done.length && !failed.length) {
-      toast(
-        "Hech qayerga yuborilmadi — Telegram uchun kanal ID kiriting yoki Facebook sahifani Sozlamalar'da ulang",
-        { icon: 'ℹ️' },
-      );
+      toast(t('aimkt.nowhereSent'), { icon: 'ℹ️' });
     }
   };
 
   // ── Tarix: saqlash / ro'yxatni yuklash / bittasini ochish / o'chirish ──
   const doSaveHistory = async () => {
-    if (!bannerUrl && !result?.posts) { toast.error("Avval banner yoki post yarating"); return; }
+    if (!bannerUrl && !result?.posts) { toast.error(t('aimkt.createBannerOrPostFirst')); return; }
     setSavingHistory(true);
     try {
       await aiMarketingApi.saveHistory({
@@ -941,10 +939,10 @@ export default function AiMarketingPage() {
         bannerUrl: bannerUrl || undefined,
         posts: result?.posts || undefined,
       });
-      toast.success('Tarixga saqlandi');
+      toast.success(t('aimkt.savedToHistory'));
       if (historyOpen) refreshHistory();
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || "Saqlab bo'lmadi");
+      toast.error(e?.response?.data?.message || t('aimkt.saveFailed'));
     } finally {
       setSavingHistory(false);
     }
@@ -956,7 +954,7 @@ export default function AiMarketingPage() {
       const res = await aiMarketingApi.listHistory();
       setHistoryItems(res.data || []);
     } catch {
-      toast.error("Tarixni yuklab bo'lmadi");
+      toast.error(t('aimkt.historyLoadFailed'));
     } finally {
       setLoadingHistory(false);
     }
@@ -983,9 +981,7 @@ export default function AiMarketingPage() {
     setBannerUrl(item.bannerUrl || '');
     setResult(item.posts ? { posts: item.posts } : null);
     setHistoryOpen(false);
-    toast.success(item.bannerUrl
-      ? "Yuklandi — bu ilgari saqlangan banner. O'zgartirsangiz, qayta chiqarish uchun \"Banner yaratish\"ni bosing"
-      : "Yuklandi — pastda tahrirlab qayta yuborishingiz mumkin");
+    toast.success(item.bannerUrl ? t('aimkt.loadedExistingBanner') : t('aimkt.loadedEditable'));
   };
 
   const doDeleteHistoryItem = async (id: string) => {
@@ -993,12 +989,12 @@ export default function AiMarketingPage() {
       await aiMarketingApi.deleteHistoryItem(id);
       setHistoryItems((items) => items.filter((h) => h.id !== id));
     } catch {
-      toast.error("O'chirib bo'lmadi");
+      toast.error(t('aimkt.deleteFailed'));
     }
   };
 
   const addExtraText = () => {
-    if ((form.extraTexts || []).length >= 4) { toast.error("Ko'pi bilan 4 ta qo'shimcha matn"); return; }
+    if ((form.extraTexts || []).length >= 4) { toast.error(t('aimkt.maxExtraTexts')); return; }
     setForm((f: any) => ({ ...f, extraTexts: [...(f.extraTexts || []), ''] }));
   };
   const updateExtraText = (i: number, v: string) => {
@@ -1014,7 +1010,7 @@ export default function AiMarketingPage() {
 
   // ── Ko'p mehmonxona/narx solishtirish ──
   const addHotelRow = () => {
-    if ((form.hotels || []).length >= 3) { toast.error("Ko'pi bilan 3 ta mehmonxona"); return; }
+    if ((form.hotels || []).length >= 3) { toast.error(t('aimkt.maxHotels')); return; }
     setForm((f: any) => ({ ...f, hotels: [...(f.hotels || []), { name: '', stars: 5, price: '' }] }));
   };
   const updateHotelRow = (i: number, patch: any) => {
@@ -1056,19 +1052,18 @@ export default function AiMarketingPage() {
                 display: 'inline-flex', width: 34, height: 34, borderRadius: 10, background: 'var(--gradient)',
                 alignItems: 'center', justifyContent: 'center', fontSize: 17,
               }}>✨</span>
-              AI Reklama generatori
+              {t('aimkt.pageTitle')}
             </h1>
             <div style={{ fontSize: 12.5, color: 'var(--fg-2)', marginTop: 6 }}>
-              Tur ma'lumotlarini kiriting — o'ngda banner qanday chiqishini darhol ko'rasiz. Rasm bermasangiz ham
-              tizim o'zi topadi, matnni Claude yozadi, banner esa aniq narx bilan avtomatik chiziladi.
+              {t('aimkt.pageSubtitle')}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-md btn-ghost" onClick={toggleHistory}>
-              {historyOpen ? 'Tarixni yopish' : '🗂️ Tarix'}
+              {historyOpen ? t('aimkt.closeHistory') : `🗂️ ${t('aimkt.history')}`}
             </button>
             <button className="btn btn-md btn-ghost" onClick={() => setTemplateOpen(o => !o)}>
-              {templateOpen ? 'Shablonni yopish' : '⚙️ Shablon sozlamalari'}
+              {templateOpen ? t('aimkt.closeTemplate') : `⚙️ ${t('aimkt.templateSettings')}`}
             </button>
           </div>
         </div>
@@ -1077,16 +1072,16 @@ export default function AiMarketingPage() {
         {historyOpen && (
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
-              Saqlangan reklamalar
+              {t('aimkt.savedAds')}
               <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--fg-2)', marginLeft: 8 }}>
-                — bosing va formaga qayta yuklanadi
+                — {t('aimkt.clickToReload')}
               </span>
             </div>
             {loadingHistory ? (
-              <div style={{ padding: 16, textAlign: 'center', color: 'var(--fg-3)', fontSize: 12.5 }}>Yuklanmoqda...</div>
+              <div style={{ padding: 16, textAlign: 'center', color: 'var(--fg-3)', fontSize: 12.5 }}>{t('common.loading')}</div>
             ) : historyItems.length === 0 ? (
               <div style={{ padding: 16, textAlign: 'center', color: 'var(--fg-3)', fontSize: 12.5 }}>
-                Hali hech narsa saqlanmagan — banner/post tayyor bo'lgach "💾 Tarixga saqlash" tugmasini bosing.
+                {t('aimkt.noHistoryYet')}
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
@@ -1121,24 +1116,24 @@ export default function AiMarketingPage() {
         {templateOpen && (
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
-              Agentlik shabloni
+              {t('aimkt.agencyTemplate')}
               <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--fg-2)', marginLeft: 8 }}>
-                — bir marta kiriting, har safar avtomatik ishlatiladi
+                — {t('aimkt.agencyTemplateHint')}
               </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Agentlik nomi</label>
+                <label className="form-label">{t('aimkt.agencyName')}</label>
                 <input className="form-input" value={template.agencyName || ''}
                   onChange={e => setTemplate((t: any) => ({ ...t, agencyName: e.target.value }))} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Kontakt (telefon/telegram)</label>
+                <label className="form-label">{t('aimkt.agencyContact')}</label>
                 <input className="form-input" value={template.agencyContact || ''}
                   onChange={e => setTemplate((t: any) => ({ ...t, agencyContact: e.target.value }))} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Brend rangi (banner narx chipi)</label>
+                <label className="form-label">{t('aimkt.brandColor')}</label>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <input type="color" value={template.primaryColor || '#FF6A2B'}
                     onChange={e => setTemplate((t: any) => ({ ...t, primaryColor: e.target.value }))}
@@ -1148,15 +1143,15 @@ export default function AiMarketingPage() {
                 </div>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Standart Telegram kanal</label>
+                <label className="form-label">{t('aimkt.defaultTelegramChannel')}</label>
                 <input className="form-input" value={tgChatId} placeholder="@kanalim_yoki_id"
                   onChange={e => setTgChatId(e.target.value)} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">
-                  Brend logotipi
+                  {t('aimkt.brandLogo')}
                   <span style={{ fontWeight: 400, color: 'var(--fg-3)', marginLeft: 6 }}>
-                    (har bir bannerga avtomatik qo'yiladi)
+                    ({t('aimkt.brandLogoHint')})
                   </span>
                 </label>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1171,11 +1166,11 @@ export default function AiMarketingPage() {
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) doUploadLogo(f); e.target.value = ''; }} />
                   <button type="button" className="btn btn-sm btn-secondary" disabled={uploadingLogo}
                     onClick={() => document.getElementById('ai-mkt-logo-input')?.click()}>
-                    {uploadingLogo ? '...' : template.logoUrl ? "Almashtirish" : '⬆️ Yuklash'}
+                    {uploadingLogo ? '...' : template.logoUrl ? t('aimkt.replace') : `⬆️ ${t('aimkt.upload')}`}
                   </button>
                   {template.logoUrl && (
                     <button type="button" className="btn btn-sm btn-ghost" disabled={uploadingLogo} onClick={doRemoveLogo}>
-                      ✕ O'chirish
+                      ✕ {t('common.delete')}
                     </button>
                   )}
                 </div>
@@ -1183,24 +1178,24 @@ export default function AiMarketingPage() {
             </div>
             <div style={{ marginTop: 12 }}>
               <label className="form-label">
-                Brend ovozi / doimiy ohang
+                {t('aimkt.brandVoice')}
                 <span style={{ fontWeight: 400, color: 'var(--fg-3)', marginLeft: 6 }}>
-                  (ixtiyoriy — bir marta yozing, AI HAR DOIM shu ohangda post/taklif yozadi)
+                  ({t('aimkt.brandVoiceHint')})
                 </span>
               </label>
               <textarea className="form-input" style={{ minHeight: 70, fontSize: 12.5 }}
-                placeholder={"Masalan: \"Biz premium/hashamatli turlarga ixtisoslashganmiz — rasmiy va hurmatli ohangda yozamiz, hech qachon 'arzon' yoki 'chegirma' so'zini ishlatmaymiz\" yoki \"Yoshlarga qaratilgan, hazil-mutoyibali, ko'p emoji bilan\""}
+                placeholder={t('aimkt.brandVoicePlaceholder')}
                 value={template.brandVoice || ''}
                 onChange={e => setTemplate((t: any) => ({ ...t, brandVoice: e.target.value }))} />
               <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 4 }}>
-                Bu — AI'ga har safar qayta yozmasdan, doim SHU agentlikka mos ohangda post yozdiradigan doimiy ko'rsatma.
+                {t('aimkt.brandVoiceNote')}
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
               <label className="form-label">
-                Telegram xabar andozasi
+                {t('aimkt.telegramTemplate')}
                 <span style={{ fontWeight: 400, color: 'var(--fg-3)', marginLeft: 6 }}>
-                  (ixtiyoriy — Claude yozgan erkin matn o'rniga qat'iy formatda yuborish uchun)
+                  ({t('aimkt.telegramTemplateHint')})
                 </span>
               </label>
               <textarea className="form-input" style={{ minHeight: 110, fontFamily: 'monospace', fontSize: 12.5 }}
@@ -1208,12 +1203,12 @@ export default function AiMarketingPage() {
                 value={template.telegramMessageTemplate || ''}
                 onChange={e => setTemplate((t: any) => ({ ...t, telegramMessageTemplate: e.target.value }))} />
               <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 4 }}>
-                Mavjud placeholder'lar: {'{destination} {hotel} {stars} {nights} {meal} {people} {price} {dates} {agency} {contact}'}
+                {t('aimkt.availablePlaceholders')}: {'{destination} {hotel} {stars} {nights} {meal} {people} {price} {dates} {agency} {contact}'}
               </div>
             </div>
             <div style={{ marginTop: 12, textAlign: 'right' }}>
               <button className="btn btn-md btn-primary" disabled={savingTemplate} onClick={doSaveTemplate}>
-                {savingTemplate ? 'Saqlanmoqda...' : 'Shablonni saqlash'}
+                {savingTemplate ? t('aimkt.saving') : t('aimkt.saveTemplate')}
               </button>
             </div>
           </div>
@@ -1227,11 +1222,11 @@ export default function AiMarketingPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
               <div className="form-group" style={{ gridColumn: 'span 2', margin: 0 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Yo'nalish *</span>
+                  <span>{t('aimkt.destination')} *</span>
                   {destinations.length > 0 && (
                     <button type="button" onClick={() => setDestPickerOpen(v => !v)}
                       style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
-                      🌍 Mashhur yo'nalishlar {destPickerOpen ? '▲' : '▼'}
+                      🌍 {t('aimkt.popularDestinations')} {destPickerOpen ? '▲' : '▼'}
                     </button>
                   )}
                 </label>
@@ -1254,7 +1249,7 @@ export default function AiMarketingPage() {
                                 const dest = `${place}, ${group.countryUz}`;
                                 set('destination', dest);
                                 setDestPickerOpen(false);
-                                toast.success(`${place} tanlandi — rasmlar qidirilmoqda...`);
+                                toast.success(`${place} ${t('aimkt.placeSelectedSearching')}`);
                                 // Joy tanlanishi bilan ZUDLIK BILAN o'sha joyga xos
                                 // rasmlarni qidiramiz (foydalanuvchi endi qo'shimcha
                                 // "🔍 Rasm topish" tugmasini bosishi shart emas).
@@ -1279,7 +1274,7 @@ export default function AiMarketingPage() {
                 )}
               </div>
               <div className="form-group" style={{ gridColumn: 'span 2', margin: 0 }}>
-                <label className="form-label">Mehmonxona nomi</label>
+                <label className="form-label">{t('aimkt.hotelName')}</label>
                 <input className="form-input" placeholder="Rixos Premium" value={form.hotelName}
                   onChange={e => set('hotelName', e.target.value)} />
                 {/* ── Mehmonxona rasm kutubxonasi — agentlikning O'ZI yuklagan
@@ -1288,10 +1283,10 @@ export default function AiMarketingPage() {
                   <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                     {hotelPhotos.map((url, i) => (
                       <div key={i} style={{ position: 'relative', width: 52, height: 52, borderRadius: 8, overflow: 'hidden', border: form.imageUrl === url ? '2px solid var(--primary)' : '1px solid var(--border)' }}>
-                        <img src={url} alt="" onClick={() => { set('imageUrl', url); toast.success('Rasm tanlandi'); }}
+                        <img src={url} alt="" onClick={() => { set('imageUrl', url); toast.success(t('aimkt.imageSelected')); }}
                           style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }} />
                         <button type="button" onClick={() => doDeleteHotelPhoto(url)}
-                          title="Kutubxonadan o'chirish"
+                          title={t('aimkt.removeFromLibrary')}
                           style={{ position: 'absolute', top: 1, right: 1, width: 16, height: 16, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', fontSize: 9, cursor: 'pointer', lineHeight: '16px', padding: 0 }}>✕</button>
                       </div>
                     ))}
@@ -1299,49 +1294,49 @@ export default function AiMarketingPage() {
                       display: 'flex', alignItems: 'center', justifyContent: 'center', width: 52, height: 52,
                       borderRadius: 8, border: '1px dashed var(--border)', cursor: 'pointer', fontSize: 18,
                       color: 'var(--fg-muted)', flexShrink: 0,
-                    }} title="Bu mehmonxona uchun o'z suratingizni yuklang">
+                    }} title={t('aimkt.uploadOwnPhoto')}>
                       {uploadingHotelPhoto ? '…' : '+'}
                       <input type="file" accept="image/*" style={{ display: 'none' }} disabled={uploadingHotelPhoto}
                         onChange={(e) => { const f = e.target.files?.[0]; if (f) doUploadHotelPhoto(f); e.target.value = ''; }} />
                     </label>
                     {hotelPhotos.length > 0 && (
-                      <span style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>🏨 saqlangan suratlar — bosib tanlang</span>
+                      <span style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>🏨 {t('aimkt.savedPhotosHint')}</span>
                     )}
                   </div>
                 )}
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Yulduz</label>
+                <label className="form-label">{t('aimkt.stars')}</label>
                 <select className="form-input" value={form.hotelStars} onChange={e => set('hotelStars', e.target.value)}>
                   {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} ★</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Ovqatlanish</label>
+                <label className="form-label">{t('aimkt.mealPlan')}</label>
                 <input className="form-input" value={form.mealPlan} onChange={e => set('mealPlan', e.target.value)} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Necha kecha</label>
+                <label className="form-label">{t('aimkt.nights')}</label>
                 <input className="form-input" type="number" min={1} value={form.nights}
                   onChange={e => set('nights', e.target.value)} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Kattalar</label>
+                <label className="form-label">{t('aimkt.adults')}</label>
                 <input className="form-input" type="number" min={1} value={form.adults}
                   onChange={e => set('adults', e.target.value)} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Bolalar</label>
+                <label className="form-label">{t('aimkt.children')}</label>
                 <input className="form-input" type="number" min={0} value={form.children}
                   onChange={e => set('children', e.target.value)} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Narx *</label>
+                <label className="form-label">{t('aimkt.price')} *</label>
                 <input className="form-input" type="number" min={0} placeholder="699" value={form.price}
                   onChange={e => set('price', e.target.value)} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Valyuta</label>
+                <label className="form-label">{t('aimkt.currency')}</label>
                 <select className="form-input" value={form.currency} onChange={e => set('currency', e.target.value)}>
                   <option value="USD">USD</option>
                   <option value="EUR">EUR</option>
@@ -1349,12 +1344,12 @@ export default function AiMarketingPage() {
                 </select>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Jo'nash sanasi</label>
+                <label className="form-label">{t('aimkt.departureDate')}</label>
                 <input className="form-input" type="date" value={form.departureDate}
                   onChange={e => set('departureDate', e.target.value)} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Qaytish sanasi</label>
+                <label className="form-label">{t('aimkt.returnDate')}</label>
                 <input className="form-input" type="date" value={form.returnDate}
                   onChange={e => set('returnDate', e.target.value)} />
               </div>
@@ -1362,27 +1357,27 @@ export default function AiMarketingPage() {
 
             {/* ── Rasm: qo'lda URL yoki avtomatik qidirish ── */}
             <div style={{ marginTop: 14 }}>
-              <label className="form-label">Fon surati</label>
+              <label className="form-label">{t('aimkt.backgroundImage')}</label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input className="form-input" placeholder="https://... (bo'sh qoldirsangiz avtomatik topiladi)"
+                <input className="form-input" placeholder={t('aimkt.imageUrlPlaceholder')}
                   value={form.imageUrl} onChange={e => set('imageUrl', e.target.value)} />
                 <button className="btn btn-md btn-secondary" style={{ flexShrink: 0 }}
                   disabled={searchingImages}
                   onClick={() => doSearchImages()}>
-                  {searchingImages ? 'Qidirilmoqda...' : '🔍 Rasm topish'}
+                  {searchingImages ? t('aimkt.searching') : `🔍 ${t('aimkt.findImage')}`}
                 </button>
               </div>
               {imageResults.length > 0 && (
                 <div style={{ marginTop: 12 }}>
                   <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-                    {imageResults.length} ta variant — birini tanlang
+                    {imageResults.length} {t('aimkt.variantsChooseOne')}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 8 }}>
                     {imageResults.map((img, i) => {
                       const selected = form.imageUrl === img;
                       return (
                         <button key={i} type="button"
-                          onClick={() => { set('imageUrl', img); toast.success('Rasm tanlandi'); }}
+                          onClick={() => { set('imageUrl', img); toast.success(t('aimkt.imageSelected')); }}
                           style={{
                             position: 'relative', padding: 0, aspectRatio: '1 / 1', borderRadius: 10, cursor: 'pointer',
                             overflow: 'hidden', background: 'none',
@@ -1412,11 +1407,11 @@ export default function AiMarketingPage() {
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16, marginBottom: 4 }}>
               {[
-                { k: 'includesFlights', label: '✈️ Aviabilet' },
-                { k: 'includesMeals', label: '🍽️ Ovqatlanish' },
-                { k: 'includesTransfer', label: '🚕 Transfer' },
-                { k: 'includesVisa', label: '🛂 Viza' },
-                { k: 'includesInsurance', label: "🛡️ Sug'urta" },
+                { k: 'includesFlights', label: `✈️ ${t('aimkt.flights')}` },
+                { k: 'includesMeals', label: `🍽️ ${t('aimkt.mealPlan')}` },
+                { k: 'includesTransfer', label: `🚕 ${t('aimkt.transfer')}` },
+                { k: 'includesVisa', label: `🛂 ${t('aimkt.visa')}` },
+                { k: 'includesInsurance', label: `🛡️ ${t('aimkt.insurance')}` },
               ].map(({ k, label }) => (
                 <label key={k} style={{
                   ...checkboxRow,
@@ -1432,9 +1427,9 @@ export default function AiMarketingPage() {
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <label className="form-label">Reklama matni tili</label>
+              <label className="form-label">{t('aimkt.adTextLanguage')}</label>
               <div style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
-                (bu — ilova tili emas, mijozga chiqadigan banner/post matni qaysi tilda yozilishi)
+                ({t('aimkt.adTextLanguageHint')})
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" onClick={() => set('adLanguage', 'uz')}
@@ -1450,18 +1445,18 @@ export default function AiMarketingPage() {
 
             <div style={{ marginTop: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label className="form-label" style={{ margin: 0 }}>Qo'shimcha urg'u matnlari</label>
-                <button type="button" className="btn btn-sm btn-ghost" onClick={addExtraText}>+ Qo'shish</button>
+                <label className="form-label" style={{ margin: 0 }}>{t('aimkt.extraTexts')}</label>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={addExtraText}>+ {t('common.add')}</button>
               </div>
               {(form.extraTexts || []).length === 0 ? (
                 <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
-                  Masalan: "Bepul transfer!", "Cheklangan joylar" — bannerda kichik chip sifatida chiqadi
+                  {t('aimkt.extraTextsHint')}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(form.extraTexts || []).map((txt: string, i: number) => (
                     <div key={i} style={{ display: 'flex', gap: 8 }}>
-                      <input className="form-input" value={txt} placeholder="Bepul transfer!"
+                      <input className="form-input" value={txt} placeholder={t('aimkt.freeTransferExample')}
                         maxLength={24}
                         onChange={(e) => updateExtraText(i, e.target.value)} />
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeExtraText(i)}>✕</button>
@@ -1473,9 +1468,9 @@ export default function AiMarketingPage() {
 
             {staffList.length > 0 && (
               <div style={{ marginTop: 16 }}>
-                <label className="form-label">Bannerda kimning kontakti chiqsin?</label>
+                <label className="form-label">{t('aimkt.whoseContactOnBanner')}</label>
                 <select className="form-input" value={selectedStaffId} onChange={(e) => pickStaff(e.target.value)}>
-                  <option value="">— Agentlik shabloni (standart) —</option>
+                  <option value="">— {t('aimkt.agencyTemplateDefault')} —</option>
                   {staffList.map((s: any) => (
                     <option key={s.id} value={s.id}>{s.name}{s.phone ? ` — ${s.phone}` : ''}</option>
                   ))}
@@ -1489,25 +1484,25 @@ export default function AiMarketingPage() {
                   <input type="checkbox" checked={!!form.showHotelList}
                     onChange={(e) => set('showHotelList', e.target.checked)}
                     style={{ accentColor: 'var(--primary)' }} />
-                  Ko'p mehmonxona/narx solishtirish
+                  {t('aimkt.compareHotels')}
                 </label>
-                <button type="button" className="btn btn-sm btn-ghost" onClick={addHotelRow}>+ Mehmonxona</button>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={addHotelRow}>+ {t('aimkt.hotel')}</button>
               </div>
               {(form.hotels || []).length === 0 ? (
                 <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
-                  2-3 ta mehmonxonani narxi bilan bitta bannerda solishtirib ko'rsating (yuqoridagi asosiy Narx maydoni e'tiborga olinmaydi)
+                  {t('aimkt.compareHotelsHint')}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(form.hotels || []).map((h: any, i: number) => (
                     <div key={i} style={{ display: 'flex', gap: 8 }}>
-                      <input className="form-input" style={{ flex: 2 }} value={h.name} placeholder="Mehmonxona nomi"
+                      <input className="form-input" style={{ flex: 2 }} value={h.name} placeholder={t('aimkt.hotelName')}
                         onChange={(e) => updateHotelRow(i, { name: e.target.value })} />
                       <select className="form-input" style={{ flex: 1 }} value={h.stars || 5}
                         onChange={(e) => updateHotelRow(i, { stars: e.target.value })}>
                         {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} ★</option>)}
                       </select>
-                      <input className="form-input" style={{ flex: 1 }} type="number" value={h.price} placeholder="Narx"
+                      <input className="form-input" style={{ flex: 1 }} type="number" value={h.price} placeholder={t('aimkt.price')}
                         onChange={(e) => updateHotelRow(i, { price: e.target.value })} />
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeHotelRow(i)}>✕</button>
                     </div>
@@ -1518,11 +1513,11 @@ export default function AiMarketingPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 16 }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Banner o'lchami</label>
+                <label className="form-label">{t('aimkt.bannerSize')}</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {([
-                    { v: 'square', label: '⬛ Kvadrat (1080×1080)', hint: 'Instagram post / Facebook' },
-                    { v: 'story', label: '📱 Story (1080×1920)', hint: 'Instagram / Telegram Story' },
+                    { v: 'square', label: `⬛ ${t('aimkt.square')} (1080×1080)`, hint: 'Instagram post / Facebook' },
+                    { v: 'story', label: `📱 ${t('aimkt.story')} (1080×1920)`, hint: 'Instagram / Telegram Story' },
                   ] as const).map((opt) => (
                     <button key={opt.v} type="button" title={opt.hint}
                       onClick={() => set('bannerFormat', opt.v)}
@@ -1534,12 +1529,12 @@ export default function AiMarketingPage() {
                 </div>
               </div>
               <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Dizayn uslubi</label>
+                <label className="form-label">{t('aimkt.designStyle')}</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {([
-                    { v: 'classic', label: '✨ Klassik' },
-                    { v: 'minimal', label: '◻ Minimal' },
-                    { v: 'bold', label: '🔶 Bold' },
+                    { v: 'classic', label: `✨ ${t('aimkt.classic')}` },
+                    { v: 'minimal', label: `◻ ${t('aimkt.minimal')}` },
+                    { v: 'bold', label: `🔶 ${t('aimkt.bold')}` },
                   ] as const).map((opt) => (
                     <button key={opt.v} type="button"
                       onClick={() => set('bannerTheme', opt.v)}
@@ -1556,20 +1551,20 @@ export default function AiMarketingPage() {
                     checked={form.showBadge !== false}
                     onChange={(e) => set('showBadge', e.target.checked)}
                   />
-                  ✨ "TUR TAKLIFI" nishonini bannerda ko'rsatish
+                  ✨ {t('aimkt.showBadgeOnBanner')}
                 </label>
               </div>
             </div>
 
             <details style={{ marginTop: 16 }}>
               <summary style={{ cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--fg-2)' }}>
-                🎨 Dizaynni moslashtirish (shrift, rang, ramka)
+                🎨 {t('aimkt.customizeDesign')}
               </summary>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginTop: 12 }}>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Shrift</label>
+                  <label className="form-label">{t('aimkt.font')}</label>
                   <select className="form-input" value={form.fontFamily} onChange={(e) => set('fontFamily', e.target.value)}>
-                    <option value="sans-serif">Sans-serif (standart)</option>
+                    <option value="sans-serif">Sans-serif ({t('aimkt.default')})</option>
                     <option value="serif">Serif</option>
                     <option value="monospace">Monospace</option>
                     <option value="Georgia, serif">Georgia</option>
@@ -1577,7 +1572,7 @@ export default function AiMarketingPage() {
                   </select>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Matn rangi</label>
+                  <label className="form-label">{t('aimkt.textColor')}</label>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input type="color" value={form.textColor} onChange={(e) => set('textColor', e.target.value)}
                       style={{ width: 40, height: 36, borderRadius: 8, border: '1px solid var(--border)', padding: 0, background: 'none' }} />
@@ -1585,25 +1580,25 @@ export default function AiMarketingPage() {
                   </div>
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Fon qorong'iligi ({Math.round(form.overlayDarkness * 100)}%)</label>
+                  <label className="form-label">{t('aimkt.overlayDarkness')} ({Math.round(form.overlayDarkness * 100)}%)</label>
                   <input type="range" min={0.3} max={0.95} step={0.01} value={form.overlayDarkness}
                     onChange={(e) => set('overlayDarkness', Number(e.target.value))}
                     style={{ width: '100%', accentColor: 'var(--primary)' }} />
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Ramka qalinligi ({form.borderWidth}px)</label>
+                  <label className="form-label">{t('aimkt.borderWidth')} ({form.borderWidth}px)</label>
                   <input type="range" min={0} max={20} step={1} value={form.borderWidth}
                     onChange={(e) => set('borderWidth', Number(e.target.value))}
                     style={{ width: '100%', accentColor: 'var(--primary)' }} />
                 </div>
                 {form.borderWidth > 0 && (
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Ramka rangi</label>
+                    <label className="form-label">{t('aimkt.borderColor')}</label>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input type="color" value={form.borderColor || template.primaryColor || '#FF6A2B'}
                         onChange={(e) => set('borderColor', e.target.value)}
                         style={{ width: 40, height: 36, borderRadius: 8, border: '1px solid var(--border)', padding: 0, background: 'none' }} />
-                      <input className="form-input" value={form.borderColor} placeholder="brend rangi (standart)"
+                      <input className="form-input" value={form.borderColor} placeholder={t('aimkt.brandColorDefault')}
                         onChange={(e) => set('borderColor', e.target.value)} />
                     </div>
                   </div>
@@ -1613,16 +1608,16 @@ export default function AiMarketingPage() {
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center', marginTop: 16, flexWrap: 'wrap' }}>
               <button className="btn btn-lg btn-secondary" disabled={bannering} onClick={doBanner}>
-                {bannering ? 'Banner yaratilmoqda...' : '🖼️ Banner yaratish'}
+                {bannering ? t('aimkt.creatingBanner') : `🖼️ ${t('aimkt.createBanner')}`}
               </button>
               <button
                 className="btn btn-lg btn-gradient"
                 disabled={generating || (user && !user.tenantAiEnabled)}
                 onClick={doGenerate}
-                title={user && !user.tenantAiEnabled ? "AI bu kompaniyada o'chiq — platforma administratoriga murojaat qiling" : undefined}
+                title={user && !user.tenantAiEnabled ? t('aimkt.aiDisabledTitle') : undefined}
                 style={user && !user.tenantAiEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
-                {generating ? 'Yaratilmoqda...' : (user && !user.tenantAiEnabled) ? '🤖🚫 AI o\'chiq' : '✨ Postlarni yaratish'}
+                {generating ? t('aimkt.creatingPosts') : (user && !user.tenantAiEnabled) ? `🤖🚫 ${t('aimkt.aiOff')}` : `✨ ${t('aimkt.createPosts')}`}
               </button>
             </div>
           </div>
@@ -1636,37 +1631,37 @@ export default function AiMarketingPage() {
                 style={{ flex: 1 }}
                 onClick={() => setEditMode((v) => !v)}
               >
-                {editMode ? '✓ Joylashtirish tugadi' : '🖱 Erkin joylashtirish'}
+                {editMode ? `✓ ${t('aimkt.placementDone')}` : `🖱 ${t('aimkt.freePlacement')}`}
               </button>
               {editMode && (
                 <button type="button" className="btn btn-sm btn-ghost" onClick={resetLayout}>
-                  ↺ Tiklash
+                  ↺ {t('common.reset')}
                 </button>
               )}
             </div>
             {editMode && (
               <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: -8 }}>
-                Sarlavha, narx/sana va footer bloklarini (hamda brend logotipini) sudrab, o'zingiz xohlagan joyga qo'ying.
+                {t('aimkt.freePlacementHint')}
               </div>
             )}
             <LivePreview
               form={form} template={template} generatedUrl={bannerUrl}
-              editMode={editMode} onLayoutChange={updateLayout}
+              editMode={editMode} onLayoutChange={updateLayout} t={t}
             />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="btn btn-md btn-primary" style={{ flex: 1 }} disabled={!bannerUrl || downloading} onClick={doDownload}>
-                {downloading ? 'Yuklanmoqda...' : '⬇️ Yuklab olish'}
+                {downloading ? t('aimkt.downloading') : `⬇️ ${t('aimkt.download')}`}
               </button>
               <button className="btn btn-md btn-secondary" style={{ flex: 1 }} disabled={!bannerUrl || sharing} onClick={doShare}>
-                {sharing ? 'Ulashilmoqda...' : '📤 Ulashish'}
+                {sharing ? t('aimkt.sharingInProgress') : `📤 ${t('aimkt.share')}`}
               </button>
               <button className="btn btn-md btn-ghost" disabled={!bannerUrl}
-                onClick={() => copyToClipboard(bannerUrl, 'Banner havolasi')}>
+                onClick={() => copyToClipboard(bannerUrl, t('aimkt.bannerLink'), t)}>
                 🔗
               </button>
               <button className="btn btn-md btn-ghost" disabled={(!bannerUrl && !result?.posts) || savingHistory}
-                onClick={doSaveHistory} title="Tarixga saqlash">
+                onClick={doSaveHistory} title={t('aimkt.saveToHistory')}>
                 {savingHistory ? '...' : '💾'}
               </button>
             </div>
@@ -1676,14 +1671,14 @@ export default function AiMarketingPage() {
               style={{ width: '100%', background: 'linear-gradient(135deg,#FF6A2B,#FF3D71)' }}
               disabled={!bannerUrl || !result?.posts || sendingAll}
               onClick={doSendAll}
-              title="Telegram (kanal ID kiritilgan bo'lsa) + Facebook (ulangan bo'lsa) avtomatik, Instagram uchun ulashish oynasi"
+              title={t('aimkt.sendAllTitle')}
             >
-              {sendingAll ? 'Yuborilmoqda...' : '🚀 Barchasiga yuborish (Telegram + Facebook + Instagram)'}
+              {sendingAll ? t('aimkt.sending') : `🚀 ${t('aimkt.sendToAll')}`}
             </button>
 
             {!bannerUrl && (
               <div style={{ fontSize: 11.5, color: 'var(--fg-3)', textAlign: 'center', lineHeight: 1.5 }}>
-                Chapdagi maydonlarni to'ldiring — preview shu zahoti yangilanadi. Tayyor bo'lgach "Banner yaratish"ni bosing.
+                {t('aimkt.fillFieldsHint')}
               </div>
             )}
 
@@ -1706,7 +1701,7 @@ export default function AiMarketingPage() {
                         background: textFormat === fmt ? 'var(--primary)' : 'var(--bg-3)',
                         color: textFormat === fmt ? '#fff' : 'var(--fg-2)', cursor: 'pointer', fontWeight: 600,
                       }}
-                    >{fmt === 'plain' ? 'Oddiy matn' : fmt === 'markdown' ? 'Markdown' : 'HTML'}</button>
+                    >{fmt === 'plain' ? t('aimkt.plainText') : fmt === 'markdown' ? 'Markdown' : 'HTML'}</button>
                   ))}
                 </div>
 
@@ -1718,8 +1713,8 @@ export default function AiMarketingPage() {
                 />
 
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10, flexWrap: 'wrap' }}>
-                  <button className="btn btn-sm btn-ghost" onClick={() => copyToClipboard(formatPostText(result.posts[activeTab] || '', textFormat), 'Matn')}>
-                    📋 Nusxalash
+                  <button className="btn btn-sm btn-ghost" onClick={() => copyToClipboard(formatPostText(result.posts[activeTab] || '', textFormat), t('aimkt.text'), t)}>
+                    📋 {t('common.copy')}
                   </button>
                 </div>
 
@@ -1732,18 +1727,18 @@ export default function AiMarketingPage() {
                           if (e.target.checked) previewTelegramTemplate();
                         }}
                         style={{ accentColor: 'var(--primary)' }} />
-                      Claude matni o'rniga qat'iy shablon (andoza) ishlatish
+                      {t('aimkt.useStrictTemplate')}
                     </label>
                     {useTelegramTemplate && (
-                      <textarea readOnly value={loadingTgPreview ? 'Yuklanmoqda...' : telegramTemplatePreview}
+                      <textarea readOnly value={loadingTgPreview ? t('common.loading') : telegramTemplatePreview}
                         className="form-input" style={{ minHeight: 120, marginTop: 6, fontFamily: 'monospace', fontSize: 12 }} />
                     )}
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <input className="form-input" placeholder="@kanalim yoki chat ID"
+                      <input className="form-input" placeholder={t('aimkt.channelIdPlaceholder')}
                         value={tgChatId} onChange={e => setTgChatId(e.target.value)} />
                       <button className="btn btn-md btn-primary" style={{ flexShrink: 0 }}
                         disabled={sendingTg} onClick={doSendTelegram}>
-                        {sendingTg ? '...' : '📤 Kanalga yuborish'}
+                        {sendingTg ? '...' : `📤 ${t('aimkt.sendToChannel')}`}
                       </button>
                     </div>
                   </>
@@ -1754,10 +1749,9 @@ export default function AiMarketingPage() {
                     marginTop: 10, padding: '10px 12px', borderRadius: 8, fontSize: 11.5, lineHeight: 1.6,
                     background: 'var(--bg-3)', color: 'var(--fg-2)',
                   }}>
-                    ℹ️ Instagram hozircha faqat qo'lda joylashga ruxsat beradi (Meta'dan
+                    ℹ️ {t('aimkt.instagramManualOnlyPart1')}
                     <code style={{ margin: '0 4px' }}>instagram_content_publish</code>
-                    ruxsati kerak, hali tasdiqlanmagan). Yuqoridagi <b>📤 Ulashish</b> tugmasi telefoningizda
-                    Instagram'ni to'g'ridan-to'g'ri ochib beradi — rasm va matnni tanlab, bir necha soniyada joylaysiz.
+                    {t('aimkt.instagramManualOnlyPart2')} <b>📤 {t('aimkt.share')}</b> {t('aimkt.instagramManualOnlyPart3')}
                   </div>
                 )}
 
@@ -1766,16 +1760,14 @@ export default function AiMarketingPage() {
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       <button className="btn btn-md btn-primary" style={{ flex: 1 }}
                         disabled={sendingFb} onClick={doSendFacebook}>
-                        {sendingFb ? '...' : '📘 Sahifaga yuborish'}
+                        {sendingFb ? '...' : `📘 ${t('aimkt.sendToPage')}`}
                       </button>
                     </div>
                     <div style={{
                       marginTop: 8, padding: '10px 12px', borderRadius: 8, fontSize: 11.5, lineHeight: 1.6,
                       background: 'var(--bg-3)', color: 'var(--fg-2)',
                     }}>
-                      ℹ️ Bu tugma Sozlamalar → Facebook Ads'da ulangan sahifangizga to'g'ridan-to'g'ri joylaydi.
-                      Agar xato chiqsa (masalan ruxsat yetarli emas), sahifani Sozlamalar → Facebook Ads'da
-                      qaytadan ulang — yangi ulanish kerakli ruxsatni so'raydi.
+                      ℹ️ {t('aimkt.facebookAutoNote')}
                     </div>
                   </>
                 )}
