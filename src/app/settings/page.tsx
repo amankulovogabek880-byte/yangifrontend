@@ -18,30 +18,49 @@ import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-ico
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 const ICON = 15;
-const TABS = [
-  { id: 'general',     label: 'Umumiy',            icon: <Settings size={ICON} /> },
-  { id: 'phone',       label: 'Telefon',           icon: <PhoneCall size={ICON} /> },
-  { id: 'operators',   label: 'Tur operatorlar',   icon: <Building2 size={ICON} />, adminOnly: true },
-  { id: 'whatsapp',    label: 'WhatsApp',          icon: <FaWhatsapp size={ICON} /> },
-  { id: 'telegram',    label: 'Telegram',          icon: <FaTelegramPlane size={ICON} /> },
-  { id: 'instagram',   label: 'Instagram',         icon: <FaInstagram size={ICON} />, adminOnly: true },
-  { id: 'facebook',    label: 'Facebook Ads',      icon: <FaFacebookF size={ICON} />, adminOnly: true },
-  { id: 'templates',   label: 'Shablonlar',        icon: <FileText size={ICON} />, adminOnly: true },
-  { id: 'api',         label: 'API Keys',          icon: <Key size={ICON} />, adminOnly: true },
-  { id: 'webhooklogs', label: 'Webhook Logs',      icon: <List size={ICON} />, adminOnly: true },
-  { id: 'profile',     label: 'Profil',            icon: <User size={ICON} /> },
-  { id: 'team',        label: 'Jamoa',             icon: <Users size={ICON} />, adminOnly: true },
-  { id: 'leads',       label: 'Lead taqsimlash',   icon: <Target size={ICON} />, adminOnly: true },
-  { id: 'autoreply',   label: 'Auto-Reply',        icon: <Bot size={ICON} />, adminOnly: true },
-  { id: 'forms',       label: 'Web Forms',         icon: <ClipboardList size={ICON} />, adminOnly: true },
-  { id: 'kpi',         label: 'Commission Tiers',  icon: <DollarSign size={ICON} />, adminOnly: true },
-  { id: 'security',    label: 'Xavfsizlik',        icon: <Lock size={ICON} /> },
+const TAB_DEFS = [
+  { id: 'general',     key: 'settings.tab.general' },
+  { id: 'phone',       key: 'settings.tab.phone' },
+  { id: 'operators',   key: 'settings.tab.operators', adminOnly: true },
+  { id: 'whatsapp',    key: 'settings.tab.whatsapp' },
+  { id: 'telegram',    key: 'settings.tab.telegram' },
+  { id: 'instagram',   key: 'settings.tab.instagram', adminOnly: true },
+  { id: 'facebook',    key: 'settings.tab.facebook', adminOnly: true },
+  { id: 'templates',   key: 'settings.tab.templates', adminOnly: true },
+  { id: 'api',         key: 'settings.tab.api', adminOnly: true },
+  { id: 'webhooklogs', key: 'settings.tab.webhooklogs', adminOnly: true },
+  { id: 'profile',     key: 'settings.tab.profile' },
+  { id: 'team',        key: 'settings.tab.team', adminOnly: true },
+  { id: 'leads',       key: 'settings.tab.leads', adminOnly: true },
+  { id: 'autoreply',   key: 'settings.tab.autoreply', adminOnly: true },
+  { id: 'forms',       key: 'settings.tab.forms', adminOnly: true },
+  { id: 'kpi',         key: 'settings.tab.kpi', adminOnly: true },
+  { id: 'security',    key: 'settings.tab.security' },
 ];
+const TAB_ICONS: Record<string, JSX.Element> = {
+  general: <Settings size={ICON} />,
+  phone: <PhoneCall size={ICON} />,
+  operators: <Building2 size={ICON} />,
+  whatsapp: <FaWhatsapp size={ICON} />,
+  telegram: <FaTelegramPlane size={ICON} />,
+  instagram: <FaInstagram size={ICON} />,
+  facebook: <FaFacebookF size={ICON} />,
+  templates: <FileText size={ICON} />,
+  api: <Key size={ICON} />,
+  webhooklogs: <List size={ICON} />,
+  profile: <User size={ICON} />,
+  team: <Users size={ICON} />,
+  leads: <Target size={ICON} />,
+  autoreply: <Bot size={ICON} />,
+  forms: <ClipboardList size={ICON} />,
+  kpi: <DollarSign size={ICON} />,
+  security: <Lock size={ICON} />,
+};
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { lang, setLang } = useI18n();
+  const { lang, setLang, t } = useI18n();
   const [tab, setTab] = useState('general');
   const isMobile = useIsMobile();
 
@@ -49,33 +68,34 @@ export default function SettingsPage() {
   // to'g'ri tab'ni ochib qo'yish uchun
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const t = params.get('tab');
-    if (t) setTab(t);
+    const tp = params.get('tab');
+    if (tp) setTab(tp);
   }, []);
 
   const isAdmin = user?.role === 'TENANT_ADMIN';
+  const TABS = TAB_DEFS.map((d) => ({ ...d, label: t(d.key), icon: TAB_ICONS[d.id] }));
 
   return (
     <CrmLayout>
       <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>⚙ Sozlamalar</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>⚙ {t('settings.title')}</h1>
         <p style={{ color: 'var(--fg-3)', fontSize: 13, margin: 0, marginBottom: 20 }}>
-          Profil, kompaniya va integratsiyalarni boshqaring
+          {t('settings.subtitle')}
         </p>
 
         <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-          {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
+          {TABS.filter((tb) => !tb.adminOnly || isAdmin).map((tb) => (
+            <button key={tb.id} onClick={() => setTab(tb.id)} style={{
               background: 'none', border: 'none', padding: '10px 14px',
-              color: tab === t.id ? 'var(--primary)' : 'var(--fg-2)',
+              color: tab === tb.id ? 'var(--primary)' : 'var(--fg-2)',
               cursor: 'pointer', fontSize: 13,
-              fontWeight: tab === t.id ? 600 : 500,
-              borderBottom: '2px solid ' + (tab === t.id ? 'var(--primary)' : 'transparent'),
+              fontWeight: tab === tb.id ? 600 : 500,
+              borderBottom: '2px solid ' + (tab === tb.id ? 'var(--primary)' : 'transparent'),
               marginBottom: -1, whiteSpace: 'nowrap',
               display: 'inline-flex', alignItems: 'center', gap: 7,
             }}>
-              {t.icon}
-              {t.label}
+              {tb.icon}
+              {tb.label}
             </button>
           ))}
         </div>
@@ -88,16 +108,16 @@ export default function SettingsPage() {
 
         {tab === 'general' && (
           <Card>
-            <h3 style={{ marginTop: 0, fontSize: 15 }}>Umumiy sozlamalar</h3>
+            <h3 style={{ marginTop: 0, fontSize: 15 }}>{t('settings.general.title')}</h3>
             <div style={{ marginBottom: 16 }}>
-              <Label>Tema</Label>
+              <Label>{t('settings.general.theme')}</Label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <Btn variant={theme === 'dark' ? 'primary' : 'secondary'} onClick={() => theme !== 'dark' && toggleTheme()}>🌙 Tungi</Btn>
-                <Btn variant={theme === 'light' ? 'primary' : 'secondary'} onClick={() => theme !== 'light' && toggleTheme()}>☀ Yorug</Btn>
+                <Btn variant={theme === 'dark' ? 'primary' : 'secondary'} onClick={() => theme !== 'dark' && toggleTheme()}>🌙 {t('settings.general.dark')}</Btn>
+                <Btn variant={theme === 'light' ? 'primary' : 'secondary'} onClick={() => theme !== 'light' && toggleTheme()}>☀ {t('settings.general.light')}</Btn>
               </div>
             </div>
             <div>
-              <Label>Til</Label>
+              <Label>{t('settings.general.language')}</Label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <Btn variant={lang === 'uz' ? 'primary' : 'secondary'} onClick={() => setLang('uz')}>O'zbek</Btn>
                 <Btn variant={lang === 'ru' ? 'primary' : 'secondary'} onClick={() => setLang('ru')}>Русский</Btn>
@@ -860,6 +880,7 @@ function PhoneTab({ isAdmin }: { isAdmin: boolean }) {
 }
 
 function ProfileTab() {
+  const { t } = useI18n();
   const [me, setMe] = useState<any>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -878,7 +899,7 @@ function ProfileTab() {
     setSaving(true);
     try {
       await usersApi.updateMe({ name, phone });
-      toast.success('Saqlandi');
+      toast.success(t('common.saved'));
     } catch (e: any) { toast.error(errMsg(e)); }
     finally { setSaving(false); }
   }
@@ -887,14 +908,14 @@ function ProfileTab() {
 
   return (
     <Card>
-      <h3 style={{ marginTop: 0, fontSize: 15 }}>👤 Mening profilim</h3>
-      <Label>Ism</Label>
+      <h3 style={{ marginTop: 0, fontSize: 15 }}>👤 {t('settings.profile.title')}</h3>
+      <Label>{t('settings.profile.name')}</Label>
       <Input value={name} onChange={(e) => setName(e.target.value)} style={{ marginBottom: 12 }} />
       <Label>Email</Label>
       <Input value={me?.email || ''} disabled style={{ marginBottom: 12, opacity: 0.6 }} />
-      <Label>Telefon</Label>
+      <Label>{t('settings.profile.phone')}</Label>
       <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998901234567" style={{ marginBottom: 16 }} />
-      <Btn onClick={save} loading={saving}>Saqlash</Btn>
+      <Btn onClick={save} loading={saving}>{t('common.save')}</Btn>
     </Card>
   );
 }
@@ -913,6 +934,7 @@ function CompanyTab() {
 
 // ─── v8: TEAM TAB — admin uchun jamoa ko'rinishi ───
 function TeamTab() {
+  const { t } = useI18n();
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'grid'>('list');
@@ -939,9 +961,9 @@ function TeamTab() {
       <Card style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 15 }}>👥 Jamoa ({members.length})</h3>
+            <h3 style={{ margin: 0, fontSize: 15 }}>👥 {t('settings.team.title')} ({members.length})</h3>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-3)' }}>
-              Agentlarni qo'shish, ko'rish va boshqarish
+              {t('settings.team.subtitle')}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -952,36 +974,36 @@ function TeamTab() {
                 border: 'none', borderRadius: 6, padding: '6px 12px',
                 color: view === 'list' ? 'var(--primary)' : 'var(--fg-3)',
                 cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              }}>≡ Ro'yxat</button>
+              }}>≡ {t('settings.team.listView')}</button>
               <button onClick={() => setView('grid')} style={{
                 background: view === 'grid' ? 'var(--bg-2)' : 'transparent',
                 border: 'none', borderRadius: 6, padding: '6px 12px',
                 color: view === 'grid' ? 'var(--primary)' : 'var(--fg-3)',
                 cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              }}>▦ Kartochka</button>
+              }}>▦ {t('settings.team.gridView')}</button>
             </div>
-            <Btn variant="gradient" onClick={() => setShowCreate(true)}>+ Agent qo'shish</Btn>
+            <Btn variant="gradient" onClick={() => setShowCreate(true)}>+ {t('settings.team.addAgent')}</Btn>
           </div>
         </div>
 
         {members.length === 0 ? (
-          <p style={{ color: 'var(--fg-3)', textAlign: 'center', padding: 30 }}>Jamoada hali odam yo'q</p>
+          <p style={{ color: 'var(--fg-3)', textAlign: 'center', padding: 30 }}>{t('settings.team.empty')}</p>
         ) : view === 'list' ? (
           /* ─── LIST VIEW (gorizontal) ─── */
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ fontSize: 10, color: 'var(--fg-3)', textTransform: 'uppercase', textAlign: 'left' }}>
-                  <th style={{ padding: 10 }}>Agent</th>
-                  <th style={{ padding: 10, textAlign: 'center' }}>Amallar</th>
-                  <th style={{ padding: 10, textAlign: 'center' }}>Holat</th>
-                  <th style={{ padding: 10 }}>Rol</th>
-                  <th style={{ padding: 10 }}>Telefon</th>
-                  <th style={{ padding: 10, textAlign: 'center' }}>Leadlar</th>
-                  <th style={{ padding: 10, textAlign: 'center' }}>Bookinglar</th>
-                  <th style={{ padding: 10, textAlign: 'right' }}>Daromad (oy)</th>
-                  <th style={{ padding: 10, textAlign: 'right' }}>Foyda (oy)</th>
-                  <th style={{ padding: 10, textAlign: 'right' }}>Maoshi (oy)</th>
+                  <th style={{ padding: 10 }}>{t('settings.team.agent')}</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>{t('settings.team.actions')}</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>{t('settings.team.status')}</th>
+                  <th style={{ padding: 10 }}>{t('settings.team.role')}</th>
+                  <th style={{ padding: 10 }}>{t('settings.team.phone')}</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>{t('settings.team.leads')}</th>
+                  <th style={{ padding: 10, textAlign: 'center' }}>{t('settings.team.bookings')}</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>{t('settings.team.revenueMonth')}</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>{t('settings.team.profitMonth')}</th>
+                  <th style={{ padding: 10, textAlign: 'right' }}>{t('settings.team.salaryMonth')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -998,7 +1020,7 @@ function TeamTab() {
                     </td>
                     <td style={{ padding: 10 }}>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                        <button onClick={() => setEditingMember(m)} title="Tahrirlash" style={{
+                        <button onClick={() => setEditingMember(m)} title={t('common.edit')} style={{
                           background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 7,
                           width: 28, height: 28, cursor: 'pointer', color: 'var(--fg-2)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1010,7 +1032,7 @@ function TeamTab() {
                     </td>
                     <td style={{ padding: 10, textAlign: 'center' }}>
                       <Badge color={m.status === 'ACTIVE' ? 'var(--success)' : 'var(--fg-3)'}>
-                        {m.status === 'ACTIVE' ? 'Faol' : 'Faol emas'}
+                        {m.status === 'ACTIVE' ? t('settings.team.active') : t('settings.team.inactive')}
                       </Badge>
                     </td>
                     <td style={{ padding: 10 }}>
@@ -1061,13 +1083,13 @@ function TeamTab() {
                 }}>
                   <Mini label="Leads" value={m.stats?.leadsTotal || 0} color="var(--info)" />
                   <Mini label="Bookings" value={m.stats?.bookingsTotal || 0} color="var(--primary)" />
-                  <Mini label="Maoshi" value={`$${m.stats?.monthSalary || 0}`} color="var(--warning)" />
+                  <Mini label={t('settings.team.salary')} value={`$${m.stats?.monthSalary || 0}`} color="var(--warning)" />
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--fg-3)', marginTop: 10 }}>
-                  Foyda: <b style={{ color: 'var(--success)' }}>${m.stats?.monthProfit || 0}</b>
+                  {t('settings.team.profit')}: <b style={{ color: 'var(--success)' }}>${m.stats?.monthProfit || 0}</b>
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 12, justifyContent: 'center' }}>
-                  <Btn size="sm" variant="secondary" onClick={() => setEditingMember(m)}>✏ Tahrirlash</Btn>
+                  <Btn size="sm" variant="secondary" onClick={() => setEditingMember(m)}>✏ {t('common.edit')}</Btn>
                   <TeamMemberDeleteBtn member={m} onDeleted={() => window.location.reload()} />
                 </div>
               </div>
@@ -1081,7 +1103,7 @@ function TeamTab() {
         <EditTeamMemberModal
           member={editingMember}
           onClose={() => setEditingMember(null)}
-          onSaved={() => { setEditingMember(null); load(); toast.success('Agent ma\'lumotlari yangilandi'); }}
+          onSaved={() => { setEditingMember(null); load(); toast.success(t('settings.team.agentUpdated')); }}
         />
       )}
     </>
