@@ -54,7 +54,6 @@ const emptyForm = {
   agencyContact: '',
   adLanguage: 'uz' as 'uz' | 'ru', // reklama MATNI tili — ilova tilidan mustaqil
   extraTexts: [] as string[], // bannerga qo'shimcha urg'u matnlari (masalan "Bepul transfer!")
-  galleryImages: [] as string[], // "Galereya" temasi uchun: banner ustiga qo'yiladigan qo'shimcha 1-2 surat
 
   hotels: [] as Array<{ name: string; stars?: number; price: string }>, // ko'p mehmonxona/narx solishtirish
   showHotelList: false,
@@ -532,7 +531,6 @@ export default function AiMarketingPage() {
 
   const [searchingImages, setSearchingImages] = useState(false);
   const [imageResults, setImageResults] = useState<string[]>([]);
-  const [generatingAiImage, setGeneratingAiImage] = useState(false);
 
   // ── Mehmonxona rasm kutubxonasi — agentlik biror mehmonxonaning O'ZINING
   // haqiqiy suratini bir marta yuklasa, keyingi safar shu nom yozilganda
@@ -585,7 +583,6 @@ export default function AiMarketingPage() {
   }, []);
 
   const [sendingFb, setSendingFb] = useState(false);
-  const [sendingIg, setSendingIg] = useState(false);
   const [sendingAll, setSendingAll] = useState(false);
   const [savingHistory, setSavingHistory] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -658,7 +655,6 @@ export default function AiMarketingPage() {
     agencyContact: form.agencyContact.trim() || undefined,
     adLanguage: form.adLanguage || 'uz',
     extraTexts: (form.extraTexts || []).map((t: string) => t.trim()).filter(Boolean),
-    galleryImages: (form.galleryImages || []).map((u: string) => u.trim()).filter(Boolean),
     hotels: (form.hotels || [])
       .filter((h: any) => h.name?.trim() && Number(h.price) > 0)
       .map((h: any) => ({ name: h.name.trim(), stars: h.stars ? Number(h.stars) : undefined, price: Number(h.price) })),
@@ -699,30 +695,6 @@ export default function AiMarketingPage() {
       toast.error(e?.response?.data?.message || t('aimkt.imageSearchFailed'));
     } finally {
       setSearchingImages(false);
-    }
-  };
-
-  // ── Stok-foto qidirish o'rniga: AI orqali yangi, noyob fon surat
-  // generatsiya qilish (ixtiyoriy — serverda STABILITY_API_KEY sozlangan
-  // bo'lishi kerak, bo'lmasa tushunarli xato ko'rsatiladi). ──
-  const doGenerateAiImage = async () => {
-    if (!form.destination.trim()) { toast.error(t('aimkt.enterDestinationFirst')); return; }
-    setGeneratingAiImage(true);
-    try {
-      const res = await aiMarketingApi.aiGenerateImage({
-        destination: form.destination.trim(),
-        hotelName: form.hotelName?.trim() || undefined,
-      });
-      const url = res.data?.url;
-      if (url) {
-        set('imageUrl', url);
-        setImageResults((prev) => [url, ...prev]);
-        toast.success('AI rasm tayyor bo\u2019ldi');
-      }
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'AI rasm yaratib bo\u2019lmadi');
-    } finally {
-      setGeneratingAiImage(false);
     }
   };
 
@@ -902,32 +874,10 @@ export default function AiMarketingPage() {
     }
   };
 
-  // ── Instagram Business hisobiga avtomatik joylash (Facebook sahifasi
-  // orqali). Agar Instagram Business hisobi ulanmagan yoki ilova hali
-  // "instagram_content_publish" ruxsatini olmagan bo'lsa — Meta aniq
-  // xato qaytaradi, shu xato tugma ostida ko'rsatiladi. ──
-  const doSendInstagram = async () => {
-    if (!bannerUrl) { toast.error(t('aimkt.createBannerFirst')); return; }
-    if (!result?.posts?.instagram) { toast.error(t('aimkt.createPostFirst')); return; }
-
-    setSendingIg(true);
-    try {
-      await aiMarketingApi.sendInstagram({ photoUrl: bannerUrl, caption: result.posts.instagram });
-      toast.success('Instagram\u2019ga joylandi');
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || t('aimkt.sendFailed'));
-    } finally {
-      setSendingIg(false);
-    }
-  };
-
   // ── TurMaker uslubida: "bir tugma orqali barcha tarmoqlarga yuborish" —
   // Telegram (kanal ID kiritilgan bo'lsa) va Facebook (sahifa ulangan bo'lsa)
-  // avtomatik yuboriladi. Instagram uchun AVVAL avtomatik joylashga
-  // urinamiz (Business hisob ulangan bo'lsa ishlaydi); muvaffaqiyatsiz
-  // bo'lsa (masalan hisob ulanmagan/ruxsat yo'q), telefon ulashish
-  // oynasiga qaytamiz (fallback) — shu holatda ham foydalanuvchi hech
-  // narsasiz qolmaydi.
+  // avtomatik yuboriladi, Instagram uchun esa (Meta cheklovi tufayli avtomatik
+  // joylash mumkin emasligi sababli) telefon ulashish oynasi ochiladi.
   const doSendAll = async () => {
     if (!bannerUrl) { toast.error(t('aimkt.createBannerFirst')); return; }
     if (!result?.posts) { toast.error(t('aimkt.createPostsFirst')); return; }
@@ -967,16 +917,8 @@ export default function AiMarketingPage() {
     }
 
     if (result.posts.instagram) {
-      try {
-        await aiMarketingApi.sendInstagram({ photoUrl: bannerUrl, caption: result.posts.instagram });
-        done.push('Instagram');
-      } catch {
-        // Avtomatik joylash mumkin bo'lmadi (Business hisob ulanmagan yoki
-        // ruxsat yo'q) — telefon ulashish oynasiga qaytamiz
-        const status = await shareBanner(bannerUrl, result.posts.instagram);
-        if (status === 'shared' || status === 'shared-link') done.push(`Instagram (${t('aimkt.viaShare')})`);
-        else failed.push('Instagram');
-      }
+      const status = await shareBanner(bannerUrl, result.posts.instagram);
+      if (status === 'shared' || status === 'shared-link') done.push(`Instagram (${t('aimkt.viaShare')})`);
     }
 
     setSendingAll(false);
@@ -1033,7 +975,6 @@ export default function AiMarketingPage() {
       // qaytaramiz (aks holda ekrandagi eski tanlov bilan aralashib qolardi)
       bannerFormat: item.input?.bannerFormat || 'square',
       bannerTheme: item.input?.bannerTheme || 'classic',
-      galleryImages: item.input?.galleryImages || [],
       showBadge: item.input?.showBadge !== false,
       layout: normalizeLegacyLayout(item.input?.layout),
     }));
@@ -1425,12 +1366,6 @@ export default function AiMarketingPage() {
                   onClick={() => doSearchImages()}>
                   {searchingImages ? t('aimkt.searching') : `🔍 ${t('aimkt.findImage')}`}
                 </button>
-                <button className="btn btn-md btn-secondary" style={{ flexShrink: 0 }}
-                  disabled={generatingAiImage}
-                  title="Rasm chizishga alohida AI xizmati (Stability AI) ishlatiladi — Claude faqat matn yozadi, surat chiza olmaydi"
-                  onClick={doGenerateAiImage}>
-                  {generatingAiImage ? '🤖 Yaratilmoqda…' : '🤖 AI rasm'}
-                </button>
               </div>
               {imageResults.length > 0 && (
                 <div style={{ marginTop: 12 }}>
@@ -1600,7 +1535,6 @@ export default function AiMarketingPage() {
                     { v: 'classic', label: `✨ ${t('aimkt.classic')}` },
                     { v: 'minimal', label: `◻ ${t('aimkt.minimal')}` },
                     { v: 'bold', label: `🔶 ${t('aimkt.bold')}` },
-                    { v: 'gallery', label: '🖼 Galereya' },
                   ] as const).map((opt) => (
                     <button key={opt.v} type="button"
                       onClick={() => set('bannerTheme', opt.v)}
@@ -1621,55 +1555,6 @@ export default function AiMarketingPage() {
                 </label>
               </div>
             </div>
-
-            {/* "Galereya" temasi: fon surat ustiga QO'SHIMCHA 1-2 ta surat (masalan
-                mehmonxona binosi + xona) — avtomatik kichraytirilib, dumaloq burchakli
-                panel sifatida qo'yiladi ("rasm ustiga rasm"). Rasm topilgan natijalardan
-                ustiga bosib tanlash yoki to'g'ridan-to'g'ri URL kiritish mumkin. */}
-            {form.bannerTheme === 'gallery' && (
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-3)' }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: 'var(--fg-2)' }}>
-                  🖼 Qo'shimcha suratlar (masalan mehmonxona binosi, xona ichi) — banner ustiga kichraytirilib qo'yiladi
-                </div>
-                {[0, 1].map((i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <input
-                      className="form-input"
-                      style={{ flex: 1 }}
-                      placeholder={`${i + 1}-surat URL (ixtiyoriy)`}
-                      value={(form.galleryImages || [])[i] || ''}
-                      onChange={(e) => {
-                        const next = [...(form.galleryImages || [])];
-                        next[i] = e.target.value;
-                        set('galleryImages', next);
-                      }}
-                    />
-                    {(form.galleryImages || [])[i] && (
-                      <img src={(form.galleryImages || [])[i]} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8 }} />
-                    )}
-                  </div>
-                ))}
-                {!!imageResults.length && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                    {imageResults.slice(0, 10).map((url: string) => (
-                      <img
-                        key={url}
-                        src={url}
-                        alt=""
-                        onClick={() => {
-                          const next = [...(form.galleryImages || [])];
-                          const emptyIdx = next[0] ? (next[1] ? 0 : 1) : 0;
-                          next[emptyIdx] = url;
-                          set('galleryImages', next.slice(0, 2));
-                        }}
-                        style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--border)' }}
-                        title="Galereyaga qo'shish uchun bosing"
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
 
             <details style={{ marginTop: 16 }}>
               <summary style={{ cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--fg-2)' }}>
@@ -1860,27 +1745,14 @@ export default function AiMarketingPage() {
                 )}
 
                 {activeTab === 'instagram' && (
-                  <>
-                    {/* Avval avtomatik joylashga urinamiz — agar tenant Facebook
-                        sahifasiga Instagram Business hisobini ulagan bo'lsa va
-                        ilova instagram_content_publish ruxsatini olgan bo'lsa,
-                        bu to'g'ridan-to'g'ri ishlaydi. Ishlamasa, pastdagi
-                        "📤 Ulashish" (share sheet) muqobil yo'l bo'lib qoladi. */}
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <button className="btn btn-md btn-primary" style={{ flex: 1 }}
-                        disabled={sendingIg} onClick={doSendInstagram}>
-                        {sendingIg ? '...' : '📸 Instagramga avtomatik joylash'}
-                      </button>
-                    </div>
-                    <div style={{
-                      marginTop: 8, padding: '10px 12px', borderRadius: 8, fontSize: 11.5, lineHeight: 1.6,
-                      background: 'var(--bg-3)', color: 'var(--fg-2)',
-                    }}>
-                      ℹ️ {t('aimkt.instagramManualOnlyPart1')}
-                      <code style={{ margin: '0 4px' }}>instagram_content_publish</code>
-                      {t('aimkt.instagramManualOnlyPart2')} <b>📤 {t('aimkt.share')}</b> {t('aimkt.instagramManualOnlyPart3')}
-                    </div>
-                  </>
+                  <div style={{
+                    marginTop: 10, padding: '10px 12px', borderRadius: 8, fontSize: 11.5, lineHeight: 1.6,
+                    background: 'var(--bg-3)', color: 'var(--fg-2)',
+                  }}>
+                    ℹ️ {t('aimkt.instagramManualOnlyPart1')}
+                    <code style={{ margin: '0 4px' }}>instagram_content_publish</code>
+                    {t('aimkt.instagramManualOnlyPart2')} <b>📤 {t('aimkt.share')}</b> {t('aimkt.instagramManualOnlyPart3')}
+                  </div>
                 )}
 
                 {activeTab === 'facebook' && (
