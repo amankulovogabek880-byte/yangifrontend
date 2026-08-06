@@ -458,6 +458,20 @@ export const aiMarketingApi = {
   // Facebook sahifasiga (Page) avtomatik joylash
   sendFacebook: (data: { photoUrl: string; caption: string }) =>
     api.post('/ai-marketing/send/facebook', data),
+  // Instagram Business hisobiga avtomatik joylash (Facebook sahifasi orqali)
+  sendInstagram: (data: { photoUrl: string; caption: string }) =>
+    api.post('/ai-marketing/send/instagram', data),
+  // AI orqali (stok-foto qidirish o'rniga) yangi, noyob fon surat generatsiya qilish
+  aiGenerateImage: (data: { prompt?: string; destination?: string; hotelName?: string }) =>
+    api.post('/ai-marketing/images/ai-generate', data),
+  // 🚀 Bir tugma: banner yaratadi va tanlangan kanallarga (Telegram/Facebook/
+  // Instagram) bitta so'rovda joylaydi — tur yaratishda to'g'ridan-to'g'ri chaqirish uchun
+  publish: (data: {
+    input: any;
+    telegram?: { chatId: string; telegramAccountId?: string; caption?: string; useTemplate?: boolean };
+    facebook?: { caption?: string } | boolean;
+    instagram?: { caption?: string } | boolean;
+  }) => api.post('/ai-marketing/publish', data),
   // Tarix — saqlash / ro'yxat / bitta yozuv / o'chirish
   saveHistory: (data: { input: any; bannerUrl?: string; images?: string[]; posts?: any }) =>
     api.post('/ai-marketing/history', data),
