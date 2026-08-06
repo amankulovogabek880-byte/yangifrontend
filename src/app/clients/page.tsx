@@ -8,6 +8,7 @@ import { TIER_LABELS, SOURCE_LABELS, STAGE_LABELS, STAGE_COLORS, errMsg, timeAgo
 import {
   Users, UserPlus, Search, Download, GitBranch, UserCheck, X, Loader2, CheckSquare,
   Globe, Phone as PhoneIcon, Handshake, Footprints, HelpCircle, UserX, Maximize2,
+  Upload, FileSpreadsheet, CheckCircle2, AlertTriangle,
 } from 'lucide-react';
 import { FaTelegram, FaInstagram, FaWhatsapp, FaFacebook } from 'react-icons/fa';
 import toast from 'react-hot-toast';
@@ -73,6 +74,8 @@ export default function ClientsPage() {
   // v18: "Yo'qotilgan leadlar" endi alohida sahifa emas — shu yerdan modal
   // sifatida ochiladi.
   const [showLostLeads, setShowLostLeads] = useState(false);
+  // v33: Excel/CSV orqali ko'p sonli lead import qilish (eski tizimdan ko'chirish)
+  const [showImport, setShowImport] = useState(false);
   const [page, setPage] = useState(1);
 
   // ── v10.3: BULK ACTIONS — checkboxlar faqat "Tanlash" rejimida ko'rinadi
@@ -177,6 +180,7 @@ export default function ClientsPage() {
               {selectMode ? t('clients.selectClose') : t('clients.select')}
             </Btn>
             {!isMobile && <Btn variant="secondary" icon={<Download size={14} />} onClick={exportCsv}>CSV</Btn>}
+            <Btn variant="secondary" icon={<Upload size={14} />} onClick={() => setShowImport(true)} style={isMobile ? { flex: '1 1 auto' } : undefined}>Import</Btn>
             <Btn variant="secondary" icon={<UserX size={14} />} onClick={() => setShowLostLeads(true)} style={isMobile ? { flex: '1 1 auto' } : undefined}>{t('clients.lost')}</Btn>
             <Btn icon={<UserPlus size={14} />} onClick={() => setShowAdd(true)} style={isMobile ? { flex: '1 1 100%' } : undefined}>{t('clients.newClient')}</Btn>
           </div>
@@ -388,6 +392,7 @@ export default function ClientsPage() {
 
         {showAdd && <AddClientModal onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
         {showLostLeads && <LostLeadsModal onClose={() => setShowLostLeads(false)} router={router} />}
+        {showImport && <ImportLeadsModal onClose={() => setShowImport(false)} onImported={() => { setShowImport(false); load(); }} />}
         {quickViewId && (
           <ClientQuickView clientId={quickViewId} onClose={() => setQuickViewId(null)} />
         )}
@@ -571,6 +576,149 @@ function LostLeadsModal({ onClose, router }: any) {
               </div>
             ))}
           </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── v33: Excel/CSV orqali ko'p sonli lead import qilish ────────────────────
+// Turfirma CRM'ni o'rnatganda odatda eski tizimidan (Excel/Google Sheets)
+// 1000-2000+ lead ko'chirish kerak bo'ladi. Bu modal faylni yuklaydi va
+// backend har bir qatorni alohida mijoz qilib yaratadi (oldingi bosqichi
+// saqlanib qoladi), so'ngra natija (import qilindi/dublikat/xato) ko'rsatiladi.
+function ImportLeadsModal({ onClose, onImported }: any) {
+  const { t } = useI18n();
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState('');
+
+  function handleFile(f: File | null) {
+    setError('');
+    setResult(null);
+    setFile(f);
+  }
+
+  async function handleImport() {
+    if (!file) return;
+    setLoading(true);
+    setError('');
+    try {
+      const r = await clientsApi.importLeads(file);
+      setResult(r.data);
+      toast.success(`${r.data.imported} ta lead muvaffaqiyatli import qilindi`);
+    } catch (e) {
+      setError(errMsg(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Leadlarni import qilish" maxWidth={520}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {!result && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--fg-2)', lineHeight: 1.5 }}>
+              Excel (.xlsx) yoki CSV faylni yuklang — har bir qator alohida mijoz
+              bo'lib qo'shiladi. Ustunlar: <b>Ism*</b>, Telefon, Email, Manba,
+              Bosqich (oldingi turgan bosqichi saqlanadi), Shahar, Yo'nalish,
+              Byudjet, Izoh, Teglar, Agent. (* — majburiy)
+            </div>
+
+            <label
+              htmlFor="import-file-input"
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                padding: '28px 16px', borderRadius: 12, cursor: 'pointer',
+                border: '2px dashed var(--border)', background: 'var(--bg-2)',
+                textAlign: 'center' as any,
+              }}
+            >
+              <FileSpreadsheet size={28} style={{ color: 'var(--primary)' }} />
+              {file ? (
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{file.name}</span>
+              ) : (
+                <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>
+                  Faylni tanlash uchun bosing (.xlsx yoki .csv)
+                </span>
+              )}
+              <input
+                id="import-file-input"
+                type="file"
+                accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                style={{ display: 'none' }}
+                onChange={(e) => handleFile(e.target.files?.[0] || null)}
+              />
+            </label>
+
+            {error && (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
+                borderRadius: 8, background: 'rgba(220,38,38,.08)', border: '1px solid rgba(220,38,38,.3)',
+                fontSize: 13, color: '#dc2626',
+              }}>
+                <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Btn variant="secondary" onClick={onClose} disabled={loading}>{t('clients.cancel2') || 'Bekor qilish'}</Btn>
+              <Btn onClick={handleImport} disabled={!file || loading} icon={loading ? <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={14} />}>
+                {loading ? 'Import qilinmoqda...' : 'Import qilish'}
+              </Btn>
+            </div>
+          </>
+        )}
+
+        {result && (
+          <>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+              borderRadius: 10, background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.3)',
+            }}>
+              <CheckCircle2 size={20} style={{ color: '#16a34a', flexShrink: 0 }} />
+              <div style={{ fontSize: 13 }}>
+                <b>{result.imported}</b> ta lead muvaffaqiyatli import qilindi
+                {result.totalRows ? ` (jami ${result.totalRows} qator)` : ''}.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as any, fontSize: 12 }}>
+              {result.duplicatesSkipped > 0 && (
+                <span style={{ padding: '5px 10px', borderRadius: 999, background: 'var(--bg-3)', color: 'var(--fg-2)' }}>
+                  Dublikat (o'tkazib yuborildi): {result.duplicatesSkipped}
+                </span>
+              )}
+              {result.invalidRows > 0 && (
+                <span style={{ padding: '5px 10px', borderRadius: 999, background: 'rgba(220,38,38,.1)', color: '#dc2626' }}>
+                  Xato qatorlar: {result.invalidRows}
+                </span>
+              )}
+              {result.stagesCreated?.length > 0 && (
+                <span style={{ padding: '5px 10px', borderRadius: 999, background: 'rgba(61,126,255,.1)', color: 'var(--primary)' }}>
+                  Yangi bosqichlar qo'shildi: {result.stagesCreated.join(', ')}
+                </span>
+              )}
+            </div>
+
+            {result.errors?.length > 0 && (
+              <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                {result.errors.map((er: any, i: number) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--fg-3)', padding: '3px 0' }}>
+                    {er.row}-qator: {er.reason}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Btn variant="secondary" onClick={() => { setResult(null); setFile(null); }}>Yana bitta fayl</Btn>
+              <Btn onClick={onImported}>Tayyor</Btn>
+            </div>
+          </>
         )}
       </div>
     </Modal>

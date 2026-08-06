@@ -222,6 +222,15 @@ export const clientsApi = {
   // v5: Open Chat va Call
   getConversation: (id: string) => api.get(`/clients/${id}/conversation`),
   call: (id: string) => api.post(`/clients/${id}/call`),
+  // v33: Excel/CSV orqali ko'p sonli lead import qilish (eski tizimdan ko'chirish)
+  importLeads: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post('/clients/import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000, // 2000+ qator uchun ko'proq vaqt kerak bo'lishi mumkin
+    });
+  },
 };
 
 // ── PIPELINE ─────────────────────────────────────────────────
