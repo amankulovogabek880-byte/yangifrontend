@@ -4302,6 +4302,16 @@ function FacebookLeadsTab() {
       setCfg((c: any) => ({ ...c, pageId: res.data?.pageId || '', pageName: res.data?.pageName || '' }));
       setPendingPages([]);
       toast.success(`✅ "${res.data?.pageName || 'Page'}" ulandi`);
+      // 🩹 TUZATISH: bu yerda ilgari Instagram ulanish natijasi umuman
+      // ko'rsatilmasdi — Facebook "ulandi" deb chiqardi-yu, Instagram
+      // qanday bo'lgani (ulandimi, nega ulanmadi) foydalanuvchiga
+      // ko'rinmasdi. Endi avtomatik (bitta Page) oqimidagi kabi aniq
+      // xabar chiqadi.
+      if (res.data?.instagramConnected) {
+        toast.success('✅ Instagram ham ulandi! DM\'lar endi Chat bo\'limiga tushadi.');
+      } else if (res.data?.instagramError) {
+        toast.error(`Instagram ulanmadi — ${res.data.instagramError}`, { duration: 12000 });
+      }
     } catch (e: any) { toast.error(errMsg(e)); }
     finally { setSaving(false); }
   }
