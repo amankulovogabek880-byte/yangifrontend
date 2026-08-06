@@ -519,7 +519,11 @@ export default function AiMarketingPage() {
 
   const [generating, setGenerating] = useState(false);
   const [bannering, setBannering] = useState(false);
-  const [result, setResult] = useState<any>(null); // { images, posts }
+  // { images, posts } — posts HAR DOIM mavjud bo'ladi (bo'sh satrlar bilan
+  // ham), chunki AI o'chiq bo'lganda ham foydalanuvchi caption'ni qo'lda
+  // yozib, Telegram/Instagram/Facebook'ga yubora olishi kerak.
+  const emptyPosts = { instagram: '', telegram: '', facebook: '' };
+  const [result, setResult] = useState<any>({ posts: emptyPosts });
   const [bannerUrl, setBannerUrl] = useState<string>('');
 
   const [tgChatId, setTgChatId] = useState('');
@@ -708,7 +712,7 @@ export default function AiMarketingPage() {
     }
     if (!validate()) return;
     setGenerating(true);
-    setResult(null);
+    setResult({ posts: emptyPosts });
     try {
       const res = await aiMarketingApi.generate(buildPayload());
       setResult(res.data);
@@ -880,7 +884,11 @@ export default function AiMarketingPage() {
   // joylash mumkin emasligi sababli) telefon ulashish oynasi ochiladi.
   const doSendAll = async () => {
     if (!bannerUrl) { toast.error(t('aimkt.createBannerFirst')); return; }
-    if (!result?.posts) { toast.error(t('aimkt.createPostsFirst')); return; }
+    const posts = result?.posts || emptyPosts;
+    if (!posts.telegram && !posts.facebook && !posts.instagram) {
+      toast.error(t('aimkt.createPostsFirst'));
+      return;
+    }
 
     setSendingAll(true);
     const done: string[] = [];
@@ -931,7 +939,8 @@ export default function AiMarketingPage() {
 
   // ── Tarix: saqlash / ro'yxatni yuklash / bittasini ochish / o'chirish ──
   const doSaveHistory = async () => {
-    if (!bannerUrl && !result?.posts) { toast.error(t('aimkt.createBannerOrPostFirst')); return; }
+    const hasAnyCaption = Object.values(result?.posts || emptyPosts).some((v: any) => !!v);
+    if (!bannerUrl && !hasAnyCaption) { toast.error(t('aimkt.createBannerOrPostFirst')); return; }
     setSavingHistory(true);
     try {
       await aiMarketingApi.saveHistory({
@@ -979,7 +988,7 @@ export default function AiMarketingPage() {
       layout: normalizeLegacyLayout(item.input?.layout),
     }));
     setBannerUrl(item.bannerUrl || '');
-    setResult(item.posts ? { posts: item.posts } : null);
+    setResult({ posts: { ...emptyPosts, ...(item.posts || {}) } });
     setHistoryOpen(false);
     toast.success(item.bannerUrl ? t('aimkt.loadedExistingBanner') : t('aimkt.loadedEditable'));
   };
@@ -1660,7 +1669,8 @@ export default function AiMarketingPage() {
                 onClick={() => copyToClipboard(bannerUrl, t('aimkt.bannerLink'), t)}>
                 🔗
               </button>
-              <button className="btn btn-md btn-ghost" disabled={(!bannerUrl && !result?.posts) || savingHistory}
+              <button className="btn btn-md btn-ghost"
+                disabled={(!bannerUrl && !Object.values(result?.posts || emptyPosts).some((v: any) => !!v)) || savingHistory}
                 onClick={doSaveHistory} title={t('aimkt.saveToHistory')}>
                 {savingHistory ? '...' : '💾'}
               </button>
@@ -1669,7 +1679,7 @@ export default function AiMarketingPage() {
             <button
               className="btn btn-md btn-primary"
               style={{ width: '100%', background: 'linear-gradient(135deg,#FF6A2B,#FF3D71)' }}
-              disabled={!bannerUrl || !result?.posts || sendingAll}
+              disabled={!bannerUrl || sendingAll}
               onClick={doSendAll}
               title={t('aimkt.sendAllTitle')}
             >
@@ -1683,7 +1693,7 @@ export default function AiMarketingPage() {
             )}
 
             {/* ── Post matnlari ── */}
-            {result?.posts && (
+            {bannerUrl && (
               <div className="card" style={{ padding: 14 }}>
                 <div className="tabs-bar" style={{ padding: 0, marginBottom: 10, background: 'none' }}>
                   {(['telegram', 'instagram', 'facebook'] as const).map(k => (
@@ -1705,15 +1715,33 @@ export default function AiMarketingPage() {
                   ))}
                 </div>
 
+                {/* AI matn yozmagan/yozolmagan bo'lsa ham (masalan AI o'chiq) —
+                    caption maydoni HAMISHA qo'lda to'ldirish uchun ochiq turadi. */}
                 <textarea
-                  readOnly
+                  readOnly={textFormat !== 'plain'}
                   value={formatPostText(result.posts[activeTab] || '', textFormat)}
+                  onChange={(e) => {
+                    if (textFormat !== 'plain') return; // markdown/html — faqat ko'rish uchun aylantirilgan matn, tahrir qilinmaydi
+                    const val = e.target.value;
+                    setResult((r: any) => ({ ...(r || { posts: emptyPosts }), posts: { ...((r || {}).posts || emptyPosts), [activeTab]: val } }));
+                  }}
+                  placeholder={t('aimkt.writeCaptionManually')}
                   className="form-input"
                   style={{ minHeight: 150, resize: 'vertical', fontFamily: textFormat === 'html' ? 'monospace' : 'inherit', lineHeight: 1.6 }}
                 />
+                {textFormat !== 'plain' && (
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+                    {t('aimkt.switchToPlainToEdit')}
+                  </div>
+                )}
 
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10, flexWrap: 'wrap' }}>
-                  <button className="btn btn-sm btn-ghost" onClick={() => copyToClipboard(formatPostText(result.posts[activeTab] || '', textFormat), t('aimkt.text'), t)}>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+                  {user && !user.tenantAiEnabled && (
+                    <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
+                      🤖🚫 {t('aimkt.aiOffWriteManually')}
+                    </span>
+                  )}
+                  <button className="btn btn-sm btn-ghost" style={{ marginLeft: 'auto' }} onClick={() => copyToClipboard(formatPostText(result.posts[activeTab] || '', textFormat), t('aimkt.text'), t)}>
                     📋 {t('common.copy')}
                   </button>
                 </div>
