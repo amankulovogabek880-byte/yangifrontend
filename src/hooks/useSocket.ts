@@ -40,24 +40,38 @@ export function useSocket() {
           transports: ['websocket', 'polling'],
           reconnection: true,
           reconnectionDelay: 1000,
-          reconnectionAttempts: 5,
+          reconnectionDelayMax: 10000,
+          // v15 FIX: avval `reconnectionAttempts: 5` edi — ya'ni internet
+          // biroz uzoqroq (bir necha soniyadan ortiq) uzilib qolsa, socket.io
+          // 5 marta urinib, KEYIN BUTUNLAY TO'XTAB QOLARDI va sahifa qo'lda
+          // yangilanmaguncha (F5) qayta hech qachon ulanmasdi. Shu payt
+          // Telegramga kelgan xabarlar CRM'da UMUMAN ko'rinmasdi — aynan
+          // "CRM'dan chiqib ketsam xabar kelmayapti" shikoyatining asosiy
+          // sabablaridan biri. Endi cheksiz urinadi (backoff bilan, serverga
+          // ortiqcha yuk bermasdan).
+          reconnectionAttempts: Infinity,
         });
       }
       return true;
     };
 
-    if (!connect()) {
-      pollTimer = setInterval(() => {
-        if (connect()) {
-          if (pollTimer) clearInterval(pollTimer);
-          attach();
-        }
-      }, 500);
-      return () => {
-        cancelled = true;
-        if (pollTimer) clearInterval(pollTimer);
-      };
-    }
+    // v15 FIX: bu tinglovchilar ilgari faqat token DARHOL mavjud bo'lgan
+    // holatdagina (pastdagi `attach()` bilan bir yo'lda) qo'shilardi — token
+    // hali tayyor bo'lmay, polling orqali kechroq ulanadigan holatda esa
+    // (early-return tarmog'ida) HECH QACHON qo'shilmasdi. Endi ikkala holatda
+    // ham ishlashi uchun eng boshida, shartsiz qo'shamiz.
+    const forceReconnectIfNeeded = () => {
+      const s = socketInstance;
+      if (s && !s.connected) {
+        s.connect();
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') forceReconnectIfNeeded();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', forceReconnectIfNeeded);
+    window.addEventListener('focus', forceReconnectIfNeeded);
 
     function attach() {
       const s = socketInstance;
@@ -78,11 +92,32 @@ export function useSocket() {
       if (s.connected) setConnected(true);
     }
 
+    const cleanupListeners = () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', forceReconnectIfNeeded);
+      window.removeEventListener('focus', forceReconnectIfNeeded);
+    };
+
+    if (!connect()) {
+      pollTimer = setInterval(() => {
+        if (connect()) {
+          if (pollTimer) clearInterval(pollTimer);
+          attach();
+        }
+      }, 500);
+      return () => {
+        cancelled = true;
+        if (pollTimer) clearInterval(pollTimer);
+        cleanupListeners();
+      };
+    }
+
     attach();
 
     return () => {
       cancelled = true;
       if (pollTimer) clearInterval(pollTimer);
+      cleanupListeners();
       const s = socketInstance;
       if (s) {
         s.off('connect');
@@ -93,6 +128,54 @@ export function useSocket() {
   }, []);
 
   return { socket, connected };
+}
+
+/**
+ * v15: socket (qayta) ulanganda yoki tab yana ko'rinadigan bo'lganda berilgan
+ * callback'ni chaqiradi — shu orqali offlayn/fonda turgan vaqtda "o'tkazib
+ * yuborilgan" ma'lumotlarni (masalan Telegramdan kelgan xabarlar) qaytadan
+ * so'rovga chiqarib, ekranni haqiqiy holat bilan sinxronlashtirish mumkin.
+ * Ulanish paytida socket'dagi hodisalar (masalan `message:new`) faqat
+ * SHU ULANISH DAVOMIDA kelgan narsalarni ushlaydi — uzilib turgan vaqtda
+ * kelgan hech narsa "kutib" turmaydi, shu sabab reconnect'da to'liq
+ * qayta-so'rov qilish shart.
+ */
+export function useResyncOnReconnect(onResync: () => void) {
+  const { socket } = useSocket();
+  const cbRef = useRef(onResync);
+  cbRef.current = onResync;
+  const hadConnectedOnce = useRef(false);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const trigger = () => cbRef.current();
+
+    const onConnect = () => {
+      // Birinchi ulanishda emas — FAQAT qayta ulanganda (ya'ni ilgari bir
+      // marta ulangan, keyin uzilgan, endi tiklangan) chaqiramiz. Sahifa
+      // birinchi ochilganda ma'lumot allaqachon oddiy REST so'rov orqali
+      // yuklanadi — bu yerda takror qilish shart emas.
+      if (hadConnectedOnce.current) trigger();
+      hadConnectedOnce.current = true;
+    };
+    socket.on('connect', onConnect);
+    if (socket.connected) hadConnectedOnce.current = true;
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') trigger();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', trigger);
+    window.addEventListener('online', trigger);
+
+    return () => {
+      socket.off('connect', onConnect);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', trigger);
+      window.removeEventListener('online', trigger);
+    };
+  }, [socket]);
 }
 
 /** Real-time notifications listener */
@@ -168,6 +251,9 @@ export function getSocket(): Socket | null {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
     });
   }
   return socketInstance;

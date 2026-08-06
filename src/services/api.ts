@@ -680,6 +680,10 @@ export const userTelegramApi = {
   // Status
   getMyAccount: () => api.get('/user-telegram/me'),
   disconnect: () => api.delete('/user-telegram/me'),
+  // v15: mijozning onlayn/oflayn holati (faqat shaxsiy akkaunt orqali,
+  // suhbat ochilganda boshlang'ich holatni olish uchun — keyingi
+  // o'zgarishlar 'user:online' socket hodisasi orqali jonli keladi)
+  getStatus: (conversationId: string) => api.get(`/user-telegram/status/${conversationId}`),
 };
 
 // ─── Instagram Lead Bot ───────────────────────────────────────────────────────

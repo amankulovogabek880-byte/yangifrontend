@@ -9,7 +9,7 @@ import { useDialer } from '@/lib/dialer';
 import { useAuth } from '@/lib/store';
 import { useI18n } from '@/lib/i18n';
 import { errMsg, fmtMoney } from '@/lib/helpers';
-import { useSocket, getSocket } from '@/hooks/useSocket';
+import { useSocket, getSocket, useResyncOnReconnect } from '@/hooks/useSocket';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import {
   User, Bot, Users2, Wallet, CalendarCheck, PhoneCall,
@@ -100,12 +100,32 @@ function InboxPageInner() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<any>(null);
+  // v15: mijozning onlayn/oflayn holati (faqat shaxsiy/MTProto suhbatlar uchun)
+  const [peerStatus, setPeerStatus] = useState<{ isOnline: boolean; lastSeenAt: string | null } | null>(null);
 
   useSocket();
 
   // convs'ning eng so'nggi holatini socket handler ichida ko'rish uchun
   const convsRef = useRef<any[]>([]);
   useEffect(() => { convsRef.current = convs; }, [convs]);
+  const activeRef = useRef<any>(null);
+  useEffect(() => { activeRef.current = active; }, [active]);
+
+  // v15 FIX: ilgari suhbatlar ro'yxati va xabarlar FAQAT sahifa birinchi
+  // ochilganda bir marta REST orqali yuklanardi. Agar shu payt socket
+  // uzilib qolsa (tab fonga o'tsa, internet uzilsa, noutbuk uxlab qolsa,
+  // yoki serverda vaqtinchalik uzilish bo'lsa) — o'sha oraliqda Telegramga
+  // kelgan xabarlar hech qachon ekranga qaytadan tortilmasdi, chunki hech
+  // narsa ularni qayta so'ramasdi. Endi socket qayta ulanganda yoki tab
+  // qaytadan faollashganda ro'yxat va ochiq suhbat AVTOMATIK qaytadan
+  // so'raladi — shu orqali "CRM'dan chiqib ketsam, qaytganimda kelgan
+  // xabarlar ko'rinmayapti" muammosi butunlay bartaraf etiladi.
+  useResyncOnReconnect(() => {
+    loadConvs();
+    if (activeRef.current?.id) {
+      setMsgRefresh((n) => n + 1);
+    }
+  });
 
   // Check if user has personal Telegram account
   useEffect(() => {
@@ -272,13 +292,45 @@ function InboxPageInner() {
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       }
     };
+    // v15: shaxsiy (MTProto) suhbatlarda mijoz agentning xabarini haqiqatan
+    // o'qiganida kelgan jonli "o'qildi" hodisasi (✓✓ belgisini yangilaydi)
+    const onRead = (data: { conversationId: string; messageIds: string[] }) => {
+      if (data.conversationId !== active?.id) return;
+      const ids = new Set(data.messageIds || []);
+      setMessages((m: any[]) => m.map((x: any) => (ids.has(x.id) ? { ...x, isRead: true } : x)));
+    };
+    // v15: mijozning onlayn/oflayn holati jonli o'zgarishi
+    const onOnline = (data: { conversationId: string; isOnline: boolean; lastSeenAt: string | null }) => {
+      if (data.conversationId !== active?.id) return;
+      setPeerStatus({ isOnline: data.isOnline, lastSeenAt: data.lastSeenAt });
+    };
     socket.on('message:sent', onSent);
     socket.on('message:new', onNew);
+    socket.on('message:read', onRead);
+    socket.on('user:online', onOnline);
     return () => {
       socket.off('message:new', onNew);
       socket.off('message:sent', onSent);
+      socket.off('message:read', onRead);
+      socket.off('user:online', onOnline);
     };
   }, [active?.id]);
+
+  // v15: suhbat ochilganda mijozning boshlang'ich onlayn/oflayn holatini
+  // olib kelamiz (faqat shaxsiy/MTProto + shaxsiy chat uchun ma'noli —
+  // guruh/kanal yoki bot suhbatlarida bu tushuncha yo'q). Keyingi
+  // o'zgarishlar yuqoridagi 'user:online' socket hodisasi orqali jonli keladi.
+  useEffect(() => {
+    setPeerStatus(null);
+    if (!active?.id) return;
+    const isPrivatePersonal = active.isPersonal && (!active.chatType || active.chatType === 'private');
+    if (!isPrivatePersonal) return;
+    let cancelled = false;
+    userTelegramApi.getStatus(active.id)
+      .then((r: any) => { if (!cancelled) setPeerStatus(r.data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [active?.id, active?.isPersonal, active?.chatType]);
 
   async function sendText() {
     if (!draft.trim() || !active?.id) return;
@@ -674,8 +726,14 @@ function InboxPageInner() {
                         || 'Notanish'}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                      {active.client?.phone
-                        || (active.username ? `@${active.username}` : 'Telefon yo\'q')}
+                      {peerStatus?.isOnline ? (
+                        <span style={{ color: '#22c55e', fontWeight: 600 }}>● onlayn</span>
+                      ) : peerStatus?.lastSeenAt ? (
+                        <span>oxirgi marta {new Date(peerStatus.lastSeenAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}da ko'ringan</span>
+                      ) : (
+                        active.client?.phone
+                        || (active.username ? `@${active.username}` : 'Telefon yo\'q')
+                      )}
                       {active.assignedAgent && ` • ${active.assignedAgent.name}`}
                     </div>
                     <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
