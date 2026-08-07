@@ -373,9 +373,6 @@ export default function Client360Page() {
                     {c.utmSource && <Info label="UTM Source" value={c.utmSource} />}
                   </div>
 
-                  {/* ── Admin belgilagan savollar / agent javoblari ── */}
-                  <CustomFields client={c} isAdmin={isAdmin} />
-
                   {/* ── Lead score ── */}
                   <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
                     <div style={{ color: 'var(--fg-4)', fontSize: 11, marginBottom: 4 }}>Lead score</div>
@@ -1108,242 +1105,109 @@ function CollapsibleSection({ title, defaultOpen = true, storageKey, children }:
 // joyda, bir xil nom bilan turadi (CustomFields'dagi kabi erkin nom emas).
 // Agent kartaga kirgan zahoti — hatto pastga tushmasdan — mijoz qayerga
 // bormoqchi va qancha puli borligini ko'radi. ────────────────────────────
+// v36: AmoCRM'dagi "sayohat ma'lumotlari" kartasiga o'xshab — QAT'IY
+// (belgilangan) maydonlar to'plami, har biri ALOHIDA, bosilganda darhol
+// tahrirlanadigan (o'sha maydon ichida kursor chiqadi, pastida ingichka
+// chiziq), blur bo'lganda o'zi saqlanadi. Butun kartani "tahrirlash"
+// rejimiga o'tkazadigan umumiy tugma YO'Q — har bir qator mustaqil.
+// Erkin (admin yozadigan) "Savol/Javob" qutisi bu yerdan OLIB TASHLANDI —
+// bu yerda faqat mijozning sayohat bo'yicha ANIQ ma'lumotlari bo'lishi kk.
+const TRIP_FIELDS: { key: string; label: string; icon: string; placeholder: string }[] = [
+  { key: 'destination', label: 'Qayerga bormoqchi?', icon: '🎯', placeholder: 'masalan: Antalya, Turkiya' },
+  { key: 'companions', label: 'Kim bilan bormoqchi?', icon: '👥', placeholder: 'masalan: oilasi bilan' },
+  { key: 'peopleCount', label: 'Necha kishi?', icon: '🔢', placeholder: 'masalan: 3' },
+  { key: 'kids', label: "Bolalar bormi? Yoshi?", icon: '🧒', placeholder: "masalan: ha, 5 va 8 yosh / yo'q" },
+  { key: 'dates', label: 'Qaysi sanalarga?', icon: '📅', placeholder: 'masalan: 15-25 avgust' },
+  { key: 'duration', label: 'Necha kunga?', icon: '🌙', placeholder: 'masalan: 7 kun' },
+];
+
 function KeyInfoBlock({ client }: any) {
-  const initial = client?.preferences?.keyInfo || { destination: '', budget: '', budgetCurrency: 'USD' };
+  const defaults = { destination: '', companions: '', peopleCount: '', kids: '', dates: '', duration: '', budget: '', budgetCurrency: 'USD' };
+  const initial = { ...defaults, ...(client?.preferences?.keyInfo || {}) };
   const [val, setVal] = useState(initial);
   const [baseline, setBaseline] = useState(initial);
-  const [editing, setEditing] = useState(false);
+  const [active, setActive] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const hasData = !!(baseline.destination || baseline.budget);
-
-  function startEdit() { setVal(baseline); setEditing(true); }
-  function cancel() { setVal(baseline); setEditing(false); }
-  async function save() {
+  async function saveField(key: string, nextVal: any) {
+    if (nextVal[key] === baseline[key]) { setActive(null); return; }
     setSaving(true);
     try {
-      await clientsApi.setKeyInfo(client.id, val);
-      setBaseline(val);
-      setEditing(false);
-      toast.success('Saqlandi');
-    } catch (e: any) { toast.error(errMsg(e)); }
-    finally { setSaving(false); }
-  }
-
-  const inp: any = { width: '100%', padding: '7px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
-
-  if (editing) {
-    return (
-      <div style={{ padding: 12, borderRadius: 10, background: 'var(--bg-3)', border: '1px solid var(--border)', marginBottom: 18 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>🎯 Qayerga borishni xohlaydi</div>
-            <input style={inp} placeholder="masalan: Antalya, Turkiya" value={val.destination} onChange={e => setVal((v: any) => ({ ...v, destination: e.target.value }))} autoFocus />
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>💰 Taxminiy byudjet</div>
-              <input style={inp} placeholder="masalan: 2000" value={val.budget} onChange={e => setVal((v: any) => ({ ...v, budget: e.target.value }))} />
-            </div>
-            <div style={{ width: 78 }}>
-              <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>Valyuta</div>
-              <select style={inp} value={val.budgetCurrency} onChange={e => setVal((v: any) => ({ ...v, budgetCurrency: e.target.value }))}>
-                <option value="USD">USD</option>
-                <option value="UZS">UZS</option>
-                <option value="EUR">EUR</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={cancel} disabled={saving} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer' }}>Bekor</button>
-          <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '6px 16px', borderRadius: 7, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: saving ? 0.6 : 1, fontWeight: 600 }}>{saving ? '...' : 'Saqlash'}</button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      onClick={startEdit}
-      title="Bosib tahrirlash"
-      style={{
-        padding: 12, borderRadius: 10, marginBottom: 18, cursor: 'pointer',
-        background: hasData ? 'rgba(61,126,255,0.07)' : 'var(--bg-3)',
-        border: '1px solid ' + (hasData ? 'rgba(61,126,255,0.25)' : 'var(--border)'),
-        display: 'flex', flexDirection: 'column', gap: 8,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span style={{ fontSize: 16 }}>🎯</span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Yo'nalish</div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: baseline.destination ? 'var(--fg)' : 'var(--fg-4)' }}>
-            {baseline.destination || 'Kiritilmagan — bosing'}
-          </div>
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span style={{ fontSize: 16 }}>💰</span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Taxminiy byudjet</div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: baseline.budget ? 'var(--fg)' : 'var(--fg-4)' }}>
-            {baseline.budget ? `${baseline.budget} ${baseline.budgetCurrency}` : 'Kiritilmagan — bosing'}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// v35: Endi "Nomini tanlang" preset-dropdown YO'Q. Admin savol (maydon
-// nomi)ni o'zi qo'lda, erkin matn sifatida yozadi — masalan "Qayerga",
-// "Necha kun", "Nechta kotta". Bu savollar BARCHA agentlarga bir xil
-// ko'rinadi; faqat ADMIN ularni qo'sha/o'zgartira/o'chira oladi. Agent
-// esa faqat javobni (qiymatni) to'ldiradi — savol matnini ko'radi, lekin
-// tahrirlay olmaydi. Server tomonda ham xuddi shu qoida amal qiladi
-// (clients.service.ts → setCustomFields), shuning uchun bu — faqat
-// qulaylik uchun UI cheklovi emas, haqiqiy ruxsat nazorati.
-function CustomFields({ client, isAdmin }: any) {
-  const initial = Array.isArray(client?.preferences?.customFields) ? client.preferences.customFields : [];
-  const [fields, setFields] = useState<{ key: string; value: string }[]>(initial);
-  const [baseline, setBaseline] = useState<{ key: string; value: string }[]>(initial);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const upd = (i: number, k: 'key' | 'value', v: string) =>
-    setFields((prev) => prev.map((f, idx) => (idx === i ? { ...f, [k]: v } : f)));
-  const add = () => setFields((prev) => [...prev, { key: '', value: '' }]);
-  const remove = (i: number) => setFields((prev) => prev.filter((_, idx) => idx !== i));
-
-  function startEdit() {
-    // Agent uchun: savollar tuzilmasi o'zgarmaydi, faqat bo'sh bo'lsa ham
-    // ro'yxat ko'rsatiladi (to'ldirish uchun). Admin uchun: hech narsa
-    // bo'lmasa bitta bo'sh qator bilan boshlanadi.
-    const base = baseline.length ? baseline : (isAdmin ? [{ key: '', value: '' }] : []);
-    setFields(base);
-    setEditing(true);
-  }
-  function cancel() {
-    setFields(baseline);
-    setEditing(false);
-  }
-  async function save() {
-    setSaving(true);
-    try {
-      const clean = fields.filter((f) => f.key.trim() || f.value.trim());
-      const res: any = await clientsApi.setCustomFields(client.id, clean);
-      // Backend agent uchun faqat qiymatlarni qo'llaydi, savol tuzilmasini
-      // o'zgartirmaydi — shuning uchun natijani serverdan qaytgani bilan
-      // sinxronlaymiz (agent "yashirin" ravishda savol qo'sholmasligi kk).
-      const applied = Array.isArray(res?.data?.customFields) ? res.data.customFields : clean;
-      setFields(applied);
+      const res: any = await clientsApi.setKeyInfo(client.id, nextVal);
+      const applied = res?.data?.keyInfo || nextVal;
+      setVal(applied);
       setBaseline(applied);
-      setEditing(false);
-      toast.success('Saqlandi');
-    } catch (e: any) { toast.error(errMsg(e)); }
-    finally { setSaving(false); }
+    } catch (e: any) { toast.error(errMsg(e)); setVal(baseline); }
+    finally { setSaving(false); setActive(null); }
   }
 
-  const inp: any = { flex: 1, minWidth: 0, padding: '7px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 12.5, boxSizing: 'border-box' };
-  const saved = baseline.filter((f) => f.key.trim() || f.value.trim());
+  const rowStyle: any = { padding: '9px 0', borderBottom: '1px solid var(--border)' };
+  const labelStyle: any = { fontSize: 11, color: 'var(--fg-4)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 5 };
+  const inputStyle: any = {
+    width: '100%', border: 'none', borderBottom: '1px solid var(--primary, #3d7eff)', outline: 'none',
+    background: 'transparent', fontSize: 13, fontWeight: 500, padding: '2px 0', color: 'var(--fg)',
+  };
+  const valueStyle = (has: boolean): any => ({
+    fontSize: 13, fontWeight: 500, color: has ? 'var(--fg)' : 'var(--fg-4)', cursor: 'text',
+    minHeight: 18, wordBreak: 'break-word', borderBottom: '1px solid transparent',
+  });
 
   return (
-    <div style={{ marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ color: 'var(--fg-4)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-          Qo'shimcha ma'lumot
-        </div>
-        {!editing && (isAdmin || saved.length > 0) && (
-          <button onClick={startEdit} title={isAdmin ? 'Savollarni sozlash' : 'Javob yozish'} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11,
-            padding: '4px 9px', borderRadius: 6, border: '1px solid var(--border)',
-            background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer', fontWeight: 600,
-          }}>
-            <FaPen size={9} /> {isAdmin ? 'Tahrirlash' : 'Javob yozish'}
-          </button>
-        )}
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2 }}>
+        Sayohat ma'lumotlari
       </div>
-
-      {/* KO'RISH REJIMI — HubSpot "Key information" uslubi: yorliq (savol)
-          ustida kichik va xira, javob pastda aniq, oralarida ingichka
-          chiziq. Qutichalar/fon yo'q — toza, vertikal ro'yxat. */}
-      {!editing && (
-        saved.length > 0 ? (
-          <div>
-            {saved.map((f, i) => (
-              <div key={i} style={{
-                padding: '9px 0',
-                borderBottom: i === saved.length - 1 ? 'none' : '1px solid var(--border)',
-              }}>
-                <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>{f.key || '—'}</div>
-                <div style={{ fontSize: 13, color: 'var(--fg)', fontWeight: 500, wordBreak: 'break-word' }}>{f.value || '—'}</div>
-              </div>
-            ))}
-          </div>
-        ) : isAdmin ? (
-          <div style={{ fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic', padding: '4px 0' }}>
-            Hozircha savol yo'q — qo'shish uchun "Tahrirlash"ni bosing
+      {TRIP_FIELDS.map((f) => (
+        <div key={f.key} style={rowStyle}>
+          <div style={labelStyle}><span>{f.icon}</span>{f.label}</div>
+          {active === f.key ? (
+            <input
+              autoFocus
+              style={inputStyle}
+              placeholder={f.placeholder}
+              value={(val as any)[f.key]}
+              onChange={(e) => setVal((v: any) => ({ ...v, [f.key]: e.target.value }))}
+              onBlur={() => saveField(f.key, val)}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setVal(baseline); setActive(null); } }}
+            />
+          ) : (
+            <div onClick={() => setActive(f.key)} style={valueStyle(!!(baseline as any)[f.key])}>
+              {(baseline as any)[f.key] || '—'}
+            </div>
+          )}
+        </div>
+      ))}
+      {/* Byudjet — summa + valyuta bitta qatorda */}
+      <div style={{ ...rowStyle, borderBottom: 'none' }}>
+        <div style={labelStyle}><span>💰</span>Byudjet</div>
+        {active === 'budget' ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <input
+              autoFocus
+              style={{ ...inputStyle, flex: 1 }}
+              placeholder="masalan: 2000"
+              value={val.budget}
+              onChange={(e) => setVal((v: any) => ({ ...v, budget: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveField('budget', val); if (e.key === 'Escape') { setVal(baseline); setActive(null); } }}
+            />
+            <select
+              style={{ ...inputStyle, width: 62 }}
+              value={val.budgetCurrency}
+              onChange={(e) => setVal((v: any) => ({ ...v, budgetCurrency: e.target.value }))}
+              onBlur={() => saveField('budget', val)}
+            >
+              <option value="USD">USD</option>
+              <option value="UZS">UZS</option>
+              <option value="EUR">EUR</option>
+            </select>
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic', padding: '4px 0' }}>
-            Admin hali savol qo'shmagan
+          <div onClick={() => setActive('budget')} style={valueStyle(!!baseline.budget)}>
+            {baseline.budget ? `${baseline.budget} ${baseline.budgetCurrency}` : '—'}
           </div>
-        )
-      )}
-
-      {/* TAHRIRLASH REJIMI — v35: Admin — savol (nom) VA javob (qiymat)ni
-          qo'lda, erkin matn sifatida yozadi, qator qo'sha/o'chira oladi.
-          Agent — savol matni statik ko'rsatiladi (tahrirlanmaydi), faqat
-          javob maydoniga yoza oladi; qator qo'shish/o'chirish tugmalari
-          agentga ko'rinmaydi. */}
-      {editing && (
-        <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-            {fields.map((f, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {isAdmin ? (
-                  <input
-                    style={inp}
-                    placeholder="Savol (masalan: Qayerga)"
-                    value={f.key}
-                    onChange={(e) => upd(i, 'key', e.target.value)}
-                  />
-                ) : (
-                  <div style={{ ...inp, background: 'none', border: 'none', color: 'var(--fg-3)', fontWeight: 600, padding: '7px 2px' }}>
-                    {f.key || '—'}
-                  </div>
-                )}
-                <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
-                <input style={inp} placeholder="Javob" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} autoFocus={i === fields.length - 1} />
-                {isAdmin && (
-                  <button onClick={() => remove(i)} title="O'chirish" style={{
-                    border: 'none', background: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer',
-                    padding: '4px 6px', display: 'flex', alignItems: 'center',
-                  }}><FaTrash size={11} /></button>
-                )}
-              </div>
-            ))}
-            {!isAdmin && fields.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic' }}>Admin hali savol qo'shmagan</div>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {isAdmin && (
-              <button onClick={add} style={{ fontSize: 12, padding: '5px 0', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-                + Savol qo'shish
-              </button>
-            )}
-            <div style={{ flex: 1 }} />
-            <button onClick={cancel} disabled={saving} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer' }}>
-              Bekor
-            </button>
-            <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '6px 16px', borderRadius: 7, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: saving ? 0.6 : 1, fontWeight: 600 }}>
-              {saving ? '...' : 'Saqlash'}
-            </button>
-          </div>
-        </>
-      )}
+        )}
+      </div>
+      {saving && <div style={{ fontSize: 10.5, color: 'var(--fg-4)', marginTop: 4 }}>Saqlanmoqda…</div>}
     </div>
   );
 }

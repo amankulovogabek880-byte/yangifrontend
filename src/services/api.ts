@@ -217,7 +217,7 @@ export const clientsApi = {
   // v14: mijozning ixtiyoriy key=value ma'lumotlari
   setCustomFields: (id: string, fields: {key:string;value:string}[]) => api.patch(`/clients/${id}/custom-fields`, { fields }),
   // v29: "Nima xohlaydi" — qat'iy 2 ta maydon (yo'nalish + byudjet)
-  setKeyInfo: (id: string, data: { destination: string; budget: string; budgetCurrency: string }) => api.patch(`/clients/${id}/key-info`, data),
+  setKeyInfo: (id: string, data: { destination?: string; companions?: string; peopleCount?: string; kids?: string; dates?: string; duration?: string; budget?: string; budgetCurrency?: string }) => api.patch(`/clients/${id}/key-info`, data),
   setTier: (id: string, tier: string) => api.patch(`/clients/${id}/tier`, { tier }),
   // v5: Open Chat va Call
   getConversation: (id: string) => api.get(`/clients/${id}/conversation`),
