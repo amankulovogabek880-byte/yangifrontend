@@ -181,7 +181,7 @@ export default function Client360Page() {
                 <h1 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{c.fullName}</h1>
                 <StagePill clientId={c.id} stage={c.pipelineStage} />
               </div>
-              <div style={{ fontSize: 12, color: 'var(--fg-4)', marginTop: 3 }}>
+              <div style={{ fontSize: 14, color: 'var(--fg-2)', marginTop: 4, fontWeight: 600 }}>
                 {[c.phone, c.telegramUsername && '@' + c.telegramUsername, c.source].filter(Boolean).join(' · ')}
               </div>
             </div>
@@ -1454,12 +1454,23 @@ function ActivityFeed({ client, conversation, chatMsgs, chatLoading, onStartChat
                 );
               }
               return (
-                <div key={item.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '4px 0', color: 'var(--fg-3)' }}>
-                  <span style={{ fontSize: 13, flexShrink: 0, opacity: 0.8 }}>{item.isNote ? '🔒' : item.icon}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ wordBreak: 'break-word', overflow: collapseAll ? 'hidden' : 'visible', textOverflow: collapseAll ? 'ellipsis' : 'clip', whiteSpace: collapseAll ? 'nowrap' : 'pre-wrap' }}>{item.title}</div>
+                <div key={item.id} style={{
+                  display: 'flex', gap: 9, fontSize: 13, padding: item.isNote ? '9px 10px' : '4px 0',
+                  color: 'var(--fg-2)',
+                  background: item.isNote ? 'var(--bg-2)' : 'none',
+                  borderRadius: item.isNote ? 9 : 0,
+                  border: item.isNote ? '1px solid var(--border)' : 'none',
+                }}>
+                  <span style={{ fontSize: 15, flexShrink: 0, opacity: 0.85 }}>{item.isNote ? '🔒' : item.icon}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{
+                      wordBreak: 'break-word', overflow: collapseAll ? 'hidden' : 'visible',
+                      textOverflow: collapseAll ? 'ellipsis' : 'clip', whiteSpace: collapseAll ? 'nowrap' : 'pre-wrap',
+                      fontSize: item.isNote ? 14 : 13, fontWeight: item.isNote ? 600 : 500, color: 'var(--fg)',
+                      lineHeight: 1.45,
+                    }}>{item.title}</div>
                     {!collapseAll && (
-                      <div style={{ fontSize: 10, color: 'var(--fg-4)', marginTop: 1 }}>
+                      <div style={{ fontSize: 11.5, color: 'var(--fg-3)', marginTop: 3 }}>
                         {item.subtitle ? item.subtitle + ' · ' : ''}{timeAgo(item.ts)}
                       </div>
                     )}
