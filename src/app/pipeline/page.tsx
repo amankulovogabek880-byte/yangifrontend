@@ -45,6 +45,11 @@ export default function PipelinePage() {
   const [callModal, setCallModal] = useState<any>(null);
   const [stagesModal, setStagesModal] = useState(false);
   const [addPlModal, setAddPlModal] = useState(false);
+  // v38: amoCRM-uslubida kartani sudrab (drag & drop) bosqichlar orasida
+  // ko'chirish uchun — qaysi karta sudralayotgani va qaysi ustun ustida
+  // turganini kuzatib boramiz.
+  const [draggedClientId, setDraggedClientId] = useState<string | null>(null);
+  const [dragOverStageKey, setDragOverStageKey] = useState<string | null>(null);
 
   useEffect(() => { loadPipelines(); }, []);
 
@@ -153,6 +158,10 @@ export default function PipelinePage() {
                 onMove={moveClient}
                 onCall={c => setCallModal(c)}
                 allStages={columns.map(c => c.stage)}
+                draggedClientId={draggedClientId}
+                setDraggedClientId={setDraggedClientId}
+                dragOverStageKey={dragOverStageKey}
+                setDragOverStageKey={setDragOverStageKey}
               />
             ))}
             {columns.length === 0 && (
@@ -177,7 +186,7 @@ export default function PipelinePage() {
   );
 }
 
-function KanbanCol({ col, onCardClick, onMove, onCall, allStages, isMobile }: any) {
+function KanbanCol({ col, onCardClick, onMove, onCall, allStages, isMobile, draggedClientId, setDraggedClientId, dragOverStageKey, setDragOverStageKey }: any) {
   const { t } = useI18n();
   const stage = col.stage || {};
   const clients: any[] = col.clients || [];
@@ -185,11 +194,41 @@ function KanbanCol({ col, onCardClick, onMove, onCall, allStages, isMobile }: an
   const isNoContact = stage.stageKey === 'NO_CONTACT';
   // amoCRM-uslubida: bosqich jami summasi (kartalardagi deal qiymatlari yig'indisi)
   const totalValue = clients.reduce((sum, c) => sum + (Number(c.totalRevenue) || 0), 0);
+  // v38: shu ustun ustidan karta sudralib o'tayotganda ajratib ko'rsatish
+  const isDragOver = dragOverStageKey === stage.stageKey && draggedClientId;
+
+  function handleDragOver(e: React.DragEvent) {
+    if (!draggedClientId) return;
+    e.preventDefault(); // drop'ga ruxsat berish uchun shart
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverStageKey !== stage.stageKey) setDragOverStageKey(stage.stageKey);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    // faqat ustunning o'zidan chiqqanda tozalaymiz (ichki elementlar orasida emas)
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    if (dragOverStageKey === stage.stageKey) setDragOverStageKey(null);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const clientId = e.dataTransfer.getData('text/plain') || draggedClientId;
+    setDragOverStageKey(null);
+    setDraggedClientId(null);
+    if (!clientId) return;
+    const already = clients.some((c: any) => c.id === clientId);
+    if (already) return; // o'sha ustunga qaytarilsa hech narsa qilmaymiz
+    onMove(clientId, stage.stageKey);
+  }
 
   return (
-    <div style={isMobile
-      ? { minWidth: '86vw', maxWidth: '86vw', flex: '0 0 86vw', scrollSnapAlign: 'start', display: 'flex', flexDirection: 'column', background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border)', maxHeight: 'calc(100vh - 180px)' }
-      : { minWidth: 220, maxWidth: 250, flex: '0 0 235px', display: 'flex', flexDirection: 'column', background: 'var(--bg-2)', borderRadius: 10, border: '1px solid var(--border)', maxHeight: 'calc(100vh - 130px)' }}>
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={isMobile
+        ? { minWidth: '86vw', maxWidth: '86vw', flex: '0 0 86vw', scrollSnapAlign: 'start', display: 'flex', flexDirection: 'column', background: isDragOver ? `${color}12` : 'var(--bg-2)', borderRadius: 10, border: isDragOver ? `1px dashed ${color}` : '1px solid var(--border)', maxHeight: 'calc(100vh - 180px)', transition: 'background .12s ease, border-color .12s ease' }
+        : { minWidth: 220, maxWidth: 250, flex: '0 0 235px', display: 'flex', flexDirection: 'column', background: isDragOver ? `${color}12` : 'var(--bg-2)', borderRadius: 10, border: isDragOver ? `1px dashed ${color}` : '1px solid var(--border)', maxHeight: 'calc(100vh - 130px)', transition: 'background .12s ease, border-color .12s ease' }}>
       <div style={{ padding: '8px 12px', borderBottom: `3px solid ${color}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
@@ -214,6 +253,13 @@ function KanbanCol({ col, onCardClick, onMove, onCall, allStages, isMobile }: an
             onMove={(s: string) => onMove(c.id, s)}
             onCall={() => onCall(c)}
             allStages={allStages}
+            isDragging={draggedClientId === c.id}
+            onDragStart={(e: React.DragEvent) => {
+              e.dataTransfer.setData('text/plain', c.id);
+              e.dataTransfer.effectAllowed = 'move';
+              setDraggedClientId(c.id);
+            }}
+            onDragEnd={() => { setDraggedClientId(null); setDragOverStageKey(null); }}
           />
         ))}
       </div>
@@ -221,7 +267,7 @@ function KanbanCol({ col, onCardClick, onMove, onCall, allStages, isMobile }: an
   );
 }
 
-function ClientCard({ client: c, isNoContact, color, onClick, onMove, onCall, allStages }: any) {
+function ClientCard({ client: c, isNoContact, color, onClick, onMove, onCall, allStages, isDragging, onDragStart, onDragEnd }: any) {
   const { t } = useI18n();
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -247,7 +293,18 @@ function ClientCard({ client: c, isNoContact, color, onClick, onMove, onCall, al
   };
 
   return (
-    <div style={{ background: 'var(--bg)', borderRadius: 8, marginBottom: 6, padding: '8px 10px', border: '1px solid var(--border)' }}>
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      style={{
+        background: 'var(--bg)', borderRadius: 8, marginBottom: 6, padding: '8px 10px',
+        border: '1px solid var(--border)', cursor: 'grab',
+        opacity: isDragging ? 0.35 : 1,
+        transform: isDragging ? 'scale(0.97)' : 'scale(1)',
+        transition: 'opacity .12s ease, transform .12s ease',
+      }}
+    >
       <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
         <div style={{ flex: 1, cursor: 'pointer', minWidth: 0 }} onClick={onClick}>
           <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fullName}</div>
