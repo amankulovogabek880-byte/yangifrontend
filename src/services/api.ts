@@ -373,6 +373,10 @@ export const ownerApi = {
   setStatus: (id: string, status: string) => api.patch(`/owner/companies/${id}/status`, { status }),
   // v26: kompaniyaga AI (transkripsiya + tahlil) xizmatini yoqish/o'chirish
   setAi: (id: string, aiEnabled: boolean) => api.patch(`/owner/companies/${id}/ai`, { aiEnabled }),
+  // v27: Kompaniyani TO'LIQ o'chirish — barcha xodimlar, klientlar, bookinglar,
+  // to'lovlar va boshqa bog'liq ma'lumotlar bazadan butunlay o'chadi (cascade).
+  // Bu amalni ORQAGA QAYTARIB BO'LMAYDI — frontend'da nom yozib tasdiqlanadi.
+  deleteCompany: (id: string) => api.delete(`/owner/companies/${id}`),
   // v7: Oxirgi 50 ta login urinishlari
   recentLogins: (limit = 50) => api.get('/owner/recent-logins', { params: { limit } }),
   // v37: Ovozni-matnga o'girish (STT) uchun asosiy provayder — Groq (arzon) yoki OpenAI

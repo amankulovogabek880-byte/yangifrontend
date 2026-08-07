@@ -27,6 +27,8 @@ export default function OwnerPage() {
   const [recentLogins, setRecentLogins] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  // v27: to'liq o'chirish uchun — qaysi kompaniya o'chirilmoqchi ekanini saqlaydi
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
   // v37: STT (ovozni-matnga o'girish) uchun asosiy provayder — Groq (arzon) / OpenAI
   const [sttProvider, setSttProviderState] = useState<any>(null);
   const [sttSaving, setSttSaving] = useState(false);
@@ -80,6 +82,18 @@ export default function OwnerPage() {
     try {
       await ownerApi.setAi(id, !current);
       toast.success(!current ? '🤖 AI yoqildi' : '🤖 AI o\'chirildi');
+      load();
+    } catch (e: any) { toast.error(errMsg(e)); }
+  }
+
+  // v27: Kompaniyani TO'LIQ o'chirish — tenant + shu tenant'ga tegishli
+  // BARCHA ma'lumotlar (xodimlar, klientlar, bookinglar, to'lovlar va h.k.)
+  // bazadan butunlay o'chadi (backend'da cascade delete). Qaytarib bo'lmaydi.
+  async function deleteCompanyFully(id: string) {
+    try {
+      const res = await ownerApi.deleteCompany(id);
+      toast.success(res.data?.message || "Kompaniya to'liq o'chirildi");
+      setDeleteTarget(null);
       load();
     } catch (e: any) { toast.error(errMsg(e)); }
   }
@@ -178,6 +192,7 @@ export default function OwnerPage() {
                       <th style={{ padding: 10, textAlign: 'left' }}>Yaratilgan</th>
                       <th style={{ padding: 10, textAlign: 'left' }}>Status</th>
                       <th style={{ padding: 10, textAlign: 'left' }}>🤖 AI</th>
+                      <th style={{ padding: 10, textAlign: 'left' }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -214,6 +229,19 @@ export default function OwnerPage() {
                             }}
                           >
                             {c.aiEnabled ? '🤖 Yoqilgan' : "○ O'chiq"}
+                          </button>
+                        </td>
+                        <td style={{ padding: 10 }}>
+                          <button
+                            onClick={() => setDeleteTarget(c)}
+                            title="Kompaniyani to'liq o'chirish — barcha ma'lumotlar bilan"
+                            style={{
+                              background: 'var(--danger)' + '15', color: 'var(--danger)',
+                              border: '1px solid ' + 'var(--danger)' + '40', padding: '4px 10px', borderRadius: 6,
+                              fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}
+                          >
+                            🗑 O'chirish
                           </button>
                         </td>
                       </tr>
@@ -288,6 +316,13 @@ export default function OwnerPage() {
         )}
 
         {showCreate && <CreateCompanyModal onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load(); }} />}
+        {deleteTarget && (
+          <DeleteCompanyModal
+            company={deleteTarget}
+            onClose={() => setDeleteTarget(null)}
+            onConfirm={() => deleteCompanyFully(deleteTarget.id)}
+          />
+        )}
       </main>
     </div>
   );
@@ -301,6 +336,69 @@ function StatCard({ icon, label, value, sub, color = 'var(--fg)' }: any) {
       <div style={{ fontSize: 22, fontWeight: 800, color, marginTop: 4 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{sub}</div>}
     </Card>
+  );
+}
+
+// v27: Kompaniyani TO'LIQ o'chirish uchun tasdiqlash oynasi — tasodifiy
+// bosilib ketmasligi uchun owner kompaniya nomini aniq yozib tasdiqlashi kerak.
+// Bu amal ORQAGA QAYTARIB BO'LMAYDI: barcha xodimlar, klientlar, bookinglar,
+// to'lovlar va boshqa bog'liq yozuvlar bazadan butunlay o'chib ketadi.
+function DeleteCompanyModal({ company, onClose, onConfirm }: any) {
+  const [confirmText, setConfirmText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const matches = confirmText.trim() === company.name;
+
+  async function handleConfirm() {
+    if (!matches) return;
+    setLoading(true);
+    try { await onConfirm(); } finally { setLoading(false); }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="⚠️ Kompaniyani to'liq o'chirish" maxWidth={480}>
+      <div style={{ fontSize: 13, color: 'var(--fg-2)', marginBottom: 14, lineHeight: 1.6 }}>
+        <b>{company.name}</b> kompaniyasi va unga tegishli <b>BARCHA</b> ma'lumotlar
+        (xodimlar, klientlar, bookinglar, to'lovlar, qo'ng'iroqlar, xabarlar va h.k.)
+        bazadan <b>butunlay</b> o'chiriladi. Bu amalni ORQAGA QAYTARIB BO'LMAYDI.
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8,
+        marginBottom: 14, fontSize: 12,
+      }}>
+        <div style={{ background: 'var(--bg-3)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>{company._count?.users ?? 0}</div>
+          <div style={{ color: 'var(--fg-3)' }}>Xodim</div>
+        </div>
+        <div style={{ background: 'var(--bg-3)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>{company._count?.clients ?? 0}</div>
+          <div style={{ color: 'var(--fg-3)' }}>Klient</div>
+        </div>
+        <div style={{ background: 'var(--bg-3)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>{company._count?.bookings ?? 0}</div>
+          <div style={{ color: 'var(--fg-3)' }}>Booking</div>
+        </div>
+      </div>
+      <Label>Tasdiqlash uchun kompaniya nomini yozing: <b>{company.name}</b></Label>
+      <Input
+        value={confirmText}
+        onChange={(e) => setConfirmText(e.target.value)}
+        placeholder={company.name}
+        autoFocus
+      />
+      <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+        <Btn variant="secondary" type="button" onClick={onClose} style={{ flex: 1 }}>Bekor</Btn>
+        <Btn
+          variant="danger"
+          type="button"
+          disabled={!matches}
+          loading={loading}
+          onClick={handleConfirm}
+          style={{ flex: 1 }}
+        >
+          🗑 Butunlay o'chirish
+        </Btn>
+      </div>
+    </Modal>
   );
 }
 
