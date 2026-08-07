@@ -662,6 +662,10 @@ export const pipelinesApi = {
     api.post(`/pipeline/call-attempt/${clientId}`, data),
   stagesList: (pipelineId?: string) =>
     api.get('/pipeline/stages', { params: { pipelineId } }),
+  // v34: mijoz profilidagi bosqich tanlagichi uchun — shu mijoz tegishli
+  // bo'lgan ANIQ pipelineni va uning haqiqiy bosqichlarini qaytaradi.
+  clientStages: (clientId: string) =>
+    api.get(`/pipeline/client/${clientId}/stages`),
   stageCreate: (data: any) => api.post('/pipeline/stages', data),
   stageUpdate: (id: string, data: any) => api.patch(`/pipeline/stages/${id}`, data),
   stageDelete: (id: string) => api.delete(`/pipeline/stages/${id}`),
