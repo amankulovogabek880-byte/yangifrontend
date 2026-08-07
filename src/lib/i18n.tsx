@@ -663,6 +663,7 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'settings.team.salary': { uz: 'Maoshi', ru: 'Зарплата' , en: 'Salary' },
   'settings.team.profit': { uz: 'Foyda', ru: 'Прибыль' , en: 'Profit' },
   'settings.team.agentUpdated': { uz: "Agent ma'lumotlari yangilandi", ru: 'Данные агента обновлены' , en: 'Agent details updated' },
+  'settings.team.changePassword': { uz: 'Parolni almashtirish', ru: 'Сменить пароль' , en: 'Change password' },
 };
 
 interface I18nContextType {

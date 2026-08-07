@@ -940,6 +940,7 @@ function TeamTab() {
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [showCreate, setShowCreate] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
+  const [pwdMember, setPwdMember] = useState<any>(null);
   const router = useRouter();
 
   const load = () => {
@@ -1027,6 +1028,13 @@ function TeamTab() {
                         }}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
+                        <button onClick={() => setPwdMember(m)} title={t('settings.team.changePassword')} style={{
+                          background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 7,
+                          width: 28, height: 28, cursor: 'pointer', color: 'var(--warning)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Key size={12} />
+                        </button>
                         <TeamMemberDeleteBtn member={m} onDeleted={() => window.location.reload()} />
                       </div>
                     </td>
@@ -1090,6 +1098,7 @@ function TeamTab() {
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 12, justifyContent: 'center' }}>
                   <Btn size="sm" variant="secondary" onClick={() => setEditingMember(m)}>✏ {t('common.edit')}</Btn>
+                  <Btn size="sm" variant="secondary" onClick={() => setPwdMember(m)}><Key size={12} style={{ marginRight: 4 }} />{t('settings.team.changePassword')}</Btn>
                   <TeamMemberDeleteBtn member={m} onDeleted={() => window.location.reload()} />
                 </div>
               </div>
@@ -1104,6 +1113,12 @@ function TeamTab() {
           member={editingMember}
           onClose={() => setEditingMember(null)}
           onSaved={() => { setEditingMember(null); load(); toast.success(t('settings.team.agentUpdated')); }}
+        />
+      )}
+      {pwdMember && (
+        <ChangePasswordModal
+          member={pwdMember}
+          onClose={() => setPwdMember(null)}
         />
       )}
     </>
@@ -1235,6 +1250,99 @@ function EditTeamMemberModal({ member, onClose, onSaved }: any) {
         <div>
           <Label>Kunlik lead limiti (0 = cheksiz)</Label>
           <input type="number" style={inputStyle} value={form.dailyLeadLimit} onChange={(e) => set('dailyLeadLimit', Number(e.target.value))} />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Jamoa a'zosining parolini o'zgartirish modali ──────────────────
+// TENANT_ADMIN o'zining va istalgan agent/menejerning parolini shu yerdan
+// (eski parolni bilmasdan) o'zgartira oladi. Backend: POST /users/:id/reset-password
+function ChangePasswordModal({ member, onClose }: any) {
+  const { t } = useI18n();
+  const [pwd, setPwd] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  function genRandom() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+    let out = '';
+    for (let i = 0; i < 12; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    setPwd(out); setConfirm(out); setShowPwd(true);
+  }
+
+  const strength = [pwd.length >= 8, /[A-Z]/.test(pwd), /\d/.test(pwd), /[^A-Za-z0-9]/.test(pwd)].filter(Boolean).length;
+  const strengthColors = ['', '#ef4444', '#f97316', '#eab308', '#10b981'];
+  const strengthLabels = ['', 'Zaif', "O'rtacha", 'Yaxshi', 'Kuchli'];
+
+  async function save() {
+    if (pwd.length < 8) { toast.error('Parol kamida 8 belgi bo\'lishi kerak'); return; }
+    if (pwd !== confirm) { toast.error("Parollar mos kelmadi"); return; }
+    setSaving(true);
+    try {
+      await usersApi.resetPassword(member.id, pwd);
+      toast.success(`${member.name} — parol yangilandi. Keyingi kirishda yangi parol talab qilinadi.`);
+      onClose();
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '10px 12px', borderRadius: 9,
+    background: 'var(--bg-3)', border: '1px solid var(--border)',
+    color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' as const,
+  };
+
+  return (
+    <Modal open onClose={onClose} title={`🔑 ${member.name} — parolni o'zgartirish`} maxWidth={420} footer={
+      <>
+        <Btn variant="secondary" onClick={onClose}>Bekor</Btn>
+        <Btn variant="gradient" onClick={save} disabled={saving}>{saving ? 'Saqlanmoqda...' : 'Parolni yangilash'}</Btn>
+      </>
+    }>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+          {member.email} uchun yangi parol o'rnating. Foydalanuvchi keyingi kirishda avtomatik ravishda parolni o'zgartirishga taklif qilinadi va barcha faol sessiyalari yopiladi.
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <Label>Yangi parol</Label>
+            <button type="button" onClick={genRandom} style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>🎲 Tasodifiy yaratish</button>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPwd ? 'text' : 'password'} autoFocus
+              value={pwd} onChange={(e) => setPwd(e.target.value)}
+              placeholder="Kamida 8 belgi" style={{ ...inputStyle, paddingRight: 40 }}
+            />
+            <button type="button" onClick={() => setShowPwd(!showPwd)} style={{
+              position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', fontSize: 13,
+            }}>{showPwd ? '🙈' : '👁'}</button>
+          </div>
+        </div>
+        {pwd && (
+          <div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= strength ? strengthColors[strength] : 'var(--border)' }} />
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{strengthLabels[strength]}</div>
+          </div>
+        )}
+        <div>
+          <Label>Parolni tasdiqlang</Label>
+          <input
+            type={showPwd ? 'text' : 'password'}
+            value={confirm} onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Parolni qayta kiriting" style={inputStyle}
+          />
         </div>
       </div>
     </Modal>
