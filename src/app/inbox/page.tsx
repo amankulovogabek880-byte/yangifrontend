@@ -93,6 +93,7 @@ function InboxPageInner() {
   // v10.2: amoCRM-uslubidagi mijoz kontekst paneli (o'ng tomonda)
   const [showContext, setShowContext] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // v13: ovozli xabar yozish
   const [isRecording, setIsRecording] = useState(false);
@@ -304,15 +305,24 @@ function InboxPageInner() {
       if (data.conversationId !== active?.id) return;
       setPeerStatus({ isOnline: data.isOnline, lastSeenAt: data.lastSeenAt });
     };
+    // v16: Telegram xabar reaksiyasi (❤️/👍...) jonli keladi
+    const onReaction = (data: { conversationId: string; messageId: string; reactions: any[] }) => {
+      if (data.conversationId !== active?.id) return;
+      setMessages((m: any[]) => m.map((x: any) => (
+        x.id === data.messageId ? { ...x, reactions: data.reactions } : x
+      )));
+    };
     socket.on('message:sent', onSent);
     socket.on('message:new', onNew);
     socket.on('message:read', onRead);
     socket.on('user:online', onOnline);
+    socket.on('message:reaction', onReaction);
     return () => {
       socket.off('message:new', onNew);
       socket.off('message:sent', onSent);
       socket.off('message:read', onRead);
       socket.off('user:online', onOnline);
+      socket.off('message:reaction', onReaction);
     };
   }, [active?.id]);
 
@@ -834,9 +844,32 @@ function InboxPageInner() {
                             color: 'inherit', marginBottom: m.caption ? 6 : 0,
                           }}>{t('inbox.file')}</a>
                         )}
+                        {/* v16 FIX: stiker turi ilgari umuman ko'rsatilmasdi — mijoz
+                            stiker yuborsa, agentga bo'sh pufakcha ko'rinardi. */}
+                        {m.messageType === 'STICKER' && (
+                          m.fileUrl ? (
+                            <img src={m.fileUrl} alt="Stiker" style={{
+                              width: 110, height: 110, objectFit: 'contain',
+                              marginBottom: m.caption || m.text ? 6 : 0, display: 'block',
+                            }} />
+                          ) : (
+                            <div style={{ fontSize: 13, opacity: 0.8 }}>🌟 Stiker</div>
+                          )
+                        )}
                         <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13 }}>
                           {m.text || m.caption}
                         </div>
+                        {/* v16: Telegramda shu xabarga bosilgan reaksiya(lar) — masalan mijoz ❤️ bossa */}
+                        {Array.isArray(m.reactions) && m.reactions.length > 0 && (
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                            {m.reactions.map((r: any, i: number) => (
+                              <span key={i} style={{
+                                fontSize: 13, background: 'rgba(255,255,255,0.15)',
+                                borderRadius: 10, padding: '1px 6px', lineHeight: '18px',
+                              }}>{r.emoji}</span>
+                            ))}
+                          </div>
+                        )}
                         <div style={{
                           fontSize: 9, marginTop: 4,
                           opacity: 0.7, textAlign: 'right',
@@ -865,6 +898,12 @@ function InboxPageInner() {
                 <Btn size="sm" variant="ghost" icon="📷" onClick={() => fileInputRef.current?.click()}>
                   Rasm
                 </Btn>
+                {/* v16: PDF/hujjat (shartnoma, taklif) yuborish uchun alohida tugma —
+                    ilgari faqat "Rasm" tugmasi ostida yashiringan edi, shu sabab
+                    agentlar PDF yuborish imkoni borligini bilishmasdi. */}
+                <Btn size="sm" variant="ghost" icon="📎" onClick={() => docInputRef.current?.click()}>
+                  Fayl (PDF)
+                </Btn>
                 {/* v13: ovozli xabar yozish/yuborish tugmasi */}
                 {!isRecording ? (
                   <Btn size="sm" variant="ghost" icon="🎤" onClick={startRecording}>
@@ -884,7 +923,13 @@ function InboxPageInner() {
                 </Btn>
                 <input
                   ref={fileInputRef} type="file"
-                  accept="image/*,video/*,application/pdf"
+                  accept="image/*,video/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => e.target.files && uploadAndSend(e.target.files)}
+                />
+                <input
+                  ref={docInputRef} type="file"
+                  accept="application/pdf,.pdf,.doc,.docx,.xls,.xlsx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   style={{ display: 'none' }}
                   onChange={(e) => e.target.files && uploadAndSend(e.target.files)}
                 />

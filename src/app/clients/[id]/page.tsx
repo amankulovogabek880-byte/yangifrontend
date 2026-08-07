@@ -319,7 +319,7 @@ export default function Client360Page() {
             </div>
 
             {/* Mijoz qayerga bormoqchi + byudjet — ajralib turadigan kartа */}
-            <KeyInfoBlock client={c} />
+            <KeyInfoBlock client={c} onEdit={() => setShowClientEdit(true)} />
 
             {/* v33/v35: HubSpot'dagi chap paneldagi "Key information" kartasiga
                 o'xshab — chegaralangan, boshi bilan (chevron + sarlavha +
@@ -1071,69 +1071,33 @@ function CollapsibleSection({ title, defaultOpen = true, storageKey, children }:
   );
 }
 
-// ─── Mijoz qo'shimcha ma'lumotlari (chiroyli ko'rinish + tahrirlash) ──────────
-// ─── v29: "Nima xohlaydi" — Yo'nalish + Byudjet. Har bir mijozda BIR XIL
-// joyda, bir xil nom bilan turadi (CustomFields'dagi kabi erkin nom emas).
-// Agent kartaga kirgan zahoti — hatto pastga tushmasdan — mijoz qayerga
-// bormoqchi va qancha puli borligini ko'radi. ────────────────────────────
-function KeyInfoBlock({ client }: any) {
-  const initial = client?.preferences?.keyInfo || { destination: '', budget: '', budgetCurrency: 'USD' };
-  const [val, setVal] = useState(initial);
-  const [baseline, setBaseline] = useState(initial);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
+// ─── v37: "Sayohat ma'lumotlari" — FAQAT KO'RISH kartasi. Tahrirlash endi
+// BITTA joyda — ClientEditModal (qalam tugma → "Mijoz va sayohat ma'lumotlari").
+// Ilgari bu yerda alohida keyInfo (destination+budget) tahrirlanardi, modal esa
+// preferences.travelInfo'ga yozardi — ikki xil manba, bir-birini ko'rmasdi
+// (modalda to'ldirilgan ma'lumot bu yerda ko'rinmasdi). Endi IKKALASI HAM
+// travelInfo'ni o'qiydi — bitta haqiqat manbai. Karta bosilganda ham xuddi
+// shu modal ochiladi (onEdit orqali, parent'dagi setShowClientEdit). ───────
+function KeyInfoBlock({ client, onEdit }: any) {
+  const ti = client?.preferences?.travelInfo || {};
 
-  const hasData = !!(baseline.destination || baseline.budget);
+  const headcount = (Number(ti.adults) || 0) + (Number(ti.children) || 0);
+  const dates = ti.departDate
+    ? fmtDate(ti.departDate) + (ti.returnDate ? ' — ' + fmtDate(ti.returnDate) : '')
+    : (ti.approxDays ? `Taxminan ${ti.approxDays} kun` : '');
 
-  function startEdit() { setVal(baseline); setEditing(true); }
-  function cancel() { setVal(baseline); setEditing(false); }
-  async function save() {
-    setSaving(true);
-    try {
-      await clientsApi.setKeyInfo(client.id, val);
-      setBaseline(val);
-      setEditing(false);
-      toast.success('Saqlandi');
-    } catch (e: any) { toast.error(errMsg(e)); }
-    finally { setSaving(false); }
-  }
-
-  const inp: any = { width: '100%', padding: '7px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' };
-
-  if (editing) {
-    return (
-      <div style={{ padding: 12, borderRadius: 10, background: 'var(--bg-3)', border: '1px solid var(--border)', marginBottom: 18 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>🎯 Qayerga borishni xohlaydi</div>
-            <input style={inp} placeholder="masalan: Antalya, Turkiya" value={val.destination} onChange={e => setVal((v: any) => ({ ...v, destination: e.target.value }))} autoFocus />
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>💰 Taxminiy byudjet</div>
-              <input style={inp} placeholder="masalan: 2000" value={val.budget} onChange={e => setVal((v: any) => ({ ...v, budget: e.target.value }))} />
-            </div>
-            <div style={{ width: 78 }}>
-              <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>Valyuta</div>
-              <select style={inp} value={val.budgetCurrency} onChange={e => setVal((v: any) => ({ ...v, budgetCurrency: e.target.value }))}>
-                <option value="USD">USD</option>
-                <option value="UZS">UZS</option>
-                <option value="EUR">EUR</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={cancel} disabled={saving} style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg-2)', cursor: 'pointer' }}>Bekor</button>
-          <button onClick={save} disabled={saving} style={{ fontSize: 12, padding: '6px 16px', borderRadius: 7, border: 'none', background: '#3d7eff', color: 'white', cursor: 'pointer', opacity: saving ? 0.6 : 1, fontWeight: 600 }}>{saving ? '...' : 'Saqlash'}</button>
-        </div>
-      </div>
-    );
-  }
+  const ROWS = [
+    { icon: '🎯', label: 'Qayerga bormoqchi?', value: ti.destination },
+    { icon: '🏙️', label: 'Qaysi shahardan', value: ti.fromCity },
+    { icon: '🔢', label: 'Necha kishi?', value: headcount > 0 ? `${headcount} kishi${ti.children ? ` (${ti.children} bola)` : ''}` : '' },
+    { icon: '📅', label: 'Sanalar', value: dates },
+    { icon: '🏨', label: 'Mehmonxona', value: [ti.hotelName, ti.hotelType ? HOTEL_TYPE_LABELS[ti.hotelType] : ''].filter(Boolean).join(' · ') },
+  ];
+  const hasData = ROWS.some(r => r.value);
 
   return (
     <div
-      onClick={startEdit}
+      onClick={onEdit}
       title="Bosib tahrirlash"
       style={{
         padding: 12, borderRadius: 10, marginBottom: 18, cursor: 'pointer',
@@ -1142,24 +1106,22 @@ function KeyInfoBlock({ client }: any) {
         display: 'flex', flexDirection: 'column', gap: 8,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span style={{ fontSize: 16 }}>🎯</span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Yo'nalish</div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: baseline.destination ? 'var(--fg)' : 'var(--fg-4)' }}>
-            {baseline.destination || 'Kiritilmagan — bosing'}
+      {hasData ? (
+        ROWS.filter(r => r.value).map((r, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{ fontSize: 16 }}>{r.icon}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{r.label}</div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg)' }}>{r.value}</div>
+            </div>
           </div>
+        ))
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <span style={{ fontSize: 16 }}>🎯</span>
+          <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Sayohat ma'lumotlarini kiritish uchun bosing</div>
         </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span style={{ fontSize: 16 }}>💰</span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: 'var(--fg-4)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Taxminiy byudjet</div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: baseline.budget ? 'var(--fg)' : 'var(--fg-4)' }}>
-            {baseline.budget ? `${baseline.budget} ${baseline.budgetCurrency}` : 'Kiritilmagan — bosing'}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1213,7 +1175,8 @@ function CustomFields({ client, isAdmin }: any) {
     finally { setSaving(false); }
   }
 
-  const inp: any = { flex: 1, minWidth: 0, padding: '7px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-2)', color: 'var(--fg)', fontSize: 12.5, boxSizing: 'border-box' };
+  const inp: any = { flex: 1, minWidth: 0, padding: '5px 0', border: 'none', borderBottom: '1px solid var(--border)', background: 'none', color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box', outline: 'none' };
+  const labelInp: any = { width: '100%', padding: '3px 0', border: 'none', borderBottom: '1px dashed var(--border)', background: 'none', color: 'var(--fg-4)', fontSize: 11, boxSizing: 'border-box', outline: 'none', marginBottom: 4 };
   const saved = baseline.filter((f) => f.key.trim() || f.value.trim());
 
   return (
@@ -1267,27 +1230,26 @@ function CustomFields({ client, isAdmin }: any) {
           agentga ko'rinmaydi. */}
       {editing && (
         <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 10 }}>
             {fields.map((f, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {isAdmin ? (
-                  <input
-                    style={inp}
-                    placeholder="Savol (masalan: Qayerga)"
-                    value={f.key}
-                    onChange={(e) => upd(i, 'key', e.target.value)}
-                  />
-                ) : (
-                  <div style={{ ...inp, background: 'none', border: 'none', color: 'var(--fg-3)', fontWeight: 600, padding: '7px 2px' }}>
-                    {f.key || '—'}
-                  </div>
-                )}
-                <span style={{ color: 'var(--fg-4)', fontSize: 12 }}>:</span>
-                <input style={inp} placeholder="Javob" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} autoFocus={i === fields.length - 1} />
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {isAdmin ? (
+                    <input
+                      style={labelInp}
+                      placeholder="Savol (masalan: Qayerga)"
+                      value={f.key}
+                      onChange={(e) => upd(i, 'key', e.target.value)}
+                    />
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 4 }}>{f.key || '—'}</div>
+                  )}
+                  <input style={inp} placeholder="Javob" value={f.value} onChange={(e) => upd(i, 'value', e.target.value)} autoFocus={i === fields.length - 1} />
+                </div>
                 {isAdmin && (
                   <button onClick={() => remove(i)} title="O'chirish" style={{
                     border: 'none', background: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer',
-                    padding: '4px 6px', display: 'flex', alignItems: 'center',
+                    padding: '4px 4px', display: 'flex', alignItems: 'center', marginTop: 18, flexShrink: 0,
                   }}><FaTrash size={11} /></button>
                 )}
               </div>
