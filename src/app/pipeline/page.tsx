@@ -387,6 +387,12 @@ function StagesModal({ pipeline, onClose }: any) {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3d7eff');
+  // v37: qo'lda sudrab (drag & drop) tartiblash — masalan "Proposal sent"ni
+  // birinchi o'ringa olib borish uchun. dragItem/dragOverItem — hozir
+  // sudralayotgan va uning ustidan o'tilgan qatorlar indeksi.
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const S: any = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
   const W: any = { background: 'var(--bg)', borderRadius: 14, padding: 24, width: 500, maxWidth: '92vw', maxHeight: '80vh', boxSizing: 'border-box' as const, display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.3)' };
 
@@ -410,15 +416,56 @@ function StagesModal({ pipeline, onClose }: any) {
     catch (e: any) { toast.error(errMsg(e)); }
   }
 
+  function handleDragStart(index: number) { dragItem.current = index; }
+  function handleDragEnter(index: number) { dragOverItem.current = index; setDragOverIdx(index); }
+  async function handleDragEnd() {
+    const from = dragItem.current;
+    const to = dragOverItem.current;
+    dragItem.current = null; dragOverItem.current = null; setDragOverIdx(null);
+    if (from === null || to === null || from === to) return;
+
+    const reordered = [...stages];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    setStages(reordered); // optimistik — darhol yangi tartibda ko'rsatamiz
+
+    try {
+      const r = await pipelinesApi.stageReorder(reordered.map((s) => s.id));
+      // v36 FIX'ga muvofiq: server "Sotildi"/"Yo'qotildi" kabi belgilangan
+      // bosqichlarni har doim oxiriga qaytaradi — shuning uchun natijani
+      // serverdan qaytgani bilan sinxronlaymiz.
+      if (Array.isArray(r?.data)) setStages(r.data);
+    } catch (e: any) {
+      toast.error(errMsg(e));
+      pipelinesApi.stagesList(pipeline.id).then((r) => setStages(r.data || []));
+    }
+  }
+
   return (
     <div style={S}>
       <div style={W}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>⚙️ {pipeline.name} — Bosqichlar</h2>
+        <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700 }}>⚙️ {pipeline.name} — Bosqichlar</h2>
+        <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 12 }}>Tartibni o'zgartirish uchun ⠿ belgisidan ushlab sudrang</div>
         {loading ? <div>{t('pl.loading')}</div> : (
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
             {stages.map((s, i) => (
-              <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '7px 10px', background: 'var(--bg-3)', borderRadius: 8, borderLeft: `4px solid ${s.color}` }}>
+              <div
+                key={s.id}
+                draggable
+                onDragStart={() => handleDragStart(i)}
+                onDragEnter={() => handleDragEnter(i)}
+                onDragOver={(e) => e.preventDefault()}
+                onDragEnd={handleDragEnd}
+                style={{
+                  display: 'flex', flexDirection: 'column', gap: 4, padding: '7px 10px',
+                  background: dragOverIdx === i ? 'var(--bg-4, #2a2f3a)' : 'var(--bg-3)',
+                  borderRadius: 8, borderLeft: `4px solid ${s.color}`,
+                  outline: dragOverIdx === i ? '2px dashed var(--primary, #3d7eff)' : 'none',
+                  transition: 'background .1s ease',
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--fg-4)', cursor: 'grab', letterSpacing: -1 }} title="Sudrab tartiblash">⠿</span>
                   <span style={{ fontSize: 11, color: 'var(--fg-3)', width: 18 }}>{i + 1}</span>
                   <input value={s.name} onChange={e => setStages(prev => prev.map(x => x.id === s.id ? { ...x, name: e.target.value } : x))}
                     onBlur={() => pipelinesApi.stageUpdate(s.id, { name: s.name }).catch(() => {})}
