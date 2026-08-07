@@ -417,14 +417,27 @@ function StagesModal({ pipeline, onClose }: any) {
         {loading ? <div>{t('pl.loading')}</div> : (
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
             {stages.map((s, i) => (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-3)', borderRadius: 8, borderLeft: `4px solid ${s.color}` }}>
-                <span style={{ fontSize: 11, color: 'var(--fg-3)', width: 18 }}>{i + 1}</span>
-                <input value={s.name} onChange={e => setStages(prev => prev.map(x => x.id === s.id ? { ...x, name: e.target.value } : x))}
-                  onBlur={() => pipelinesApi.stageUpdate(s.id, { name: s.name }).catch(() => {})}
-                  style={{ flex: 1, background: 'none', border: 'none', fontSize: 13, color: 'var(--fg)', fontWeight: 600 }} />
-                <input type="color" value={s.color} onChange={e => { const c = e.target.value; setStages(prev => prev.map(x => x.id === s.id ? { ...x, color: c } : x)); pipelinesApi.stageUpdate(s.id, { color: e.target.value }).catch(() => {}); }}
-                  style={{ width: 28, height: 28, border: 'none', borderRadius: 5, cursor: 'pointer', background: 'none' }} />
-                {!s.isClosing && !s.isLost && <button onClick={() => del(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}>✕</button>}
+              <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '7px 10px', background: 'var(--bg-3)', borderRadius: 8, borderLeft: `4px solid ${s.color}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--fg-3)', width: 18 }}>{i + 1}</span>
+                  <input value={s.name} onChange={e => setStages(prev => prev.map(x => x.id === s.id ? { ...x, name: e.target.value } : x))}
+                    onBlur={() => pipelinesApi.stageUpdate(s.id, { name: s.name }).catch(() => {})}
+                    style={{ flex: 1, background: 'none', border: 'none', fontSize: 13, color: 'var(--fg)', fontWeight: 600 }} />
+                  <input type="color" value={s.color} onChange={e => { const c = e.target.value; setStages(prev => prev.map(x => x.id === s.id ? { ...x, color: c } : x)); pipelinesApi.stageUpdate(s.id, { color: e.target.value }).catch(() => {}); }}
+                    style={{ width: 28, height: 28, border: 'none', borderRadius: 5, cursor: 'pointer', background: 'none' }} />
+                  {!s.isClosing && !s.isLost && <button onClick={() => del(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}>✕</button>}
+                </div>
+                {/* v35: "Yopiluvchi bosqich" — shu bosqichga tushgan lead avtomatik
+                    ravishda KEYINGI voronkaning birinchi bosqichiga o'tkaziladi
+                    (masalan "Sold" → Postsale voronkaning birinchi ustuni). */}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--fg-3)', paddingLeft: 26, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!s.isClosing} onChange={e => {
+                    const v = e.target.checked;
+                    setStages(prev => prev.map(x => x.id === s.id ? { ...x, isClosing: v } : x));
+                    pipelinesApi.stageUpdate(s.id, { isClosing: v }).catch(() => {});
+                  }} />
+                  Yopiluvchi bosqich (keyingi voronkaga avtomatik o'tkazadi)
+                </label>
               </div>
             ))}
           </div>
