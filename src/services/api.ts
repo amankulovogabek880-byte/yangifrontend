@@ -434,6 +434,18 @@ export const aiAssistantApi = {
   deleteConversation: (conversationId: string) => api.delete(`/ai-assistant/conversations/${conversationId}`),
 };
 
+// v41: Jarvis Bot — har bir tenant uchun bitta ICHKI Telegram bot
+// (qo'ng'iroq tahlili + kunlik brifing push, faqat admin savol-javob)
+export const jarvisBotApi = {
+  status: () => api.get('/jarvis-bot/status'),
+  connect: (token: string) => api.post('/jarvis-bot/connect', { token }),
+  disconnect: () => api.post('/jarvis-bot/disconnect'),
+  updateSettings: (data: { notifyAdminOnAnalysis?: boolean; dailyDigestEnabled?: boolean; dailyDigestHour?: number }) =>
+    api.patch('/jarvis-bot/settings', data),
+  linkCode: () => api.post('/jarvis-bot/link-code'),
+  unlink: (userId: string) => api.delete(`/jarvis-bot/links/${userId}`),
+};
+
 // ── AI MARKETING (Reklama generatori — TurMaker-uslubida) ────
 export const aiMarketingApi = {
   // 1-bosqich: rasm + 3 ta tayyor post (Instagram/Telegram/Facebook)
