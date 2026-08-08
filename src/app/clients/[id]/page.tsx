@@ -1128,6 +1128,22 @@ function KeyInfoBlock({ client }: any) {
   const [baseline, setBaseline] = useState(initial);
   const [active, setActive] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState<string | null>(null);
+
+  // 🩹 v40 TUZATISH: bu komponent `client` prop'ini faqat BIRINCHI marta
+  // render bo'lganda useState orqali o'qirdi — keyin, boshqa mijozga
+  // o'tilganda (masalan mijozlar ro'yxatidan navbatdagisiga) React
+  // komponentni qayta o'rnatmasa, eski mijozning maydonlari yangi mijoz
+  // kartasida ko'rinib qolardi (yoki aksincha, tahrirlash boshqa mijozga
+  // yozilib ketishi mumkin edi). Endi `client.id` o'zgarganda holat
+  // majburan yangi mijozning haqiqiy ma'lumotlari bilan qayta o'rnatiladi.
+  useEffect(() => {
+    const fresh = { ...defaults, ...(client?.preferences?.keyInfo || {}) };
+    setVal(fresh);
+    setBaseline(fresh);
+    setActive(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client?.id]);
 
   async function saveField(key: string, nextVal: any) {
     if (nextVal[key] === baseline[key]) { setActive(null); return; }
@@ -1137,6 +1153,10 @@ function KeyInfoBlock({ client }: any) {
       const applied = res?.data?.keyInfo || nextVal;
       setVal(applied);
       setBaseline(applied);
+      // AmoCRM uslubida — saqlangach maydon yonida qisqa vaqt ✓ ko'rinadi,
+      // shunda foydalanuvchi "haqiqatan saqlandimi" deb ikkilanmaydi.
+      setJustSaved(key);
+      setTimeout(() => setJustSaved((k) => (k === key ? null : k)), 1200);
     } catch (e: any) { toast.error(errMsg(e)); setVal(baseline); }
     finally { setSaving(false); setActive(null); }
   }
@@ -1171,8 +1191,9 @@ function KeyInfoBlock({ client }: any) {
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setVal(baseline); setActive(null); } }}
             />
           ) : (
-            <div onClick={() => setActive(f.key)} style={valueStyle(!!(baseline as any)[f.key])}>
-              {(baseline as any)[f.key] || '—'}
+            <div onClick={() => setActive(f.key)} style={{ ...valueStyle(!!(baseline as any)[f.key]), display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>{(baseline as any)[f.key] || '—'}</span>
+              {justSaved === f.key && <span style={{ color: 'var(--success, #10b981)', fontSize: 11 }}>✓</span>}
             </div>
           )}
         </div>
@@ -1188,12 +1209,30 @@ function KeyInfoBlock({ client }: any) {
               placeholder="masalan: 2000"
               value={val.budget}
               onChange={(e) => setVal((v: any) => ({ ...v, budget: e.target.value }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') saveField('budget', val); if (e.key === 'Escape') { setVal(baseline); setActive(null); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setVal(baseline); setActive(null); } }}
+              onBlur={(e) => {
+                // 🩹 v40 TUZATISH: bu inputda ILGARI onBlur UMUMAN YO'Q edi —
+                // faqat Enter tugmasi yoki valyuta tanlovidan blur bo'lganda
+                // saqlanardi. Oddiy holatda (summani yozib, boshqa joyga bosib
+                // chiqib ketilsa) hech narsa saqlanmasdi va maydon "osilib"
+                // tahrirlash rejimida qolib ketardi. Agar fokus xuddi shu
+                // qatordagi valyuta tanlovga o'tayotgan bo'lsa — u o'zi
+                // saqlaydi, shuning uchun bu yerda ikki marta yubormaymiz.
+                const next = e.relatedTarget as HTMLElement | null;
+                if (next && next.tagName === 'SELECT') return;
+                saveField('budget', val);
+              }}
             />
             <select
               style={{ ...inputStyle, width: 62 }}
               value={val.budgetCurrency}
-              onChange={(e) => setVal((v: any) => ({ ...v, budgetCurrency: e.target.value }))}
+              onChange={(e) => {
+                // Valyuta tanlanishi bilanoq saqlaymiz (select ko'pincha
+                // tanlangach ham fokusda qolib, blur darhol chaqirilmaydi).
+                const next = { ...val, budgetCurrency: e.target.value };
+                setVal(next);
+                saveField('budget', next);
+              }}
               onBlur={() => saveField('budget', val)}
             >
               <option value="USD">USD</option>
@@ -1202,8 +1241,9 @@ function KeyInfoBlock({ client }: any) {
             </select>
           </div>
         ) : (
-          <div onClick={() => setActive('budget')} style={valueStyle(!!baseline.budget)}>
-            {baseline.budget ? `${baseline.budget} ${baseline.budgetCurrency}` : '—'}
+          <div onClick={() => setActive('budget')} style={{ ...valueStyle(!!baseline.budget), display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{baseline.budget ? `${baseline.budget} ${baseline.budgetCurrency}` : '—'}</span>
+            {justSaved === 'budget' && <span style={{ color: 'var(--success, #10b981)', fontSize: 11 }}>✓</span>}
           </div>
         )}
       </div>
@@ -2452,11 +2492,22 @@ function ClientPersonalMsgModal({ client, onClose, onSent }: any) {
   );
 }
 
-// ─── Client Edit Modal (Tahrirlash) — Mijoz + Sayohat ma'lumotlari birgalikda ──
+// ─── Client Edit Modal (Tahrirlash) — faqat mijozning asosiy ma'lumotlari ──
+// 🩹 v40 TUZATISH: bu modalda ILGARI alohida "✈️ Sayohat ma'lumotlari"
+// bo'limi bor edi — u `client.preferences.travelInfo` degan BUTUNLAY
+// BOSHQA (chap paneldagi "Sayohat ma'lumotlari" kartasi — KeyInfoBlock,
+// pastda — o'qiydigan `client.preferences.keyInfo`dan FARQLI) joyga
+// yozardi. Natijada: shu yerda to'ldirilgan ma'lumot HECH QAERDA
+// (hech qanday kartada) ko'rinmasdi — go'yo "saqlanmagandek" tuyulardi —
+// chap paneldagi asl "Sayohat ma'lumotlari" karta esa doim bo'sh ("—")
+// qolardi, chunki u boshqa joydan (`keyInfo`) o'qiydi. Aynan shu ikki
+// ayri manba "sayohat ma'lumotlari umuman yaxshi ishlamayapti" degan
+// shikoyatning sababi edi. Endi bu yerda FAQAT mijozning asosiy
+// ma'lumotlari tahrirlanadi — sayohat ma'lumotlari esa FAQAT chap
+// paneldagi kartada, joyida bosib, darhol tahrirlanadi (AmoCRM uslubida,
+// bitta manba — `keyInfo`).
 function ClientEditModal({ client, onClose, onSaved }: any) {
-  const ti = client.preferences?.travelInfo || {};
   const [form, setForm] = useState<any>({
-    // ── Mijoz ma'lumotlari ──
     fullName: client.fullName || '',
     phone: client.phone || '',
     telegramUsername: client.telegramUsername || '',
@@ -2464,16 +2515,6 @@ function ClientEditModal({ client, onClose, onSaved }: any) {
     tier: client.tier || 'REGULAR',
     status: client.status || 'ACTIVE',
     notes: client.notes || '',
-    // ── Sayohat ma'lumotlari (Client.preferences.travelInfo ichida saqlanadi) ──
-    destination: ti.destination || '',      // 4. Qayerga sayohat qilishi
-    fromCity: ti.fromCity || '',             // 5. Qaysi shahardan
-    adults: ti.adults ?? 1,                  // 6. Kattalar soni
-    children: ti.children ?? 0,              // 6. Bolalar soni
-    departDate: ti.departDate ? ti.departDate.slice(0, 10) : '',   // 7. Sana
-    returnDate: ti.returnDate ? ti.returnDate.slice(0, 10) : '',   // 7. Sana
-    approxDays: ti.approxDays ?? '',         // 7. Aniq sana yo'q bo'lsa — taxminiy kun
-    hotelName: ti.hotelName || '',           // 8. Mehmonxona nomi
-    hotelType: ti.hotelType || '',           // 9. Mehmonxona turi
   });
   const [saving, setSaving] = useState(false);
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
@@ -2493,23 +2534,6 @@ function ClientEditModal({ client, onClose, onSaved }: any) {
         tier: form.tier,
         status: form.status,
         notes: form.notes || undefined,
-        // preferences: mavjud offerlar (va boshqa saqlangan ma'lumotlar) yo'qolib
-        // ketmasligi uchun MAVJUD preferences bilan birlashtirib yuboramiz —
-        // faqat travelInfo qismini yangilaymiz.
-        preferences: {
-          ...(client.preferences || {}),
-          travelInfo: {
-            destination: form.destination || undefined,
-            fromCity: form.fromCity || undefined,
-            adults: parseInt(String(form.adults)) || 1,
-            children: parseInt(String(form.children)) || 0,
-            departDate: form.departDate || undefined,
-            returnDate: form.returnDate || undefined,
-            approxDays: form.approxDays ? parseInt(String(form.approxDays)) : undefined,
-            hotelName: form.hotelName || undefined,
-            hotelType: form.hotelType || undefined,
-          },
-        },
       });
       onSaved();
     } catch (e: any) {
@@ -2520,7 +2544,7 @@ function ClientEditModal({ client, onClose, onSaved }: any) {
   }
 
   return (
-    <Modal open onClose={onClose} title="✏️ Mijoz va sayohat ma'lumotlari" maxWidth={640}>
+    <Modal open onClose={onClose} title="✏️ Mijoz ma'lumotlari" maxWidth={640}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {/* ── Mijoz ma'lumotlari ── */}
         <div>
@@ -2553,50 +2577,11 @@ function ClientEditModal({ client, onClose, onSaved }: any) {
           </div>
         </div>
 
-        {/* ── Sayohat ma'lumotlari ── */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.3 }}>✈️ Sayohat</div>
-          <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={lbl}>Qayerga sayohat qiladi</label>
-              <input style={inp} value={form.destination} onChange={(e) => set('destination', e.target.value)} placeholder="Masalan: Antalya, Turkiya" />
-            </div>
-            <div>
-              <label style={lbl}>Qaysi shahardan</label>
-              <input style={inp} value={form.fromCity} onChange={(e) => set('fromCity', e.target.value)} placeholder="Masalan: Toshkent" />
-            </div>
-            <div>
-              <label style={lbl}>Kattalar</label>
-              <input type="number" min={1} style={inp} value={form.adults} onChange={(e) => set('adults', e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Bolalar</label>
-              <input type="number" min={0} style={inp} value={form.children} onChange={(e) => set('children', e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Jo'nab ketish sanasi</label>
-              <input type="date" style={inp} value={form.departDate} onChange={(e) => set('departDate', e.target.value)} />
-            </div>
-            <div>
-              <label style={lbl}>Qaytish sanasi</label>
-              <input type="date" style={inp} value={form.returnDate} onChange={(e) => set('returnDate', e.target.value)} />
-            </div>
-            <div style={{ gridColumn: '1/-1' }}>
-              <label style={lbl}>Taxminiy davomiyligi (kun) — aniq sana hali noma'lum bo'lsa</label>
-              <input type="number" min={1} style={{ ...inp, maxWidth: 160 }} value={form.approxDays} onChange={(e) => set('approxDays', e.target.value)} placeholder="Masalan: 7" />
-            </div>
-            <div>
-              <label style={lbl}>Mehmonxona nomi</label>
-              <input style={inp} value={form.hotelName} onChange={(e) => set('hotelName', e.target.value)} placeholder="Agar mijoz allaqachon tanlagan bo'lsa" />
-            </div>
-            <div>
-              <label style={lbl}>Mehmonxona turi</label>
-              <select style={inp} value={form.hotelType} onChange={(e) => set('hotelType', e.target.value)}>
-                <option value="">—</option>
-                {Object.entries(HOTEL_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-          </div>
+        {/* ✈️ Sayohat ma'lumotlari endi shu yerda EMAS — chap paneldagi
+            "Sayohat ma'lumotlari" kartasida, har bir maydonni bosib,
+            joyida tahrirlanadi (o'zi saqlaydi). */}
+        <div style={{ fontSize: 12, color: 'var(--fg-4)', background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 11px' }}>
+          ℹ️ Sayohat ma'lumotlari (yo'nalish, kim bilan, sanalar, byudjet va h.k.) endi chap paneldagi <b>"Sayohat ma'lumotlari"</b> kartasida tahrirlanadi — shunchaki kerakli maydonni bosing.
         </div>
 
         <div>
