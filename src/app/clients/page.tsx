@@ -17,6 +17,15 @@ import { ClientQuickView } from '@/components/ClientQuickView';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 // ─── Manba indikatori: har bir manba uchun mos brand ikoni + rangi ──────────────
+// ─── Bosqich nomi/rangi: avval maxsus (Kanban) bosqichni ko'rsatadi, bo'lmasa eski enum'ga qaytadi ──
+function stageLabel(c: any): string {
+  if (c.customStage?.name) return c.customStage.name;
+  return (STAGE_LABELS[c.pipelineStage] || c.pipelineStage || '').replace(/^\S+\s/, '');
+}
+function stageColor(c: any): string | undefined {
+  if (c.customStage?.color) return c.customStage.color;
+  return STAGE_COLORS[c.pipelineStage];
+}
 const SOURCE_META: Record<string, { label: string; color: string; Icon: any }> = {
   TELEGRAM:   { label: 'Telegram',   color: '#229ED9', Icon: FaTelegram },
   INSTAGRAM:  { label: 'Instagram',  color: '#E1306C', Icon: FaInstagram },
@@ -148,7 +157,7 @@ export default function ClientsPage() {
     const header = ['FISH', 'Telefon', 'Email', 'Bosqich', 'Manba', 'Tier', 'Agent'];
     const lines = list.map((c) => [
       esc(c.fullName), esc(c.phone), esc(c.email),
-      esc(STAGE_LABELS[c.pipelineStage] || c.pipelineStage),
+      esc(stageLabel(c)),
       esc(SOURCE_LABELS[c.source] || c.source),
       esc(TIER_LABELS[c.tier] || c.tier),
       esc(c.assignedAgent?.name),
@@ -294,7 +303,7 @@ export default function ClientsPage() {
                       )}
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      <Badge color={STAGE_COLORS[c.pipelineStage]}>{STAGE_LABELS[c.pipelineStage]?.replace(/^\S+\s/, '')}</Badge>
+                      <Badge color={stageColor(c)}>{stageLabel(c)}</Badge>
                       <SourceBadge source={c.source} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--fg-3)', borderTop: '1px solid var(--border-2)', paddingTop: 8 }}>
@@ -364,7 +373,7 @@ export default function ClientsPage() {
                           {c.assignedAgent && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{c.assignedAgent.name}</div>}
                         </td>
                         <td style={{ padding: 12 }}>
-                          <Badge color={STAGE_COLORS[c.pipelineStage]}>{STAGE_LABELS[c.pipelineStage]?.replace(/^\S+\s/, '')}</Badge>
+                          <Badge color={stageColor(c)}>{stageLabel(c)}</Badge>
                         </td>
                         <td style={{ padding: 12 }}>
                           <SourceBadge source={c.source} />
