@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import CrmLayout from '@/components/layout/CrmLayout';
 import { tenantsApi, usersApi, api, callsApi } from '@/services/api';
 import TourOperatorsSettings from '@/components/settings/TourOperatorsSettings';
+import JarvisBotSettings from '@/components/settings/JarvisBotSettings';
 import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal } from '@/components/ui';
 import { useAuth } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
@@ -12,7 +13,7 @@ import toast from 'react-hot-toast';
 import { errMsg } from '@/lib/helpers';
 import {
   Settings, PhoneCall, FileText, Key, List, User, Users,
-  Target, Bot, ClipboardList, DollarSign, Lock, Building2,
+  Target, Bot, ClipboardList, DollarSign, Lock, Building2, Sparkles,
 } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-icons/fa';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -24,6 +25,7 @@ const TAB_DEFS = [
   { id: 'operators',   key: 'settings.tab.operators', adminOnly: true },
   { id: 'whatsapp',    key: 'settings.tab.whatsapp' },
   { id: 'telegram',    key: 'settings.tab.telegram' },
+  { id: 'jarvisbot',   key: 'settings.tab.jarvisbot', adminOnly: true },
   { id: 'instagram',   key: 'settings.tab.instagram', adminOnly: true },
   { id: 'facebook',    key: 'settings.tab.facebook', adminOnly: true },
   { id: 'templates',   key: 'settings.tab.templates', adminOnly: true },
@@ -43,6 +45,7 @@ const TAB_ICONS: Record<string, JSX.Element> = {
   operators: <Building2 size={ICON} />,
   whatsapp: <FaWhatsapp size={ICON} />,
   telegram: <FaTelegramPlane size={ICON} />,
+  jarvisbot: <Sparkles size={ICON} />,
   instagram: <FaInstagram size={ICON} />,
   facebook: <FaFacebookF size={ICON} />,
   templates: <FileText size={ICON} />,
@@ -130,6 +133,11 @@ export default function SettingsPage() {
         {tab === 'phone' && <PhoneTab isAdmin={isAdmin} />}
         {tab === 'whatsapp' && <WhatsAppTab />}
         {tab === 'telegram' && <TelegramTab isAdmin={isAdmin} />}
+        {tab === 'jarvisbot' && isAdmin && (
+          <Card>
+            <JarvisBotSettings />
+          </Card>
+        )}
         {tab === 'instagram' && <InstagramTab />}
         {tab === 'facebook' && <FacebookLeadsTab />}   {/* ← YANGI */}
 

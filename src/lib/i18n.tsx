@@ -620,6 +620,7 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'settings.tab.operators': { uz: 'Tur operatorlar', ru: 'Туроператоры' , en: 'Tour operators' },
   'settings.tab.whatsapp': { uz: 'WhatsApp', ru: 'WhatsApp' , en: 'WhatsApp' },
   'settings.tab.telegram': { uz: 'Telegram', ru: 'Telegram' , en: 'Telegram' },
+  'settings.tab.jarvisbot': { uz: 'Telegram analiz', ru: 'Telegram аналитика', en: 'Telegram Analytics' },
   'settings.tab.instagram': { uz: 'Instagram', ru: 'Instagram' , en: 'Instagram' },
   'settings.tab.facebook': { uz: 'Facebook Ads', ru: 'Facebook Ads' , en: 'Facebook Ads' },
   'settings.tab.templates': { uz: 'Shablonlar', ru: 'Шаблоны' , en: 'Templates' },

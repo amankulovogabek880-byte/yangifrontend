@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Sparkles, X, Send, Plus, MessageSquare, Wrench, ChevronDown, PencilLine } from 'lucide-react';
+import { Sparkles, X, Send, Plus, MessageSquare, Wrench, ChevronDown, PencilLine, Mic, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { aiAssistantApi, userTelegramApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
@@ -88,6 +88,14 @@ export default function ChatWidget() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  // v43: MIKROFON — bosib gapirish, Whisper orqali matnga o'girilib,
+  // Jarvis'ga xuddi yozma xabar kabi yuboriladi (buyruqlarni ham bajaradi,
+  // chunki bir xil tool-use agent orqali o'tadi).
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -96,6 +104,11 @@ export default function ChatWidget() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, sending]);
+
+  // Komponent yo'q qilinganda mikrofon oqimi ochiq qolib ketmasin
+  useEffect(() => {
+    return () => { streamRef.current?.getTracks().forEach((t) => t.stop()); };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -176,6 +189,65 @@ export default function ChatWidget() {
     }
   }
 
+  /** Mikrofon tugmasi bosilganda — yozishni boshlaydi (brauzerdan ruxsat so'raydi) */
+  async function startRecording() {
+    if (recording || sending || transcribing) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        const blob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+        if (blob.size > 800) sendVoice(blob);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {
+      toast.error("Mikrofonga ruxsat berilmadi. Brauzer sozlamalaridan ruxsat bering.");
+    }
+  }
+
+  /** Mikrofon tugmasi qayta bosilganda — yozishni to'xtatadi va yuboradi */
+  function stopRecording() {
+    if (!recording) return;
+    setRecording(false);
+    try { mediaRecorderRef.current?.stop(); } catch {}
+  }
+
+  /** Ovozli xabarni backendga yuboradi — Whisper matnga o'giradi, so'ng Jarvis (tool-use) javob beradi */
+  async function sendVoice(blob: Blob) {
+    setTranscribing(true);
+    const pendingMsg: ChatMessage = { id: `tmp-a-${Date.now()}`, role: 'assistant', content: '', pending: true };
+    setMessages((prev) => [...prev, pendingMsg]);
+    setSending(true);
+    try {
+      const res = await aiAssistantApi.voiceChat(blob, conversationId);
+      const { conversationId: cid, reply, toolCalls, transcript } = res.data || {};
+      setConversationId(cid);
+      const userMsg: ChatMessage = { id: `tmp-u-${Date.now()}`, role: 'user', content: transcript ? `🎙 ${transcript}` : '🎙 (ovozli xabar)' };
+      setMessages((prev) => {
+        const withoutPending = prev.filter((m) => m.id !== pendingMsg.id);
+        return [...withoutPending, userMsg, { ...pendingMsg, content: reply, toolCalls, pending: false }];
+      });
+      aiAssistantApi.conversations().then((r) => setConversations(r.data || [])).catch(() => {});
+    } catch (e: any) {
+      setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
+      const msg = e?.response?.data?.message || "Ovozli xabarni qayta ishlab bo'lmadi.";
+      toast.error(msg);
+    } finally {
+      setSending(false);
+      setTranscribing(false);
+    }
+  }
+
   const panelWidth = isMobile ? 'calc(100vw - 24px)' : 380;
   const panelHeight = isMobile ? 'min(70vh, 560px)' : 520;
 
@@ -193,7 +265,7 @@ export default function ChatWidget() {
         gap: 10,
       }}
     >
-      <style>{`@keyframes jarvis-dot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }`}</style>
+      <style>{`@keyframes jarvis-dot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } } @keyframes jarvis-rec-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); } }`}</style>
       {open && (
         <div
           style={{
@@ -291,6 +363,9 @@ export default function ChatWidget() {
                 <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>
                   Mijoz holati, bugungi eslatmalar, statistika yoki booking haqida so'rang — CRM ma'lumotidan javob beraman.
                 </div>
+                <div style={{ fontSize: 11, marginTop: 6, opacity: 0.75, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <Mic size={11} /> Mikrofon tugmasini bosib gapirsangiz ham bajaraman
+                </div>
               </div>
             ) : (
               messages.map((m) => {
@@ -366,6 +441,22 @@ export default function ChatWidget() {
                 fontSize: 13, color: 'var(--fg)', fontFamily: 'inherit', outline: 'none',
               }}
             />
+            <button
+              onClick={recording ? stopRecording : startRecording}
+              disabled={sending || transcribing}
+              title={recording ? "To'xtatish va yuborish" : "Ovozli xabar (bosib gapiring)"}
+              style={{
+                width: 34, height: 34, borderRadius: 10, border: 'none', flexShrink: 0,
+                background: recording ? '#ef4444' : 'var(--bg-4)',
+                color: recording ? '#fff' : 'var(--fg-2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: sending || transcribing ? 'default' : 'pointer',
+                animation: recording ? 'jarvis-rec-pulse 1.2s infinite' : undefined,
+                opacity: transcribing ? 0.6 : 1,
+              }}
+            >
+              {recording ? <Square size={14} /> : <Mic size={15} />}
+            </button>
             <button
               onClick={send}
               disabled={!input.trim() || sending}
