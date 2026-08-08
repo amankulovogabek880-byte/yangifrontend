@@ -426,6 +426,14 @@ export const briefingApi = {
   refresh: () => api.post('/briefing/refresh'),
 };
 
+// v40: AI Yordamchi ("Jarvis") — erkin suhbat, CRM ma'lumotini tool-use orqali o'zi so'rab oladi (1-bosqich: read-only)
+export const aiAssistantApi = {
+  chat: (data: { conversationId?: string; message: string }) => api.post('/ai-assistant/chat', data),
+  conversations: () => api.get('/ai-assistant/conversations'),
+  messages: (conversationId: string) => api.get(`/ai-assistant/conversations/${conversationId}`),
+  deleteConversation: (conversationId: string) => api.delete(`/ai-assistant/conversations/${conversationId}`),
+};
+
 // ── AI MARKETING (Reklama generatori — TurMaker-uslubida) ────
 export const aiMarketingApi = {
   // 1-bosqich: rasm + 3 ta tayyor post (Instagram/Telegram/Facebook)

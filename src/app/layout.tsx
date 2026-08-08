@@ -5,6 +5,7 @@ import { I18nProvider } from '@/lib/i18n';
 import { DialerProvider } from '@/lib/dialer';
 import Providers from '@/lib/providers';
 import DialerWidget from '@/components/dialer/DialerWidget';
+import ChatWidget from '@/components/ai-assistant/ChatWidget';
 
 export const metadata = {
   title: 'Omon CRM — CRM for Travel Agencies',
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <DialerProvider>
               {children}
               <DialerWidget />
+              <ChatWidget />
               <Toaster
                 position="top-right"
                 toastOptions={{
