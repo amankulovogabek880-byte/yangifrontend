@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Sparkles, X, Send, Plus, MessageSquare, Wrench, ChevronDown } from 'lucide-react';
+import { Sparkles, X, Send, Plus, MessageSquare, Wrench, ChevronDown, PencilLine } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { aiAssistantApi } from '@/services/api';
+import { aiAssistantApi, userTelegramApi } from '@/services/api';
 import { useAuth } from '@/lib/store';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
@@ -37,10 +37,43 @@ const TOOL_LABELS_UZ: Record<string, string> = {
   getKpiStats: 'statistika',
   getBookingStatus: 'booking holati',
   searchMarketplaceTours: 'tur takliflari',
+  // v41: 2-bosqich — yozuvchi va qo'shimcha o'qish tool'lari
+  createTask: 'vazifa yaratildi',
+  draftFollowupMessage: 'xabar qoralamasi',
+  updatePipelineStage: "pipeline bosqichi o'zgartirildi",
+  createOfferDraft: 'taklif qoralamasi',
+  createBookingDraft: 'booking qoralamasi',
+  createClientLead: 'yangi lead',
+  addClientNote: "izoh qo'shildi",
+  markTaskDone: 'vazifa yakunlandi',
+  rescheduleFollowup: "eslatma ko'chirildi",
+  getInvoiceStatus: "to'lov holati",
+  getClientTimeline: 'mijoz tarixi',
 };
 
 function toolLabel(name: string) {
   return TOOL_LABELS_UZ[name] || name;
+}
+
+const DRAFT_START = '[QORALAMA_BOSHI]';
+const DRAFT_END = '[QORALAMA_OXIRI]';
+
+/** Assistant javobini oddiy matn va (bo'lsa) [QORALAMA_BOSHI]...[QORALAMA_OXIRI] ichidagi qoralama qismga ajratadi */
+function splitDraft(content: string): { before: string; draft: string | null; after: string } {
+  const startIdx = content.indexOf(DRAFT_START);
+  const endIdx = content.indexOf(DRAFT_END);
+  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
+    return { before: content, draft: null, after: '' };
+  }
+  const before = content.slice(0, startIdx).trim();
+  const draft = content.slice(startIdx + DRAFT_START.length, endIdx).trim();
+  const after = content.slice(endIdx + DRAFT_END.length).trim();
+  return { before, draft, after };
+}
+
+/** draftFollowupMessage chaqirilgan bo'lsa, xabar yuborish uchun kerakli mijoz ID'sini tool_call input'idan topadi */
+function findDraftClientId(toolCalls?: { name: string; input: any }[]): string | undefined {
+  return toolCalls?.find((t) => t.name === 'draftFollowupMessage')?.input?.clientId;
 }
 
 export default function ChatWidget() {
@@ -260,35 +293,61 @@ export default function ChatWidget() {
                 </div>
               </div>
             ) : (
-              messages.map((m) => (
-                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{
-                    maxWidth: '85%', padding: '9px 12px', borderRadius: 14,
-                    borderBottomRightRadius: m.role === 'user' ? 4 : 14,
-                    borderBottomLeftRadius: m.role === 'assistant' ? 4 : 14,
-                    background: m.role === 'user' ? 'var(--gradient)' : 'var(--bg-3)',
-                    color: m.role === 'user' ? '#fff' : 'var(--fg)',
-                    fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                  }}>
-                    {m.pending ? (
-                      <span style={{ display: 'inline-flex', gap: 3, alignItems: 'center', opacity: 0.7 }}>
-                        <Dot /> <Dot delay={0.15} /> <Dot delay={0.3} />
-                      </span>
-                    ) : (
-                      m.content
+              messages.map((m) => {
+                // v41: draftFollowupMessage chaqirilgan bo'lsa, javob matnidan
+                // [QORALAMA_BOSHI]...[QORALAMA_OXIRI] ichidagi qismni ajratib,
+                // alohida "Qoralama" blokida ko'rsatamiz (yuborish tugmasi bilan)
+                const hasDraftTool = m.role === 'assistant' && !m.pending && m.toolCalls?.some((t) => t.name === 'draftFollowupMessage');
+                const { before, draft, after } = hasDraftTool ? splitDraft(m.content) : { before: m.content, draft: null, after: '' };
+                const draftClientId = hasDraftTool ? findDraftClientId(m.toolCalls) : undefined;
+
+                return (
+                  <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
+                    {(!draft || before) && (
+                      <div style={{
+                        maxWidth: '85%', padding: '9px 12px', borderRadius: 14,
+                        borderBottomRightRadius: m.role === 'user' ? 4 : 14,
+                        borderBottomLeftRadius: m.role === 'assistant' ? 4 : 14,
+                        background: m.role === 'user' ? 'var(--gradient)' : 'var(--bg-3)',
+                        color: m.role === 'user' ? '#fff' : 'var(--fg)',
+                        fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      }}>
+                        {m.pending ? (
+                          <span style={{ display: 'inline-flex', gap: 3, alignItems: 'center', opacity: 0.7 }}>
+                            <Dot /> <Dot delay={0.15} /> <Dot delay={0.3} />
+                          </span>
+                        ) : (
+                          before || m.content
+                        )}
+                      </div>
+                    )}
+
+                    {draft && (
+                      <FollowupDraftBlock draftText={draft} clientId={draftClientId} />
+                    )}
+
+                    {draft && after && (
+                      <div style={{
+                        maxWidth: '85%', padding: '9px 12px', borderRadius: 14, borderBottomLeftRadius: 4,
+                        background: 'var(--bg-3)', color: 'var(--fg)',
+                        fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      }}>
+                        {after}
+                      </div>
+                    )}
+
+                    {!!m.toolCalls?.length && !m.pending && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        fontSize: 10.5, color: 'var(--fg-3)', padding: '0 2px',
+                      }}>
+                        <Wrench size={10} />
+                        <span>{m.toolCalls.map((t) => toolLabel(t.name)).join(', ')} asosida</span>
+                      </div>
                     )}
                   </div>
-                  {!!m.toolCalls?.length && !m.pending && (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 4, marginTop: 3,
-                      fontSize: 10.5, color: 'var(--fg-3)', padding: '0 2px',
-                    }}>
-                      <Wrench size={10} />
-                      <span>{m.toolCalls.map((t) => toolLabel(t.name)).join(', ')} asosida</span>
-                    </div>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -335,6 +394,75 @@ export default function ChatWidget() {
       >
         {open ? <X size={22} /> : <Sparkles size={22} />}
       </button>
+    </div>
+  );
+}
+
+/**
+ * v41: "Qoralama" bloki — Jarvis draftFollowupMessage tool'i orqali tayyorlagan
+ * xabar matnini alohida ko'rsatadi va "Telegram orqali yuborish" tugmasi bilan
+ * mavjud shaxsiy Telegram yuborish API'siga (userTelegramApi.sendMessage)
+ * chaqiruv qiladi — Jarvis o'zi HECH QACHON xabar yubormaydi, buni faqat
+ * foydalanuvchi shu tugmani bosib amalga oshiradi.
+ */
+function FollowupDraftBlock({ draftText, clientId }: { draftText: string; clientId?: string }) {
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function handleSend() {
+    if (!clientId) {
+      toast.error("Mijoz aniqlanmadi — xabarni qo'lda yuboring");
+      return;
+    }
+    setSending(true);
+    try {
+      await userTelegramApi.sendMessage({ clientId, text: draftText });
+      setSent(true);
+      toast.success('Xabar Telegram orqali yuborildi');
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || "Xabarni yuborib bo'lmadi";
+      toast.error(msg);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div style={{
+      maxWidth: '85%', borderRadius: 14, borderBottomLeftRadius: 4,
+      border: '1px solid var(--warning-border, #e8c766)',
+      background: 'var(--warning-bg, rgba(232, 199, 102, 0.12))',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+        fontSize: 10.5, fontWeight: 700, color: 'var(--fg-2)',
+        borderBottom: '1px solid var(--warning-border, rgba(232, 199, 102, 0.35))',
+        textTransform: 'uppercase', letterSpacing: 0.3,
+      }}>
+        <PencilLine size={11} />
+        Qoralama — hali yuborilmagan
+      </div>
+      <div style={{ padding: '10px 12px', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--fg)' }}>
+        {draftText}
+      </div>
+      <div style={{ padding: '0 10px 10px' }}>
+        <button
+          onClick={handleSend}
+          disabled={sending || sent}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            width: '100%', padding: '7px 10px', borderRadius: 9, border: 'none',
+            background: sent ? 'var(--bg-4)' : 'var(--gradient)',
+            color: sent ? 'var(--fg-2)' : '#fff',
+            fontSize: 12.5, fontWeight: 600,
+            cursor: sending || sent ? 'default' : 'pointer',
+          }}
+        >
+          <Send size={13} />
+          {sent ? 'Yuborildi' : sending ? 'Yuborilmoqda...' : 'Telegram orqali yuborish'}
+        </button>
+      </div>
     </div>
   );
 }
