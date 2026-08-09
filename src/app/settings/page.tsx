@@ -4052,7 +4052,9 @@ function InstagramTab() {
           <code style={{ display: 'block', background: 'var(--bg-2)', padding: '6px 10px', borderRadius: 6, margin: '6px 0', fontSize: 11, wordBreak: 'break-all' }}>
             {webhookUrl}
           </code>
-          <b>4.</b> Verify Token: serverdagi <code>INSTAGRAM_VERIFY_TOKEN</code> env qiymatini kiriting (barcha tenantlar uchun umumiy)<br />
+          <b>4.</b> Verify Token: serverdagi <code>INSTAGRAM_VERIFY_TOKEN</code> env qiymatini <b>AYNAN o'zini</b> kiriting
+          (standart: <code>omoncrm_verify</code>). Bu qiymat <b>barcha tenantlar uchun umumiy</b> va faqat
+          serverdagi environment sozlamasidan o'zgaradi — pastdagi forma bilan bog'liq emas.<br />
           <b>5.</b> Subscribe: <code>messages</code> va <code>messaging_postbacks</code><br />
           <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(225,48,108,0.1)', borderRadius: 6, color: '#e1306c' }}>
             ⚠️ Bu webhook manzili <b>bitta Meta App uchun umumiy</b> — barcha tenantlar shu bitta URL orqali ishlaydi.
@@ -4275,7 +4277,23 @@ function InstagramTab() {
           </div>
           <div>
             <label style={lbl}>Verify Token</label>
-            <input style={inp} value={cfg.verifyToken} onChange={e => setCfg({ ...cfg, verifyToken: e.target.value })} placeholder="omoncrm_verify" />
+            {/*
+              TUZATILDI: bu maydon ilgari tahrirlanadigan (editable) edi va
+              saqlanganda `verifyToken`ni backendga yuborardi. Lekin webhook
+              endi GLOBAL (bitta URL, barcha tenantlar uchun umumiy) bo'lgani
+              sabab, GET /instagram/webhook tekshiruvi FAQAT server env'idagi
+              INSTAGRAM_VERIFY_TOKEN'ga qaraydi (instagram.module.ts →
+              verifyWebhook) — bu yerdagi qiymat HECH QANDAY ta'sir qilmasdi.
+              Admin bu yerga o'zicha boshqa token yozib, Meta Dashboard'ga ham
+              o'shani kiritsa — handshake har doim "verify token noto'g'ri"
+              xatosi bilan RAD ETILARDI. Endi maydon faqat o'qish uchun va
+              haqiqiy manbani (env) aniq ko'rsatadi.
+            */}
+            <input style={{ ...inp, opacity: 0.7 }} value={cfg.verifyToken || 'omoncrm_verify'} readOnly disabled />
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+              Bu qiymat serverdagi <code>INSTAGRAM_VERIFY_TOKEN</code> env sozlamasidan olinadi va shu yerdan
+              o'zgartirilmaydi. Meta Dashboard'ga <b>aynan shu qiymatni</b> kiriting.
+            </div>
           </div>
           <div>
             <label style={lbl}>Bot nomi</label>
