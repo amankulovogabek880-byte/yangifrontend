@@ -730,6 +730,9 @@ export const instagramApi = {
   getConfig: () => api.get('/instagram/config'),
   saveConfig: (data: any) => api.post('/instagram/config', data),
   getStats: () => api.get('/instagram/stats'),
+  // "Instagram orqali ulash" tugmasi — Facebook Page shart emas, to'g'ridan-to'g'ri
+  // instagram.com orqali OAuth (login/parol faqat Instagram sahifasida kiritiladi).
+  getOAuthStartUrl: () => api.get('/instagram/oauth/start-url'),
 };
 
 // ─── Facebook Lead Ads ──────────────────────────────────────────────────────

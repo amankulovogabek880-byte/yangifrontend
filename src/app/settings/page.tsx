@@ -3788,12 +3788,14 @@ function InstagramTab() {
     botName: 'Travel Bot', greetingMessage: '', assignToAgentId: '',
     hasAccessToken: false, maskedAccessToken: '',
     aiEnabled: false, operatorPhone: '', knowledgeBase: '',
+    authMode: 'facebook', username: '',
   });
   const [stats, setStats] = useState<any>(null);
   const [agents, setAgents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [connectingIg, setConnectingIg] = useState(false);
 
   async function loadAll() {
     try {
@@ -3813,6 +3815,8 @@ function InstagramTab() {
         hasAccessToken: !!d.hasAccessToken,
         maskedAccessToken: d.maskedAccessToken || '',
         pageId: d.pageId || '',
+        authMode: d.authMode || 'facebook',
+        username: d.username || '',
         verifyToken: d.verifyToken || 'omoncrm_verify',
         botName: d.botName || 'Travel Bot',
         greetingMessage: d.greetingMessage || '',
@@ -3862,6 +3866,33 @@ function InstagramTab() {
     }
   }
 
+  /**
+   * TO'G'RIDAN-TO'G'RI INSTAGRAM ULANISH (Instagram Login for Business).
+   *
+   * Facebook Page UMUMAN kerak emas. Admin bu tugmani bosganda
+   * instagram.com'ning O'ZIGA yo'naltiriladi — login/parolni aynan shu
+   * (Instagram'ning rasmiy) sahifasida kiritadi, biz uni hech qachon
+   * ko'rmaymiz va saqlamaymiz (standart, xavfsiz OAuth2 oqimi — "Google
+   * orqali kirish" bilan bir xil tamoyil). Bitta akkaunt = bitta tugma,
+   * "qaysi Page?" deb tanlash bosqichi ham yo'q — eng qisqa yo'l shu.
+   */
+  async function connectWithInstagram() {
+    setConnectingIg(true);
+    try {
+      const { instagramApi } = await import('@/services/api');
+      const res: any = await instagramApi.getOAuthStartUrl();
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      } else {
+        toast.error("Instagram Login URL olinmadi");
+        setConnectingIg(false);
+      }
+    } catch (e: any) {
+      toast.error(errMsg(e));
+      setConnectingIg(false);
+    }
+  }
+
   useEffect(() => {
     loadAll();
   }, []);
@@ -3876,11 +3907,34 @@ function InstagramTab() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const fb = params.get('fb');
-    if (!fb) return;
+    const igLogin = params.get('igLogin'); // to'g'ridan-to'g'ri Instagram Login oqimi natijasi
+    if (!fb && !igLogin) return;
     const fbMsg = params.get('fbMsg') || '';
     const detail = fbMsg ? ` — ${fbMsg}` : '';
-    const ig = params.get('ig'); // '1' | '0' | null — Instagram aynan ulandimi
+    const ig = params.get('ig'); // '1' | '0' | null — Facebook oqimida Instagram aynan ulandimi
     const igMsg = params.get('igMsg') || '';
+
+    // ── To'g'ridan-to'g'ri Instagram Login natijasi ──
+    if (igLogin) {
+      const igLoginUser = params.get('igLoginUser') || '';
+      const igLoginMsg = params.get('igLoginMsg') || '';
+      if (igLogin === 'success') {
+        toast.success(
+          `✅ Instagram ulandi${igLoginUser ? ` (@${igLoginUser})` : ''}! DM'lar endi Chat bo'limiga tushadi.`,
+        );
+        loadAll();
+      } else if (igLogin === 'denied') {
+        toast.error('Ulanish bekor qilindi');
+      } else if (igLogin === 'already_connected') {
+        toast.error(igLoginMsg || "Bu Instagram akkaunt allaqachon boshqa hisobga ulangan", { duration: 10000 });
+      } else if (igLogin === 'token_exchange_failed') {
+        toast.error("Token olishda xatolik. Birozdan so'ng qaytadan urinib ko'ring.", { duration: 10000 });
+      } else {
+        toast.error("Instagram bilan ulanishda xatolik yuz berdi. Qaytadan urinib ko'ring.");
+      }
+      router.replace('/settings?tab=instagram');
+      return;
+    }
 
     if (fb === 'success' || fb === 'connected_no_admin_access' || fb === 'connected_subscribe_failed') {
       if (ig === '0') {
@@ -3984,53 +4038,105 @@ function InstagramTab() {
       </Card>
 
 
-      {/* ── TEZKOR ULANISH (v12.9) ── */}
-      <Card>
+      {/* ── TEZKOR ULANISH — PREMIUM (v15) ──────────────────────────────
+          Ikki usul mavjud:
+          1) "Instagram orqali ulash" — TAVSIYA ETILADI. Facebook Page
+             shart emas, to'g'ridan-to'g'ri Instagram Login (login/parol
+             faqat instagram.com'ning o'zida kiritiladi).
+          2) "Facebook orqali ulash" — muqobil usul, Facebook Leads bilan
+             birga ishlatmoqchi bo'lganlar uchun (Page orqali). */}
+      <Card style={{ overflow: 'hidden' }}>
         <h3 style={{ marginTop: 0, fontSize: 15 }}>⚡ Tezkor ulanish</h3>
 
         {cfg.hasAccessToken ? (
           <div style={{
-            padding: '12px 14px', background: 'rgba(16,185,129,0.1)',
-            border: '1px solid #10b981', borderRadius: 10, fontSize: 13,
+            padding: '14px 16px', background: 'rgba(16,185,129,0.1)',
+            border: '1px solid #10b981', borderRadius: 12, fontSize: 13,
             color: 'var(--fg-2)', lineHeight: 1.7,
           }}>
-            ✅ <b>Instagram ulangan.</b> Page ID: <code>{cfg.pageId || '—'}</code>
-            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 4 }}>
-              DM'lar Chat bo'limiga tushadi. Ulanishni yangilash uchun
-              quyidagi tugmani qayta bosing.
+            ✅ <b>Instagram ulangan{cfg.username ? <> — <b>@{cfg.username}</b></> : null}.</b>
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+              Usul: {cfg.authMode === 'instagram_login'
+                ? "Instagram orqali to'g'ridan-to'g'ri"
+                : 'Facebook Page orqali'} · Page/Akkaunt ID: <code>{cfg.pageId || '—'}</code>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 6 }}>
+              DM'lar Chat bo'limiga tushadi. Ulanishni yangilash yoki boshqa
+              akkauntga o'tish uchun pastdagi tugmalardan birini qayta bosing.
             </div>
           </div>
         ) : (
           <div style={{
-            padding: '12px 14px', background: 'var(--bg-3)',
-            borderRadius: 10, fontSize: 13, color: 'var(--fg-2)', lineHeight: 1.7,
+            padding: '14px 16px', background: 'var(--bg-3)',
+            borderRadius: 12, fontSize: 13, color: 'var(--fg-2)', lineHeight: 1.7,
           }}>
-            Instagram Business akkauntingiz Facebook Page'ga bog'langan bo'lsa,
-            <b> quyidagi bitta tugma</b> bilan ulanadi — token va ID'ni qo'lda
-            kiritish shart emas.
+            Instagram akkauntingizni <b>bitta tugma</b> bilan ulang — token va
+            ID'ni qo'lda kiritish shart emas. <b>Facebook Page kerak emas</b> —
+            login/parolni bevosita Instagram'ning o'z sahifasida kiritasiz.
           </div>
         )}
 
+        {/* ── 1) INSTAGRAM ORQALI TO'G'RIDAN-TO'G'RI (tavsiya etiladi) ── */}
         <button
-          onClick={connectWithFacebook}
-          disabled={connecting}
+          onClick={connectWithInstagram}
+          disabled={connectingIg || connecting}
           style={{
-            marginTop: 12, width: '100%', padding: '12px 16px',
-            borderRadius: 10, border: 'none',
-            background: connecting ? 'var(--bg-4)' : '#1877f2',
-            color: 'white', fontSize: 14, fontWeight: 700,
-            cursor: connecting ? 'default' : 'pointer',
+            marginTop: 14, width: '100%', padding: '15px 18px',
+            borderRadius: 14, border: 'none',
+            background: connectingIg
+              ? 'var(--bg-4)'
+              : 'linear-gradient(135deg, #405de6 0%, #5851db 15%, #833ab4 35%, #c13584 55%, #e1306c 70%, #fd1d1d 85%, #f77737 100%)',
+            color: 'white', fontSize: 15, fontWeight: 800,
+            cursor: connectingIg ? 'default' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            boxShadow: connectingIg ? 'none' : '0 6px 18px rgba(225,48,108,0.35)',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
           }}
+          onMouseEnter={e => { if (!connectingIg) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
         >
-          {connecting
-            ? "Yo'naltirilmoqda..."
-            : (cfg.hasAccessToken ? '🔄 Ulanishni yangilash' : '📘 Facebook orqali ulash')}
+          <FaInstagram size={18} />
+          {connectingIg
+            ? "Instagram'ga yo'naltirilmoqda..."
+            : (cfg.hasAccessToken && cfg.authMode === 'instagram_login'
+                ? "🔄 Instagram ulanishini yangilash"
+                : 'Instagram orqali ulash')}
         </button>
+        <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 8, lineHeight: 1.7, textAlign: 'center' }}>
+          ✨ <b>Eng oson yo'l:</b> Facebook akkaunt shart emas. Instagram
+          <b> Business</b> yoki <b>Creator</b> turida bo'lishi kifoya.
+        </div>
 
-        <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 10, lineHeight: 1.7 }}>
-          <b>Shartlar:</b> Instagram akkaunt <b>Business</b> yoki <b>Creator</b> turida
-          bo'lishi va Facebook Page'ga bog'langan bo'lishi kerak.
-          Bitta ulanish Facebook Leads va Instagram DM — ikkalasini ham yoqadi.
+        {/* ── 2) Muqobil: Facebook Page orqali ── */}
+        <div style={{
+          marginTop: 18, paddingTop: 16,
+          borderTop: '1px solid var(--border)',
+        }}>
+          <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 10 }}>
+            Yoki Facebook <b>Lead Ads</b> bilan birga ulamoqchi bo'lsangiz
+            (Page orqali):
+          </div>
+          <button
+            onClick={connectWithFacebook}
+            disabled={connecting || connectingIg}
+            style={{
+              width: '100%', padding: '11px 16px',
+              borderRadius: 10, border: '1px solid var(--border)',
+              background: connecting ? 'var(--bg-4)' : 'transparent',
+              color: 'var(--fg-2)', fontSize: 13, fontWeight: 600,
+              cursor: connecting ? 'default' : 'pointer',
+            }}
+          >
+            {connecting
+              ? "Yo'naltirilmoqda..."
+              : (cfg.hasAccessToken && cfg.authMode === 'facebook'
+                  ? '🔄 Ulanishni yangilash'
+                  : '📘 Facebook orqali ulash')}
+          </button>
+          <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 8, lineHeight: 1.7 }}>
+            <b>Shartlar:</b> Instagram akkaunt <b>Business</b> yoki <b>Creator</b>{' '}
+            turida bo'lishi va Facebook Page'ga bog'langan bo'lishi kerak.
+          </div>
         </div>
       </Card>
 
