@@ -14,6 +14,16 @@ import toast from 'react-hot-toast';
 export const SENTIMENT_EMOJI: Record<string, string> = { positive: '😊', neutral: '😐', negative: '😟' };
 export const SENTIMENT_LABEL: Record<string, string> = { positive: 'Ijobiy', neutral: 'Neytral', negative: 'Salbiy' };
 
+// v46: qo'ng'iroq turi — agent haqiqatda gaplashmagan (IVR/avtomatik javob,
+// javobsiz) yoki mavzudan tashqari qo'ng'iroqlarni belgilaydi, shunda past
+// ball ko'rilganda bu "yomon agent" emas "agent umuman gaplashmagan"
+// ekani darhol tushunarli bo'ladi.
+export const CALL_TYPE_LABEL: Record<string, string> = {
+  ivr_or_voicemail: "🤖 Avtomatik javob (IVR) — agent gaplashmadi",
+  no_answer_or_hangup: "📵 Javobsiz / uzilgan qo'ng'iroq",
+  short_offtopic: "💬 Mavzudan tashqari qisqa suhbat",
+};
+
 export function fmtCallDuration(sec: number) {
   if (!sec) return '—';
   const m = Math.floor(sec / 60);
@@ -177,6 +187,15 @@ export function AiAnalysisModal({ call, onClose, onUpdated }: { call: any; onClo
                     <div style={{ fontSize: 18, fontWeight: 700, color: feedback.saleProbability >= 60 ? '#10b981' : feedback.saleProbability >= 30 ? '#f59e0b' : '#ef4444' }}>{feedback.saleProbability}%</div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {feedback?.callType && CALL_TYPE_LABEL[feedback.callType] && (
+              <div style={{
+                fontSize: 12, fontWeight: 600, padding: '6px 10px', borderRadius: 8,
+                background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b',
+              }}>
+                {CALL_TYPE_LABEL[feedback.callType]}
               </div>
             )}
 

@@ -142,16 +142,17 @@ const NAV = [
   { href: '/clients',   labelKey: 'nav.clients',   label: 'Mijozlar',     Icon: Icons.Clients,   roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/tasks',     labelKey: 'nav.tasks',     label: 'Vazifalar',    Icon: Icons.Tasks,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/bookings',  labelKey: 'nav.bookings',  label: 'Bookinglar',   Icon: Icons.Bookings,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
-  // v12.1: Turlar bozori — har bir kompaniya O'Z operatorlarini qo'shadi.
-  // Turlarni hamma ko'radi va shu yerdan to'g'ridan-to'g'ri booking qiladi.
-  { href: '/marketplace',          labelKey: 'nav.marketplace',   label: 'Turlar bozori', Icon: Icons.Marketplace, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  // v46: "Turlar bozori" asosiy menyudan olib tashlandi (kelajakda alohida
+  // qayta qo'shiladi — backend/marketplace moduli o'zgarishsiz qoladi,
+  // shunchaki menyuda ko'rinmaydi). O'rniga "Qo'ng'iroqlar" sahifasi
+  // (avval faqat to'g'ridan-to'g'ri URL orqali ochilardi) asosiy menyuga
+  // chiqarildi.
+  { href: '/calls',                labelKey: 'nav.calls',         label: "Qo'ng'iroqlar", Icon: Icons.Calls, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   // v19: AI Marketing — TurMaker-uslubidagi reklama generatori.
   // Tur ma'lumotlaridan avtomatik banner + Instagram/Telegram/Facebook posti yasaydi.
   { href: '/ai-marketing',         labelKey: 'nav.aiMarketing',   label: 'Tur yaratish', Icon: Icons.AiMarketing, roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   // v18: "Yo'qotilgan leadlar" alohida menyu bandi emas — endi Mijozlar
   // sahifasidagi "Yo'qotilgan mijozlar" tugmasi orqali modal sifatida ochiladi.
-  // Qo'ng'iroqlar asosiy menyudan olib tashlandi — Dashboard ichida alohida bo'lim bor.
-  // (kerak bo'lsa /calls sahifasi hali ham to'g'ridan-to'g'ri URL orqali ochiladi)
   // v29: "Tur qidirish" OLIB TASHLANDI — "Turlar bozori" bilan bir xil vazifani
   // bajarardi (ikkalasi ham tur/operator qidirish), ikkitasi chalkashtirardi.
   // "Sozlamalar" ham asosiy menyudan OLIB TASHLANDI — u allaqachon yuqorida,
