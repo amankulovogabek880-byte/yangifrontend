@@ -3787,6 +3787,7 @@ function InstagramTab() {
     accessToken: '', pageId: '', verifyToken: 'omoncrm_verify',
     botName: 'Travel Bot', greetingMessage: '', assignToAgentId: '',
     hasAccessToken: false, maskedAccessToken: '',
+    aiEnabled: false, operatorPhone: '', knowledgeBase: '',
   });
   const [stats, setStats] = useState<any>(null);
   const [agents, setAgents] = useState<any[]>([]);
@@ -3818,6 +3819,9 @@ function InstagramTab() {
         farewell: d.farewell || '',
         botSteps: d.botSteps || null,
         assignToAgentId: d.assignToAgentId || '',
+        aiEnabled: !!d.aiEnabled,
+        operatorPhone: d.operatorPhone || '',
+        knowledgeBase: d.knowledgeBase || '',
       });
       setStats(statsR.data);
       const list = Array.isArray(usersR.data) ? usersR.data : (usersR.data?.data || []);
@@ -4030,9 +4034,68 @@ function InstagramTab() {
         </div>
       </Card>
 
+      {/* ── AI bilan javob berish ── */}
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <h3 style={{ margin: 0, fontSize: 15 }}>🤖 AI bilan javob berish</h3>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={!!cfg.aiEnabled}
+              onChange={e => setCfg({ ...cfg, aiEnabled: e.target.checked })}
+              style={{ width: 18, height: 18, cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: 13, fontWeight: 700, color: cfg.aiEnabled ? '#10b981' : 'var(--fg-3)' }}>
+              {cfg.aiEnabled ? 'Yoqilgan' : "O'chirilgan"}
+            </span>
+          </label>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 14, lineHeight: 1.7 }}>
+          Yoqilsa, pastdagi qattiq savol-javob skripti (Ism → Yo'nalish → Telefon → Sana) ISHLAMAYDI.
+          Buning o'rniga <b>AI mijoz bilan erkin suhbatlashadi</b> — savollarga (narx, yo'nalish, shartlar va h.k.)
+          quyidagi <b>Bilim bazasi</b>dagi ma'lumotlar asosida javob beradi. Agar aniq javob bera olmasa yoki
+          mijoz "operator"/"menejer" deb yozsa — suhbatni jonli operatorga topshiradi va (kiritilgan bo'lsa)
+          <b> operator raqamini</b> mijozga yuboradi.
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <label style={lbl}>Operator (menejer) telefon raqami</label>
+          <input
+            style={inp}
+            value={cfg.operatorPhone}
+            onChange={e => setCfg({ ...cfg, operatorPhone: e.target.value })}
+            placeholder="+998901234567"
+          />
+          <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+            AI javob bera olmasa, shu raqam mijozga "menejerimiz raqami" sifatida yuboriladi.
+          </div>
+        </div>
+
+        <div>
+          <label style={lbl}>Bilim bazasi (firma, turlar, narxlar, shartlar)</label>
+          <textarea
+            style={{ ...inp, minHeight: 160, resize: 'vertical', fontFamily: 'inherit' }}
+            value={cfg.knowledgeBase}
+            onChange={e => setCfg({ ...cfg, knowledgeBase: e.target.value })}
+            placeholder={
+              "Masalan:\n" +
+              "- Biz Tashkentdagi \"Tourvida Flights\" sayohat agentligimiz.\n" +
+              "- Antalya (Turkiya) 7 kecha, 4* mehmonxona, all inclusive — $450/kishi (aviabilet kiradi).\n" +
+              "- Dubay 5 kecha, 4* mehmonxona — $520/kishi (viza va aviabilet kiradi).\n" +
+              "- To'lov: 30% oldindan, qolgani jo'nashdan 3 kun oldin.\n" +
+              "- Ish vaqti: har kuni 9:00-19:00."
+            }
+          />
+          <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
+            AI FAQAT shu yerdagi ma'lumotlardan foydalanadi — narx yoki shartlarni o'zidan to'qib chiqarmaydi.
+            Qanchalik to'liq va aniq yozsangiz, AI shunchalik yaxshi javob beradi.
+          </div>
+        </div>
+      </Card>
+
       {/* Config form */}
       <Card>
-        <h3 style={{ marginTop: 0, fontSize: 15 }}>⚙️ Instagram Bot sozlamalari</h3>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>⚙️ Instagram Bot sozlamalari {cfg.aiEnabled && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--fg-3)' }}>(AI rejimida quyidagi savollar ishlatilmaydi)</span>}</h3>
         <div style={{
           fontSize: 12, color: 'var(--fg-3)', marginBottom: 14, lineHeight: 1.7,
         }}>
