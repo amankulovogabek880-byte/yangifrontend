@@ -5,7 +5,7 @@ import CrmLayout from '@/components/layout/CrmLayout';
 import { tenantsApi, usersApi, api, callsApi } from '@/services/api';
 import TourOperatorsSettings from '@/components/settings/TourOperatorsSettings';
 import JarvisBotSettings from '@/components/settings/JarvisBotSettings';
-import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal } from '@/components/ui';
+import { Card, Btn, Input, Label, Select, Textarea, Badge, Skeleton, Avatar, Modal, Checkbox } from '@/components/ui';
 import { useAuth } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
 import { useI18n } from '@/lib/i18n';
@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import { errMsg } from '@/lib/helpers';
 import {
   Settings, PhoneCall, FileText, Key, List, User, Users,
-  Target, Bot, ClipboardList, DollarSign, Lock, Building2, Sparkles,
+  Target, Bot, ClipboardList, DollarSign, Lock, Building2, Sparkles, Bell,
 } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane, FaInstagram, FaFacebookF } from 'react-icons/fa';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -37,6 +37,7 @@ const TAB_DEFS = [
   { id: 'autoreply',   key: 'settings.tab.autoreply', adminOnly: true },
   { id: 'forms',       key: 'settings.tab.forms', adminOnly: true },
   { id: 'kpi',         key: 'settings.tab.kpi', adminOnly: true },
+  { id: 'reminders',   key: 'settings.tab.reminders', adminOnly: true },
   { id: 'security',    key: 'settings.tab.security' },
 ];
 const TAB_ICONS: Record<string, JSX.Element> = {
@@ -57,6 +58,7 @@ const TAB_ICONS: Record<string, JSX.Element> = {
   autoreply: <Bot size={ICON} />,
   forms: <ClipboardList size={ICON} />,
   kpi: <DollarSign size={ICON} />,
+  reminders: <Bell size={ICON} />,
   security: <Lock size={ICON} />,
 };
 
@@ -150,6 +152,7 @@ export default function SettingsPage() {
         {tab === 'autoreply' && isAdmin && <AutoReplyTab />}
         {tab === 'forms' && isAdmin && <FormsTab />}
         {tab === 'kpi' && isAdmin && <KPITab />}
+        {tab === 'reminders' && isAdmin && <ReminderTab />}
         {tab === 'templates' && isAdmin && <TemplatesTab />}
         {tab === 'api' && isAdmin && <ApiKeysTab />}
         {tab === 'webhooklogs' && isAdmin && <WebhookLogsTab />}
@@ -2312,6 +2315,135 @@ const TEMPLATE_CATEGORIES = [
   { value: 'FAREWELL',    label: '👋 Xayrlashish' },
   { value: 'OTHER',       label: '📝 Boshqa' },
 ];
+
+// ─── Uchish oldidan avtomatik eslatma (Booking → Telegram) ──────────────────
+// Ilgari "uchishga 2 kun qoldi" xabari kod ichida qattiq yozilgan (hard-code)
+// edi. Endi admin shu yerdan: (1) yoqish/o'chirish, (2) necha kun oldin
+// yuborilishini, (3) xabar matnini o'zi sozlaydi. Backend cron (har soatda)
+// har bir tenant uchun shu sozlamani o'qib, muddati kelgan bookinglarga
+// avtomatik, bir marta xabar yuboradi — inson aralashuvisiz.
+const REMINDER_DEFAULT_MESSAGE =
+  "Assalomu alaykum, {ism}! 🌍\n\n" +
+  "{manzil} yo'nalishidagi safaringizga atigi {kun} kun qoldi — {sana} kuni uchasiz. ✈️\n\n" +
+  "✅ Pasport/hujjatlaringizni tekshirib qo'ying\n" +
+  "✅ Chipta va mehmonxona bronlari tayyor\n" +
+  "✅ Yo'l uchun buyumlaringizni yig'ishni boshlang\n\n" +
+  "Hammasi tayyormi? Savol yoki yordam kerak bo'lsa, shu yerga yozavering — doim yordamga tayyormiz!";
+
+function ReminderTab() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [fullSettings, setFullSettings] = useState<any>({});
+  const [enabled, setEnabled] = useState(true);
+  const [daysBefore, setDaysBefore] = useState<number>(2);
+  const [message, setMessage] = useState(REMINDER_DEFAULT_MESSAGE);
+
+  useEffect(() => {
+    tenantsApi.getSettings()
+      .then((r: any) => {
+        const s = r.data?.settings || {};
+        setFullSettings(s);
+        const cfg = s.departureReminder || {};
+        setEnabled(cfg.enabled !== false);
+        const d = Number(cfg.daysBefore);
+        setDaysBefore(Number.isFinite(d) && d >= 0 ? d : 2);
+        setMessage(cfg.message || REMINDER_DEFAULT_MESSAGE);
+      })
+      .catch((e: any) => toast.error(errMsg(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    if (!Number.isFinite(daysBefore) || daysBefore < 0 || daysBefore > 60) {
+      toast.error("Kunlar soni 0 dan 60 gacha bo'lishi kerak");
+      return;
+    }
+    if (!message.trim()) {
+      toast.error("Xabar matni bo'sh bo'lmasin");
+      return;
+    }
+    setSaving(true);
+    try {
+      const nextSettings = {
+        ...fullSettings,
+        departureReminder: { enabled, daysBefore: Number(daysBefore), message },
+      };
+      await tenantsApi.updateSettings({ settings: nextSettings });
+      setFullSettings(nextSettings);
+      toast.success('Saqlandi');
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <Skeleton height={280} />;
+
+  return (
+    <Card>
+      <h3 style={{ marginTop: 0, fontSize: 15 }}>🔔 Uchishdan oldin avtomatik eslatma</h3>
+      <p style={{ fontSize: 12, color: 'var(--fg-3)', margin: '0 0 16px' }}>
+        Booking tasdiqlangach (CONFIRMED / IN_PROGRESS), mijozga uchish
+        sanasidan quyida belgilangan necha kun oldin Telegram orqali avtomatik
+        xabar boradi — hech kim qo'lda yubormaydi. Tizim har soatda barcha
+        bookinglarni tekshirib, muddati kelgan mijozlarga bir marta xabar
+        yuboradi.
+      </p>
+
+      <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Checkbox checked={enabled} onChange={setEnabled} />
+        <span style={{ fontSize: 13 }}>Avtomatik eslatma yoqilgan</span>
+      </div>
+
+      <div style={{ marginBottom: 16, maxWidth: 240 }}>
+        <Label>Necha kun oldin yuborilsin</Label>
+        <Input
+          type="number"
+          min={0}
+          max={60}
+          value={daysBefore}
+          onChange={(e) => setDaysBefore(Number(e.target.value))}
+          disabled={!enabled}
+        />
+      </div>
+
+      <div style={{ marginBottom: 8 }}>
+        <Label>Xabar matni</Label>
+        <Textarea
+          rows={9}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          disabled={!enabled}
+          style={{ fontFamily: 'inherit', lineHeight: 1.5 }}
+        />
+      </div>
+
+      <div style={{
+        fontSize: 12, color: 'var(--fg-3)', background: 'var(--bg-3)',
+        borderRadius: 8, padding: '10px 12px', marginBottom: 16, lineHeight: 1.7,
+      }}>
+        <b>Eslatma:</b> xabar matni <b>avtomatik</b> to'ldiriladi — quyidagi
+        belgilarni matn ichida istalgan joyga yozib qo'ysangiz bo'ldi, tizim
+        ularni yuborilayotgan HAR BIR mijozning o'z ma'lumoti bilan
+        almashtiradi:
+        <br />
+        <code>{'{ism}'}</code> — mijozning ismi,{' '}
+        <code>{'{manzil}'}</code> — yo'nalish,{' '}
+        <code>{'{sana}'}</code> — uchish sanasi,{' '}
+        <code>{'{tur}'}</code> — tur nomi,{' '}
+        <code>{'{kun}'}</code> — necha kun qolgani.
+        <br />
+        Masalan matn ichida <code>{'"Salom, {ism}!"'}</code> deb yozsangiz,
+        tizim buni har bir mijoz uchun avtomatik, masalan{' '}
+        <code>"Salom, Aziz!"</code> qilib yuboradi — ismni har bir mijoz
+        uchun alohida qo'lda yozish shart emas.
+      </div>
+
+      <Btn variant="primary" onClick={save} loading={saving}>Saqlash</Btn>
+    </Card>
+  );
+}
 
 function TemplatesTab() {
   const [templates, setTemplates] = useState<any[]>([]);

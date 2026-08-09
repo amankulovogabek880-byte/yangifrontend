@@ -632,6 +632,7 @@ const TRANSLATIONS: Record<string, Record<Lang, string>> = {
   'settings.tab.autoreply': { uz: 'Auto-Reply', ru: 'Автоответ' , en: 'Auto-Reply' },
   'settings.tab.forms': { uz: 'Web Forms', ru: 'Веб-формы' , en: 'Web Forms' },
   'settings.tab.kpi': { uz: 'Commission Tiers', ru: 'Уровни комиссии' , en: 'Commission Tiers' },
+  'settings.tab.reminders': { uz: 'Uchish eslatmasi', ru: 'Напоминание о вылете' , en: 'Departure reminder' },
   'settings.tab.security': { uz: 'Xavfsizlik', ru: 'Безопасность' , en: 'Security' },
   'settings.general.title': { uz: 'Umumiy sozlamalar', ru: 'Общие настройки' , en: 'General settings' },
   'settings.general.theme': { uz: 'Tema', ru: 'Тема' , en: 'Theme' },
