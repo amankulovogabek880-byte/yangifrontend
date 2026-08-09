@@ -420,12 +420,6 @@ export const callsApi = {
   objectionsStats: (days = 30, agentId?: string) => api.get('/calls/objections-stats', { params: { days, agentId } }),
 };
 
-// v19: "Bugungi ustuvorlik" — AI kunlik brifing (kuniga 1 marta generatsiya, DB'da keshlanadi)
-export const briefingApi = {
-  today: () => api.get('/briefing/today'),
-  refresh: () => api.post('/briefing/refresh'),
-};
-
 // v40: AI Yordamchi ("Jarvis") — erkin suhbat, CRM ma'lumotini tool-use orqali o'zi so'rab oladi (1-bosqich: read-only)
 export const aiAssistantApi = {
   chat: (data: { conversationId?: string; message: string }) => api.post('/ai-assistant/chat', data),
