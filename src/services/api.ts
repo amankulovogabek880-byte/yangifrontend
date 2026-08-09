@@ -733,6 +733,8 @@ export const instagramApi = {
   // "Instagram orqali ulash" tugmasi — Facebook Page shart emas, to'g'ridan-to'g'ri
   // instagram.com orqali OAuth (login/parol faqat Instagram sahifasida kiritiladi).
   getOAuthStartUrl: () => api.get('/instagram/oauth/start-url'),
+  // "Instagram uzish" tugmasi — ulangan akkauntni to'liq uzadi
+  disconnect: () => api.delete('/instagram/config'),
 };
 
 // ─── Facebook Lead Ads ──────────────────────────────────────────────────────

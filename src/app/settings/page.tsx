@@ -3796,6 +3796,7 @@ function InstagramTab() {
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectingIg, setConnectingIg] = useState(false);
+  const [disconnectingIg, setDisconnectingIg] = useState(false);
 
   async function loadAll() {
     try {
@@ -3890,6 +3891,30 @@ function InstagramTab() {
     } catch (e: any) {
       toast.error(errMsg(e));
       setConnectingIg(false);
+    }
+  }
+
+  /**
+   * "Instagram uzish" — ulangan akkauntni to'liq uzadi (token, Page ID va
+   * username tozalanadi). Uzilgandan keyin xohlagan Instagram akkaunt
+   * bilan (shu jumladan boshqa akkaunt bilan) qaytadan ulanish mumkin.
+   */
+  async function disconnectInstagram() {
+    if (!window.confirm(
+      "Instagram akkauntini uzmoqchimisiz? DM yozishmalar tarixi saqlanib qoladi, " +
+      "lekin yangi xabarlar kelmay qoladi va akkaunt Chat bo'limidan uzilib qoladi."
+    )) return;
+
+    setDisconnectingIg(true);
+    try {
+      const { instagramApi } = await import('@/services/api');
+      await instagramApi.disconnect();
+      toast.success('Instagram akkaunti uzildi');
+      await loadAll();
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setDisconnectingIg(false);
     }
   }
 
@@ -4064,6 +4089,20 @@ function InstagramTab() {
               DM'lar Chat bo'limiga tushadi. Ulanishni yangilash yoki boshqa
               akkauntga o'tish uchun pastdagi tugmalardan birini qayta bosing.
             </div>
+            <button
+              onClick={disconnectInstagram}
+              disabled={disconnectingIg}
+              style={{
+                marginTop: 12, padding: '8px 14px',
+                borderRadius: 8, border: '1px solid #ef4444',
+                background: 'transparent', color: '#ef4444',
+                fontSize: 12, fontWeight: 700,
+                cursor: disconnectingIg ? 'default' : 'pointer',
+                opacity: disconnectingIg ? 0.6 : 1,
+              }}
+            >
+              {disconnectingIg ? 'Uzilmoqda...' : '🔌 Instagram uzish'}
+            </button>
           </div>
         ) : (
           <div style={{
