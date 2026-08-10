@@ -303,6 +303,16 @@ export const followUpsApi = {
   delete: (id: string) => api.delete(`/followups/${id}`),
 };
 
+// ── MEETINGS / KALENDAR ─────────────────────────────────────
+export const meetingsApi = {
+  list: (params?: any) => api.get('/meetings', { params }),
+  calendar: (params?: any) => api.get('/meetings/calendar', { params }),
+  create: (data: any) => api.post('/meetings', data),
+  update: (id: string, data: any) => api.put(`/meetings/${id}`, data),
+  setStatus: (id: string, status: string) => api.patch(`/meetings/${id}/status`, { status }),
+  delete: (id: string) => api.delete(`/meetings/${id}`),
+};
+
 // ── DOCUMENTS ────────────────────────────────────────────────
 export const documentsApi = {
   list: (params?: any) => api.get('/documents', { params }),

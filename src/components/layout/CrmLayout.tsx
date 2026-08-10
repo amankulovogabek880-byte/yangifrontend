@@ -65,6 +65,12 @@ const Icons = {
       <line x1="15" y1="2" x2="15" y2="6"/><line x1="17" y1="4" x2="13" y2="4"/>
     </svg>
   ),
+  Calendar: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  ),
   Marketplace: () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z"/><path d="M8 13h8"/>
@@ -141,6 +147,9 @@ const NAV = [
   { href: '/pipeline',  labelKey: 'nav.pipeline',  label: 'Voronka',     Icon: Icons.Pipeline,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/clients',   labelKey: 'nav.clients',   label: 'Mijozlar',     Icon: Icons.Clients,   roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/tasks',     labelKey: 'nav.tasks',     label: 'Vazifalar',    Icon: Icons.Tasks,     roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
+  // v47: Kalendar — uchrashuv/qo'ng'iroq/tashrifni sanaga belgilash,
+  // AMO/Bitrix uslubidagi oy ko'rinishi, agent+mijoz bilan bog'liq eslatmalar.
+  { href: '/calendar',  labelKey: 'nav.calendar',  label: 'Kalendar',     Icon: Icons.Calendar,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   { href: '/bookings',  labelKey: 'nav.bookings',  label: 'Bookinglar',   Icon: Icons.Bookings,  roles: ['TENANT_ADMIN','MANAGER','AGENT'] },
   // v46: "Turlar bozori" asosiy menyudan olib tashlandi (kelajakda alohida
   // qayta qo'shiladi — backend/marketplace moduli o'zgarishsiz qoladi,
