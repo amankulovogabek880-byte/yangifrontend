@@ -531,16 +531,24 @@ tbody td { padding: 10px 13px; vertical-align: middle; }
    QAYERIDA inline qo'llanilmagan, shuning uchun fon rangidan qat'i
    nazar (shaffof ikonka tugmasimi, rangli tugmami) HAR DOIM sezilarli
    yorqinlik/rang o'zgarishini beradi va hech qanday mavjud inline
-   uslubni bekor qilmaydi. */
+   uslubni bekor qilmaydi.
+   TUZATILDI: ilgari `brightness(1.18)` — ya'ni tugma sichqoncha
+   ustida YORISHIB (ochiqlashib) ketardi. Bu och/oq fon ustidagi
+   tugmalarda deyarli sezilmasdi (masalan "Uzish", "+ Ulash" kabi
+   tugmalar rasmda ko'rsatilganidek och fonda turadi). Endi aksincha
+   — tugma sichqoncha ustida biroz QORAYADI (`brightness < 1`), bu
+   deyarli har qanday rangdagi tugmada (och ham, to'q ham) yaqqol
+   sezilib turadi va odatiy tugma-hover xulqiga (bosilganda to'qroq
+   bo'lishi) mos keladi. */
 button:not(:disabled) {
   transition: filter .14s ease, box-shadow .14s ease;
 }
 button:not(:disabled):hover {
-  filter: brightness(1.18) saturate(1.1);
-  box-shadow: 0 0 0 1px rgba(127,127,127,0.16);
+  filter: brightness(0.88) saturate(1.05);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.14);
 }
 button:not(:disabled):active {
-  filter: brightness(0.92);
+  filter: brightness(0.78);
 }
 
 /* ── AVATAR ── */
