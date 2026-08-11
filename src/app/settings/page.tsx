@@ -1735,6 +1735,13 @@ function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
   const [showCompany, setShowCompany] = useState(false);
   const [showPersonal, setShowPersonal] = useState(false);
 
+  // v: admin "Umumiy" yoki "Har bir agent alohida" rejimini tanlaydi —
+  // tenant.settings.telegramMode ichida saqlanadi (yangi ustun/migratsiya
+  // shart emas). Standart — 'SHARED' (avvalgi xatti-harakat).
+  const [telegramMode, setTelegramMode] = useState<'SHARED' | 'PER_AGENT'>('SHARED');
+  const [fullSettings, setFullSettings] = useState<any>({});
+  const [modeLoading, setModeLoading] = useState(true);
+
   const load = () => {
     setLoading(true);
     import('@/services/api').then(({ telegramApi }) =>
@@ -1745,7 +1752,21 @@ function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
     );
   };
 
-  useEffect(() => { load(); }, []);
+  const loadMode = () => {
+    setModeLoading(true);
+    import('@/services/api').then(({ tenantsApi }) =>
+      tenantsApi.getSettings()
+        .then((r: any) => {
+          const s = r.data?.settings || {};
+          setFullSettings(s);
+          setTelegramMode(s.telegramMode === 'PER_AGENT' ? 'PER_AGENT' : 'SHARED');
+        })
+        .catch(() => {})
+        .finally(() => setModeLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); loadMode(); }, []);
 
   async function disconnectBot(id: string, name: string) {
     if (!confirm(`"${name}" botni uzib qo'yishni xohlaysizmi?`)) return;
@@ -1790,6 +1811,28 @@ function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
           boshlashni tanlaydi — faqat 2+ ta account ulangan bo'lsa ko'rinadi. */}
       <PreferredAccountCard />
 
+      {/* v: admin — "Umumiy" yoki "Har bir agent alohida" Telegram
+          rejimini tanlaydi. Faqat bu kartaning o'zi rejimni belgilaydi;
+          boshqa hech qanday logika o'zgarmaydi. */}
+      {isAdmin && !modeLoading && (
+        <TelegramModeCard
+          mode={telegramMode}
+          fullSettings={fullSettings}
+          onSaved={(nextMode, nextSettings) => {
+            setTelegramMode(nextMode);
+            setFullSettings(nextSettings);
+          }}
+        />
+      )}
+
+      {/* v: PER_AGENT rejimida — har bir foydalanuvchi (admin ham, agent
+          ham) shu yerdan O'ZI UCHUN shaxsiy Telegram accountini
+          ulaydi/uzadi (xuddi admin ilgari ishlatgan bir xil mexanizm —
+          telefon raqami orqali, MTProto). */}
+      {telegramMode === 'PER_AGENT' && !modeLoading && (
+        <MyTelegramBotCard onChanged={load} />
+      )}
+
       {/* KOMPANIYA BOTI (Admin) */}
       {isAdmin && (
         <Card style={{ marginBottom: 14 }}>
@@ -1825,8 +1868,11 @@ function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
       {/* v14: KOMPANIYA (umumiy) TELEGRAM ACCOUNTI — faqat ADMIN ulaydi.
           Agentlar endi o'z shaxsiy raqamini QO'SHMAYDI. Admin bitta umumiy
           account ulaydi, klientlar shu orqali yozadi va yangi lead'lar
-          round-robin bilan agentlarga taqsimlanadi. */}
-      {isAdmin && (
+          round-robin bilan agentlarga taqsimlanadi.
+          v: bu karta FAQAT "Umumiy" (SHARED) rejimida ko'rinadi — PER_AGENT
+          tanlansa, har bir agent buning o'rniga yuqoridagi shaxsiy
+          "Mening Telegram botim" kartasidan foydalanadi. */}
+      {isAdmin && telegramMode === 'SHARED' && (
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div>
@@ -1874,6 +1920,192 @@ function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
         />
       )}
     </>
+  );
+}
+
+// ─── v: Admin — "Umumiy" yoki "Har bir agent alohida" Telegram rejimini
+// tanlaydi. tenant.settings.telegramMode ichida saqlanadi — boshqa
+// sozlamalarga (masalan departureReminder) tegmaslik uchun `fullSettings`
+// bilan birga saqlanadi (spread orqali merge qilinadi).
+function TelegramModeCard({
+  mode,
+  fullSettings,
+  onSaved,
+}: {
+  mode: 'SHARED' | 'PER_AGENT';
+  fullSettings: any;
+  onSaved: (nextMode: 'SHARED' | 'PER_AGENT', nextSettings: any) => void;
+}) {
+  const [saving, setSaving] = useState<'SHARED' | 'PER_AGENT' | null>(null);
+
+  async function choose(next: 'SHARED' | 'PER_AGENT') {
+    if (next === mode) return;
+    setSaving(next);
+    try {
+      const { tenantsApi } = await import('@/services/api');
+      const nextSettings = { ...fullSettings, telegramMode: next };
+      await tenantsApi.updateSettings({ settings: nextSettings });
+      onSaved(next, nextSettings);
+      toast.success('Saqlandi');
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  const options: { id: 'SHARED' | 'PER_AGENT'; title: string; desc: string; icon: string }[] = [
+    {
+      id: 'SHARED',
+      title: 'Umumiy',
+      desc: "Bitta (yoki bir nechta) telegram — admin ulaydi, hamma agent shundan foydalanadi.",
+      icon: '🏢',
+    },
+    {
+      id: 'PER_AGENT',
+      title: 'Har bir agent alohida',
+      desc: "Har bir agent Sozlamalar → Telegram bo'limidan o'zining shaxsiy botini o'zi ulaydi.",
+      icon: '👤',
+    },
+  ];
+
+  return (
+    <Card style={{ marginBottom: 14 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>⚙️ Telegram rejimi</h3>
+      <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: '0 0 12px' }}>
+        Agentlarning Telegram bilan qanday ishlashini tanlang.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {options.map((opt) => {
+          const isChosen = opt.id === mode;
+          return (
+            <button
+              key={opt.id}
+              onClick={() => choose(opt.id)}
+              disabled={saving !== null}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '10px 12px', borderRadius: 10, textAlign: 'left',
+                border: isChosen ? '1.5px solid #3d7eff' : '1px solid var(--border)',
+                background: isChosen ? 'rgba(61,126,255,0.08)' : 'var(--bg-3)',
+                cursor: saving !== null ? 'default' : 'pointer',
+              }}
+            >
+              <span style={{
+                width: 18, height: 18, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+                border: isChosen ? '5px solid #3d7eff' : '1.5px solid var(--fg-4)',
+                background: 'var(--bg)',
+              }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{opt.icon} {opt.title}</div>
+                <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{opt.desc}</div>
+              </span>
+              {saving === opt.id && <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Saqlanmoqda...</span>}
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// ─── v: Har bir foydalanuvchi (admin ham, agent ham) — "Har bir agent
+// alohida" rejimida O'ZI UCHUN shaxsiy Telegram accountini (mavjud MTProto/
+// telefon raqami orqali ulanadigan `PersonalAccountModal` oqimi — xuddi
+// admin ilgari ishlatgan bir xil mexanizm) ulaydi/uzadi. Backend
+// (`user-telegram.module.ts`) allaqachon har doim FAQAT so'rovchining
+// o'z yozuvi bilan ishlaydi (`u.id || u.sub`) — shu sabab bu yerda
+// qo'shimcha rol tekshiruvi shart emas, faqat UI ko'rinishini ochamiz.
+function MyTelegramBotCard({ onChanged }: { onChanged: () => void }) {
+  const [account, setAccount] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showConnect, setShowConnect] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ userTelegramApi }) =>
+      userTelegramApi.getMyAccount()
+        .then((r: any) => setAccount(r.data || null))
+        .catch(() => setAccount(null))
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  async function disconnectMine() {
+    if (!confirm("Shaxsiy Telegram accountingizni uzib qo'yishni xohlaysizmi?")) return;
+    setDisconnecting(true);
+    try {
+      const { userTelegramApi } = await import('@/services/api');
+      await userTelegramApi.disconnect();
+      toast.success("Account uzib qo'yildi");
+      load();
+      onChanged();
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  return (
+    <Card style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 14 }}>👤 Mening Telegram accountim</h3>
+          <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: '4px 0 0' }}>
+            Bu faqat SIZGA tegishli — sizga biriktirilgan klientlar shaxsiy raqamingiz orqali yoziladi.
+          </p>
+        </div>
+        {!loading && !account && <Btn variant="primary" onClick={() => setShowConnect(true)}>+ Ulash</Btn>}
+      </div>
+
+      {loading ? (
+        <Skeleton height={70} />
+      ) : account ? (
+        <div style={{
+          padding: 14, background: 'var(--bg-3)', borderRadius: 10,
+          display: 'flex', alignItems: 'center', gap: 12,
+          border: '1px solid var(--border)',
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 10,
+            background: 'linear-gradient(135deg, #0088cc, #229ED9)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+          }}>📱</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>{account.name || account.phoneNumber || 'Telegram'}</span>
+              <Badge color={account.isOnline ? 'var(--success)' : 'var(--fg-4)'}>
+                {account.isOnline ? '● Ulangan' : '○ Oflayn'}
+              </Badge>
+            </div>
+            {account.phoneNumber && (
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>{account.phoneNumber}</div>
+            )}
+          </div>
+          <Btn variant="danger" onClick={disconnectMine} loading={disconnecting}>Uzish</Btn>
+        </div>
+      ) : (
+        <div style={{
+          padding: 30, textAlign: 'center',
+          background: 'var(--bg-3)', borderRadius: 10,
+          color: 'var(--fg-3)',
+        }}>
+          <div style={{ fontSize: 32, opacity: 0.4 }}>👤</div>
+          <div style={{ fontSize: 13, marginTop: 8 }}>Shaxsiy accountingiz hali ulanmagan</div>
+        </div>
+      )}
+
+      {showConnect && (
+        <PersonalAccountModal
+          onClose={() => setShowConnect(false)}
+          onConnected={() => { setShowConnect(false); load(); onChanged(); }}
+        />
+      )}
+    </Card>
   );
 }
 

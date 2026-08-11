@@ -618,6 +618,8 @@ export const stagesApi = {
 export const telegramV8 = {
   connectPersonal: (token: string, name?: string) =>
     api.post('/telegram/accounts/personal', { token, name }),
+  // v: agent PER_AGENT rejimida o'zining shaxsiy botini o'zi uzadi
+  disconnectMine: () => api.delete('/telegram/accounts/personal/mine'),
   startNewConversation: (data: {
     chatId?: string;
     username?: string;
