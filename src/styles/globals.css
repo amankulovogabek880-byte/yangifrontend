@@ -516,6 +516,33 @@ tbody td { padding: 10px 13px; vertical-align: middle; }
 .btn-success   { background: var(--success); color: #fff; }
 .btn-success:not(:disabled):hover { box-shadow: 0 4px 12px rgba(34,197,94,0.28); }
 
+/* ── v42: UNIVERSAL TUGMA HOVER ──────────────────────────────
+   Loyihada juda ko'p tugma (ayniqsa ikonkali — tahrirlash/o'chirish/
+   qo'ng'iroq va h.k.) yuqoridagi <Btn> komponenti/`.btn` klassisiz,
+   to'g'ridan-to'g'ri sahifa ichida inline `style={{...}}` bilan
+   yozilgan — shu sababli ularda sichqoncha ustiga kelganda HECH
+   QANDAY rang o'zgarishi bo'lmasdi (faqat `.btn-*` klasslar avvaldan
+   o'z hover holatiga ega edi, yuqorida).
+   Inline style har doim CSS qoidalaridan USTUN turadi — masalan
+   `style={{ background: 'none' }}` yozilgan tugmada
+   `:hover { background-color: ... }` qoidasi ishlamaydi, chunki
+   inline `background` uni bekor qiladi. Shu sababli eng ishonchli
+   universal yechim — `filter` xossasi: bu xossa loyihaning HECH
+   QAYERIDA inline qo'llanilmagan, shuning uchun fon rangidan qat'i
+   nazar (shaffof ikonka tugmasimi, rangli tugmami) HAR DOIM sezilarli
+   yorqinlik/rang o'zgarishini beradi va hech qanday mavjud inline
+   uslubni bekor qilmaydi. */
+button:not(:disabled) {
+  transition: filter .14s ease, box-shadow .14s ease;
+}
+button:not(:disabled):hover {
+  filter: brightness(1.18) saturate(1.1);
+  box-shadow: 0 0 0 1px rgba(127,127,127,0.16);
+}
+button:not(:disabled):active {
+  filter: brightness(0.92);
+}
+
 /* ── AVATAR ── */
 .avatar {
   border-radius: var(--r-full);
