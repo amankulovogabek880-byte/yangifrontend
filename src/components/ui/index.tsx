@@ -164,8 +164,46 @@ export function Modal({ open, onClose, title, maxWidth = 520, children, footer }
 // v10.2 — YANGI KOMPONENTLAR (StatCard, EmptyState, ikonkalar)
 // Real iconlar: lucide-react + react-icons (emoji YO'Q)
 // ═════════════════════════════════════════════════════════════
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, Phone as PhoneIc, Globe, Users as UsersIc, ClipboardList } from 'lucide-react';
+
+// ── SPARKLINE (v10.3 — TEZLIK TUZATISH) ──────────────────────
+// Ilgari StatCard'dagi kichik "sparkline" grafigi uchun butun `recharts`
+// kutubxonasi (+ uning ichidagi d3-shape/d3-scale/d3-array'lar) import
+// qilinardi. Bu fayl (`components/ui`) deyarli HAMMA sahifada
+// ishlatiladi (Btn, Input va h.k. uchun) — demak har bir sahifa,
+// hattoki grafik umuman ko'rsatmaydiganlari ham, shu og'ir kutubxonani
+// yuklab olishga majbur bo'lardi. Natijada HAR BIR sahifa ochilishi
+// sekinlashardi.
+// Yechim: shu joyda faqat action shu kichik sparkline uchun engil,
+// tashqi kutubxonasiz SVG chizib beruvchi komponent — vizual natija
+// bir xil (gradient bilan to'ldirilgan chiziq), lekin ~0 qo'shimcha
+// bayt bilan.
+function Sparkline({ data, color, id }: { data: { i: number; v: number }[]; color: string; id: string }) {
+  const W = 100, H = 40;
+  const vals = data.map((d) => d.v);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const stepX = data.length > 1 ? W / (data.length - 1) : W;
+  const points = data.map((d, idx) => [
+    idx * stepX,
+    H - ((d.v - min) / range) * H,
+  ]);
+  const linePath = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' ');
+  const areaPath = `${linePath} L${W},${H} L0,${H} Z`;
+  return (
+    <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${id})`} stroke="none" />
+      <path d={linePath} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 import { FaInstagram, FaTelegramPlane, FaWhatsapp, FaFacebookF, FaGoogle, FaWalking } from 'react-icons/fa';
 
 // ── SOURCE / CHANNEL ICONLARI (real brend iconlar) ──────────
@@ -241,17 +279,7 @@ export function StatCard({ label, value, color = 'var(--fg)', sub, icon, series,
       {sub && <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>{sub}</div>}
       {chartData.length >= 2 && (
         <div style={{ position: 'absolute', right: 0, bottom: 0, left: 0, height: emphasis ? 42 : 32, opacity: 0.5, pointerEvents: 'none' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#${gid})`} isAnimationActive={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <Sparkline data={chartData} color={color} id={gid} />
         </div>
       )}
     </div>
