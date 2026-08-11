@@ -115,9 +115,19 @@ export default function Client360Page() {
 
   const load = () => {
     setLoading(true);
-    v8Api.getClient360(id)
-      .then((r) => {
+    // TEZLIK TUZATISH: `offers` so'rovi `client360` bilan HECH QANDAY
+    // bog'liqligi yo'q (ikkalasi ham faqat `id`ga muhtoj), lekin ilgari
+    // birinchisi tugashini KUTIB, keyin ikkinchisi yuborilardi — bu
+    // sahifa ochilishiga bitta qo'shimcha to'liq tarmoq aylanishi
+    // (round-trip) qo'shardi. Endi ikkalasi PARALLEL yuboriladi, natija
+    // sahifa taxminan bitta so'rov vaqtida ochiladi.
+    Promise.all([
+      v8Api.getClient360(id),
+      api.get('/offers/client/' + id).catch(() => null),
+    ])
+      .then(([r, or]) => {
         setData(r.data);
+        if (or) setOffers(Array.isArray(or.data) ? or.data : []);
         // Faol suhbat bo'lsa — xabarlarni ham darhol tortib kelamiz (Faoliyat
         // oqimida ko'rsatish uchun; endi alohida "Chat" tabga o'tish shart emas)
         const conv = r.data?.activeConversation;
@@ -132,12 +142,6 @@ export default function Client360Page() {
         } else {
           setChatMsgs([]);
         }
-      })
-      .then(() => {
-        // Load offers separately (persist across reloads)
-        api.get('/offers/client/' + id)
-          .then((or: any) => setOffers(Array.isArray(or.data) ? or.data : []))
-          .catch(() => {});
       })
       .catch((e) => toast.error(errMsg(e)))
       .finally(() => setLoading(false));
