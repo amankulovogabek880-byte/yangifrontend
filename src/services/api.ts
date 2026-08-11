@@ -219,6 +219,9 @@ export const clientsApi = {
   // v29: "Nima xohlaydi" — qat'iy 2 ta maydon (yo'nalish + byudjet)
   setKeyInfo: (id: string, data: { destination?: string; companions?: string; peopleCount?: string; kids?: string; dates?: string; duration?: string; budget?: string; budgetCurrency?: string }) => api.patch(`/clients/${id}/key-info`, data),
   setTier: (id: string, tier: string) => api.patch(`/clients/${id}/tier`, { tier }),
+  // v37: mijozni (leadni) biror agentga tayinlash/qayta tayinlash (faqat admin/manager).
+  // agentId=null yuborilsa — agentdan bo'shatiladi.
+  assignAgent: (id: string, agentId: string | null) => api.patch(`/clients/${id}/assign`, { agentId }),
   // v5: Open Chat va Call
   getConversation: (id: string) => api.get(`/clients/${id}/conversation`),
   call: (id: string) => api.post(`/clients/${id}/call`),

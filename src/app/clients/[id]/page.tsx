@@ -357,7 +357,11 @@ export default function Client360Page() {
                 <div style={{ padding: '4px 12px 12px' }}>
                   {/* ── Umumiy ma'lumot ── */}
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {c.assignedAgent && <Info label="Mas'ul agent" value={c.assignedAgent.name} />}
+                    {isAdmin ? (
+                      <AgentAssignRow clientId={c.id} agent={c.assignedAgent} onChanged={load} />
+                    ) : (
+                      c.assignedAgent && <Info label="Mas'ul agent" value={c.assignedAgent.name} />
+                    )}
                     {c.firstContactAt && <Info label="Birinchi murojaat" value={fmtDate(c.firstContactAt)} />}
                     <Info label="Manba" value={c.source ? c.source + (c.tier ? ' · ' + c.tier : '') : ''} />
                     <Info label="Email" value={c.email} />
@@ -1058,6 +1062,109 @@ function StagePill({ clientId, stage, onChanged }: any) {
                 fontWeight: s.key === localKey ? 700 : 500,
               }}>{s.name}</button>
             ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── v37: Mas'ul agent — admin/manager mijozni to'g'ridan-to'g'ri shu
+// bo'limdan (mijoz kartasidan) biror agentga tayinlashi yoki qayta
+// tayinlashi mumkin. AGENT rolidagi xodimlarga bu tugma umuman
+// ko'rsatilmaydi (o'rniga oddiy o'qish uchun Info qatori chiqadi) —
+// tayinlash faqat backend darajasida ham ADMIN/MANAGER uchun ruxsat etilgan.
+function AgentAssignRow({ clientId, agent, onChanged }: { clientId: string; agent: any; onChanged?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [localAgent, setLocalAgent] = useState<any>(agent || null);
+
+  useEffect(() => { setLocalAgent(agent || null); }, [agent]);
+
+  function openMenu() {
+    setOpen((v) => !v);
+    if (!open && agents.length === 0) {
+      setLoadingAgents(true);
+      import('@/services/api').then(({ usersApi }) =>
+        usersApi.list()
+          .then((r: any) => {
+            const list = Array.isArray(r.data) ? r.data : r.data?.data || [];
+            setAgents(list.filter((u: any) => ['AGENT', 'MANAGER', 'TENANT_ADMIN'].includes(u.role)));
+          })
+          .catch(() => {})
+          .finally(() => setLoadingAgents(false))
+      );
+    }
+  }
+
+  async function change(newAgent: any) {
+    const newAgentId: string | null = newAgent?.id || null;
+    setOpen(false);
+    if (newAgentId === (localAgent?.id || null)) return;
+    const prev = localAgent;
+    setLocalAgent(newAgent);   // optimistik — darhol ko'rinadi
+    setSaving(true);
+    try {
+      const { clientsApi } = await import('@/services/api');
+      await clientsApi.assignAgent(clientId, newAgentId);
+      toast.success(newAgent ? `${newAgent.name}ga tayinlandi` : "Agentdan bo'shatildi");
+      onChanged?.();
+    } catch (e: any) {
+      setLocalAgent(prev);     // xato bo'lsa qaytaramiz
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ padding: '9px 0', borderBottom: '1px solid var(--border)', position: 'relative' }}>
+      <div style={{ fontSize: 11, color: 'var(--fg-4)', marginBottom: 3 }}>Mas'ul agent</div>
+      <button
+        onClick={openMenu}
+        disabled={saving}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 600,
+          background: 'none', border: 'none', padding: 0, cursor: saving ? 'default' : 'pointer',
+          color: localAgent ? 'var(--fg)' : 'var(--fg-4)',
+        }}
+      >
+        {saving ? '...' : (localAgent?.name || 'Tayinlanmagan')}
+        <FaChevronDown size={9} style={{ opacity: 0.6 }} />
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
+          <div style={{ position: 'absolute', left: 0, top: 44, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.2)', zIndex: 11, minWidth: 200, maxHeight: 260, overflowY: 'auto' }}>
+            {loadingAgents && <div style={{ padding: '9px 12px', fontSize: 12, color: 'var(--fg-4)' }}>Yuklanmoqda...</div>}
+            {!loadingAgents && (
+              <>
+                <button
+                  onClick={() => change(null)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12,
+                    border: 'none', cursor: 'pointer', background: !localAgent ? 'var(--bg-3)' : 'none', color: 'var(--fg-3)',
+                  }}
+                >— Tayinlanmagan —</button>
+                {agents.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => change(a)}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 12,
+                      border: 'none', cursor: 'pointer',
+                      background: a.id === localAgent?.id ? 'var(--bg-3)' : 'none',
+                      color: 'var(--fg)', fontWeight: a.id === localAgent?.id ? 700 : 500,
+                    }}
+                  >
+                    {a.name}{a.role !== 'AGENT' ? ` (${a.role === 'TENANT_ADMIN' ? 'admin' : 'menejer'})` : ''}
+                  </button>
+                ))}
+                {agents.length === 0 && <div style={{ padding: '9px 12px', fontSize: 12, color: 'var(--fg-4)' }}>Agent topilmadi</div>}
+              </>
+            )}
           </div>
         </>
       )}
