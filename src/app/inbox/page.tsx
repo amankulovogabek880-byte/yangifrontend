@@ -286,8 +286,34 @@ function InboxPageInner() {
       // If active conversation - append message to chat
       if (msg.conversationId === active?.id) {
         setMessages((m: any[]) => {
-          // Don't duplicate if already exists
-          if (m.some((x: any) => x.externalMsgId && x.externalMsgId === msg.externalMsgId)) return m;
+          // v41 IKKALANMA XABAR TUZATISH: agent o'zi yozgan xabar avval
+          // "optimistic" (tmp_...) sifatida darhol chatga qo'shiladi, so'ng
+          // server javobi bilan HAQIQIY yozuvga almashtiriladi (sendText()
+          // ga qarang). Lekin backend BIR XIL xabarni real-time orqali ham
+          // ('message:new') yuboradi — bu ikki yo'l orasida poyga (race)
+          // yuzaga kelishi mumkin edi: agar socket hodisasi server javobidan
+          // OLDIN kelib qolsa, eski tekshiruv (faqat externalMsgId bo'yicha)
+          // buni ko'rmasdi va xabar CHATDA IKKI MARTA (tmp_ + real) chiqib
+          // qolardi. Endi uch bosqichli himoya bor:
+          //   1) real `id` bo'yicha — agar xabar allaqachon (masalan avval
+          //      qo'lda qo'shilgan) mavjud bo'lsa, hech narsa qilinmaydi;
+          //   2) `externalMsgId` bo'yicha — Telegramga yetib borgan xabar
+          //      ikki marta yozilmasin;
+          //   3) hali "tmp_..." holatidagi optimistic joy-bosuvchi topilsa
+          //      (bir xil matn/yo'nalish) — u YANGI qatorda qo'shilmasdin,
+          //      HAQIQIY xabar bilan ALMASHTIRILADI.
+          if (m.some((x: any) => x.id === msg.id)) return m;
+          if (msg.externalMsgId && m.some((x: any) => x.externalMsgId && x.externalMsgId === msg.externalMsgId)) return m;
+          const tmpIdx = m.findIndex((x: any) =>
+            String(x.id).startsWith('tmp_') &&
+            x.direction === msg.direction &&
+            x.text === msg.text,
+          );
+          if (tmpIdx !== -1) {
+            const copy = [...m];
+            copy[tmpIdx] = msg;
+            return copy;
+          }
           return [...m, msg];
         });
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
@@ -392,11 +418,25 @@ function InboxPageInner() {
           ));
         }
       } else {
-        await telegramApi.sendMessage(active.id, text);
-        // 3. Mark delivered
-        setMessages((prev: any[]) => prev.map((m: any) =>
-          m.id === tmpMsg.id ? { ...m, isDelivered: true } : m
-        ));
+        // v41 IKKALANMA XABAR TUZATISH: avval bu yerda server javobi
+        // umuman ishlatilmasdi — faqat "tmp_..." optimistic xabarga
+        // `isDelivered: true` belgisi qo'yilardi va u ABADIY "tmp_" id
+        // bilan qolib ketardi. Keyin backend real-time orqali xuddi shu
+        // xabarni ('message:new') qaytadan yuborganda, eski dedup faqat
+        // externalMsgId bo'yicha tekshirardi — tmp_ xabarda u yo'q edi,
+        // shuning uchun ikkinchi (haqiqiy) nusxa ustiga qo'shilib,
+        // "har bir yuborilgan xabar ikki marta ko'rinishi" muammosini
+        // keltirib chiqarardi. Endi shaxsiy (MTProto) yo'ldagi kabi —
+        // serverdan qaytgan HAQIQIY xabar bilan tmp_ almashtiriladi.
+        const r: any = await telegramApi.sendMessage(active.id, text);
+        const real = r?.data;
+        if (real && typeof real === 'object' && real.id) {
+          setMessages((prev: any[]) => prev.map((m: any) => m.id === tmpMsg.id ? real : m));
+        } else {
+          setMessages((prev: any[]) => prev.map((m: any) =>
+            m.id === tmpMsg.id ? { ...m, isDelivered: true } : m
+          ));
+        }
       }
     } catch (e: any) {
       // 4. Xato - olib tashla, draft'ga qaytarish
