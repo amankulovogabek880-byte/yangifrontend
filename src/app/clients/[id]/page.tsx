@@ -216,7 +216,39 @@ export default function Client360Page() {
                             await clientsApi.delete(c.id);
                             toast.success("✅ Klient o'chirildi");
                             router.push('/clients');
-                          } catch (e: any) { toast.error(errMsg(e)); }
+                          } catch (e: any) {
+                            // v40: bookingi bor klient bo'lsa backend aniq xabar bilan
+                            // bloklaydi — admin bu yerda ikkita variantdan birini tanlaydi:
+                            // - mijozni bronlari bilan birga TO'LIQ o'chirish, yoki
+                            // - faqat bronlarni bekor qilib mijozni qayta lidlar
+                            //   hovuziga (musurga) qaytarish.
+                            const msg = errMsg(e);
+                            if (msg && msg.toLowerCase().includes('booking')) {
+                              const wantsForce = window.confirm(
+                                `${msg}\n\nUshbu mijozni BARCHA bronlari, to'lovlari va komissiyalari bilan birga TO'LIQ o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi.\n\nOK — to'liq o'chirish\nBekor qilish — boshqa variant tanlash`
+                              );
+                              if (wantsForce) {
+                                try {
+                                  await clientsApi.delete(c.id, true);
+                                  toast.success("✅ Klient bronlari bilan birga to'liq o'chirildi");
+                                  router.push('/clients');
+                                } catch (e2: any) { toast.error(errMsg(e2)); }
+                                return;
+                              }
+                              const wantsRelease = window.confirm(
+                                `Bron(lar)ni bekor qilib, "${c.fullName}"ni qayta Yangi lidlar hovuziga qaytarasizmi? (Bronlar/to'lovlar o'chadi, klientning o'zi o'chmaydi)`
+                              );
+                              if (wantsRelease) {
+                                try {
+                                  await clientsApi.releaseToPool(c.id);
+                                  toast.success('✅ Bron bekor qilindi, mijoz qayta lidlar hovuziga qaytarildi');
+                                  load();
+                                } catch (e3: any) { toast.error(errMsg(e3)); }
+                              }
+                              return;
+                            }
+                            toast.error(msg);
+                          }
                         }}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '9px 12px', fontSize: 13, border: 'none', background: 'none', color: 'var(--danger)', cursor: 'pointer' }}
                       ><FaTrash size={12} /> Klientni o'chirish</button>

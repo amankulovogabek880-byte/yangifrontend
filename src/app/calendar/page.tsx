@@ -144,13 +144,27 @@ export default function CalendarPage() {
 
   const dayList = selectedDay ? (byDate[dkey(selectedDay)] || []).sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()) : [];
 
+  // v40: kalendarda "kim bilan kim, qachon" hammasi BITTA joydan ko'rinishi
+  // uchun — har bir kunni alohida bosib ochish shart bo'lmasin — joriy oy
+  // uchun BARCHA uchrashuvlarni vaqt bo'yicha tartiblangan yagona ro'yxatga
+  // yig'amiz (agent + mijoz + sana + soat bitta qatorda ko'rinadi).
+  const monthAgenda = useMemo(() => {
+    return meetings
+      .filter((m: any) => new Date(m.startAt).getMonth() === cursor.getMonth() && new Date(m.startAt).getFullYear() === cursor.getFullYear())
+      .slice()
+      .sort((a: any, b: any) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+  }, [meetings, cursor]);
+
   return (
     <CrmLayout>
-      <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 1100 }}>
+      <div style={{ padding: isMobile ? '14px 12px' : 24, maxWidth: 1400 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0 }}>📅 {t('cal.title')}</h1>
           <Btn onClick={() => openNewForm(new Date())} size={isMobile ? 'sm' : 'md'}>{t('cal.newMeeting')}</Btn>
         </div>
+
+        <div style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: 'minmax(0,1fr) 300px', gap: 20, alignItems: 'start' }}>
+        <div style={{ minWidth: 0 }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -206,20 +220,63 @@ export default function CalendarPage() {
                   display: 'flex', flexDirection: 'column', gap: 3, overflow: 'hidden',
                 }}>
                 <div style={{ fontSize: 11, fontWeight: isToday ? 800 : 600, color: isToday ? '#3d7eff' : 'var(--fg)' }}>{d.getDate()}</div>
-                {visible.map((m: any) => (
-                  <div key={m.id} title={m.title} style={{
-                    fontSize: 10, padding: '2px 5px', borderRadius: 5, color: '#fff',
-                    background: TYPE_COLORS[m.type] || '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    textDecoration: m.status === 'CANCELLED' ? 'line-through' : 'none',
-                    opacity: m.status === 'DONE' ? 0.6 : 1,
-                  }}>
-                    {new Date(m.startAt).toLocaleTimeString(localeOf(lang), { hour: '2-digit', minute: '2-digit' })} {m.title}
-                  </div>
-                ))}
+                {visible.map((m: any) => {
+                  // v40: bir qarashda "kim bilan kim" bilinishi uchun — agent
+                  // va mijoz ismini ham tooltip (hover) va matnga qo'shamiz.
+                  const who = [isManager && m.agent?.name, m.client?.fullName].filter(Boolean).join(' → ');
+                  const fullLabel = [m.title, who].filter(Boolean).join(' • ');
+                  return (
+                    <div key={m.id} title={fullLabel} style={{
+                      fontSize: 10, padding: '2px 5px', borderRadius: 5, color: '#fff',
+                      background: TYPE_COLORS[m.type] || '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      textDecoration: m.status === 'CANCELLED' ? 'line-through' : 'none',
+                      opacity: m.status === 'DONE' ? 0.6 : 1,
+                    }}>
+                      {new Date(m.startAt).toLocaleTimeString(localeOf(lang), { hour: '2-digit', minute: '2-digit' })} {who ? who : m.title}
+                    </div>
+                  );
+                })}
                 {extra > 0 && <div style={{ fontSize: 10, color: 'var(--fg-3)' }}>+{extra} {t('cal.more')}</div>}
               </div>
             );
           })}
+        </div>
+        </div>
+
+        {/* v40: OYLIK RO'YXAT — kim bilan kim, qachon uchrashadi, hammasi
+            BITTA joydan (har bir kunni alohida ochmasdan) ko'rinadi. */}
+        <div style={{
+          border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-2)',
+          padding: 12, marginTop: isMobile ? 18 : 0,
+          maxHeight: isMobile ? 360 : 'calc(100vh - 160px)', overflowY: 'auto', position: isMobile ? 'static' : 'sticky', top: 76,
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, textTransform: 'capitalize' }}>
+            📋 {monthLabel} — {t('cal.title')}
+          </div>
+          {monthAgenda.length === 0 && (
+            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--fg-3)', fontSize: 12 }}>{t('cal.empty')}</div>
+          )}
+          {monthAgenda.map((m: any) => (
+            <div key={m.id} onClick={() => { setSelectedDay(new Date(m.startAt)); setShowForm(false); }}
+              style={{
+                padding: '8px 9px', borderRadius: 8, borderLeft: `3px solid ${TYPE_COLORS[m.type] || '#94a3b8'}`,
+                background: 'var(--bg)', marginBottom: 6, cursor: 'pointer',
+              }}>
+              <div style={{ fontSize: 11, color: 'var(--fg-3)', fontWeight: 600 }}>
+                {new Date(m.startAt).toLocaleDateString(localeOf(lang), { day: 'numeric', month: 'short' })}
+                {' · '}
+                {new Date(m.startAt).toLocaleTimeString(localeOf(lang), { hour: '2-digit', minute: '2-digit' })}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2, textDecoration: m.status === 'CANCELLED' ? 'line-through' : 'none', opacity: m.status === 'DONE' ? 0.6 : 1 }}>
+                {m.title}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+                {isManager && m.agent && <span style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>👤 {m.agent.name}</span>}
+                {m.client && <span style={{ fontSize: 10.5, color: '#3d7eff' }}>🧳 {m.client.fullName}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
         </div>
       </div>
 

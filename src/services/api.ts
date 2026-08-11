@@ -212,7 +212,11 @@ export const clientsApi = {
   timeline: (id: string) => api.get(`/clients/${id}/timeline`),
   create: (data: any) => api.post('/clients', data),
   update: (id: string, data: any) => api.put(`/clients/${id}`, data),
-  delete: (id: string) => api.delete(`/clients/${id}`),
+  delete: (id: string, force?: boolean) => api.delete(`/clients/${id}`, { params: force ? { force: 'true' } : undefined }),
+  // v40: bookingi bor mijozni bronlari bilan birga TO'LIQ o'chirish o'rniga,
+  // faqat bronlarini bekor qilib mijozni qayta "Yangi lid" hovuziga qaytarish
+  // (admin/menejer uchun).
+  releaseToPool: (id: string) => api.post(`/clients/${id}/release-to-pool`),
   addNote: (id: string, note: string) => api.post(`/clients/${id}/notes`, { note }),
   // v14: mijozning ixtiyoriy key=value ma'lumotlari
   setCustomFields: (id: string, fields: {key:string;value:string}[]) => api.patch(`/clients/${id}/custom-fields`, { fields }),
