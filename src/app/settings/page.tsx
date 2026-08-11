@@ -1786,6 +1786,10 @@ function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </Card>
 
+      {/* v17: agent qaysi shaxsiy (umumiy) Telegram accountidan YANGI suhbat
+          boshlashni tanlaydi — faqat 2+ ta account ulangan bo'lsa ko'rinadi. */}
+      <PreferredAccountCard />
+
       {/* KOMPANIYA BOTI (Admin) */}
       {isAdmin && (
         <Card style={{ marginBottom: 14 }}>
@@ -1870,6 +1874,92 @@ function TelegramTab({ isAdmin }: { isAdmin: boolean }) {
         />
       )}
     </>
+  );
+}
+
+// ─── v17: Agent — YANGI suhbatlar uchun qaysi shaxsiy accountdan
+// foydalanishni tanlaydi. FAQAT 2+ ta account ulanganda ko'rinadi — 1 ta
+// bo'lsa hech narsa ko'rsatilmaydi (orqaga moslik, tanlov shart emas).
+function PreferredAccountCard() {
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [preferredAccountId, setPreferredAccountId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    import('@/services/api').then(({ userTelegramApi }) =>
+      userTelegramApi.getPreferredAccount()
+        .then((r: any) => {
+          setAccounts(r.data?.accounts || []);
+          setPreferredAccountId(r.data?.preferredAccountId || null);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    );
+  };
+
+  useEffect(() => { load(); }, []);
+
+  async function choose(accountId: string) {
+    setSaving(accountId);
+    try {
+      const { userTelegramApi } = await import('@/services/api');
+      await userTelegramApi.setPreferredAccount(accountId);
+      setPreferredAccountId(accountId);
+      toast.success('Saqlandi — endi yangi suhbatlar shu accountdan boshlanadi');
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  if (loading || accounts.length < 2) return null;
+
+  return (
+    <Card style={{ marginBottom: 14 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>🔀 Yangi suhbatlar uchun account</h3>
+      <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: '0 0 12px' }}>
+        Bir nechta Telegram account ulangan. Siz Inbox'da yangi suhbat boshlaganda
+        qaysi accountdan foydalanilishini tanlang — mavjud suhbatlarga javob doim
+        o'sha suhbat tegishli bo'lgan accountdan ketaveradi, bu yerdagi tanlov faqat
+        YANGI suhbatlarga taalluqli.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {accounts.map((a) => {
+          const isChosen = a.id === preferredAccountId;
+          return (
+            <button
+              key={a.id}
+              onClick={() => choose(a.id)}
+              disabled={saving === a.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 12px', borderRadius: 10, textAlign: 'left',
+                border: isChosen ? '1.5px solid #3d7eff' : '1px solid var(--border)',
+                background: isChosen ? 'rgba(61,126,255,0.08)' : 'var(--bg-3)',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{
+                width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                border: isChosen ? '5px solid #3d7eff' : '1.5px solid var(--fg-4)',
+                background: 'var(--bg)',
+              }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{a.name || a.phoneNumber || 'Telegram'}</div>
+                {a.phoneNumber && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{a.phoneNumber}</div>}
+              </span>
+              <Badge color={a.isOnline ? 'var(--success)' : 'var(--fg-4)'}>
+                {a.isOnline ? '● Ulangan' : '○ Oflayn'}
+              </Badge>
+              {saving === a.id && <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Saqlanmoqda...</span>}
+            </button>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 

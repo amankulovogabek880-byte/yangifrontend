@@ -720,7 +720,11 @@ export const userTelegramApi = {
     api.post('/user-telegram/auth/2fa', { phone, password, apiId, apiHash }),
   // Send message (birinchi xabar - /start shart emas! conversationId berilsa, mavjud
   // suhbatga to'g'ri yoziladi va dublikat suhbat yaratilmaydi — backend shuni afzal ko'radi)
-  sendMessage: (data: { conversationId?: string; phone?: string; username?: string; userId?: string; text: string; clientId?: string }) =>
+  // v17: accountId — 2+ ta shaxsiy account ulangan bo'lsa, YANGI suhbat qaysi
+  // accountdan boshlanishini aniq ko'rsatish uchun (odatda kerak emas — agent
+  // buni bir marta tanlagach, backend User.preferredTelegramAccountId'dan
+  // avtomatik oladi).
+  sendMessage: (data: { conversationId?: string; phone?: string; username?: string; userId?: string; text: string; clientId?: string; accountId?: string }) =>
     api.post('/user-telegram/send', data),
   // v14: rasm / fayl / OVOZLI XABAR yuborish (shaxsiy/kompaniya MTProto account orqali).
   // mediaType: 'photo' | 'voice' | 'document' | 'video'
@@ -733,6 +737,15 @@ export const userTelegramApi = {
   // suhbat ochilganda boshlang'ich holatni olish uchun — keyingi
   // o'zgarishlar 'user:online' socket hodisasi orqali jonli keladi)
   getStatus: (conversationId: string) => api.get(`/user-telegram/status/${conversationId}`),
+
+  // ─── v17: Ko'plikdagi shaxsiy accountlar — tanlov ────────────────────────
+  // Tenant'dagi barcha FAOL shaxsiy Telegram accountlari (id, name, phoneNumber, isOnline)
+  listAccounts: () => api.get('/user-telegram/accounts'),
+  // Inbox ochilganda: { accounts, preferredAccountId, needsSelection }
+  getPreferredAccount: () => api.get('/user-telegram/preferred-account'),
+  // Agent qaysi accountdan foydalanishni tanlaydi — doimiy saqlanadi
+  setPreferredAccount: (accountId: string) =>
+    api.post('/user-telegram/preferred-account', { accountId }),
 };
 
 // ─── Instagram Lead Bot ───────────────────────────────────────────────────────

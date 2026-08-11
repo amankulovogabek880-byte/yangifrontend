@@ -89,6 +89,11 @@ function InboxPageInner() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showNewPersonal, setShowNewPersonal] = useState(false);
   const [hasPersonalAccount, setHasPersonalAccount] = useState(false);
+  // v17: bir nechta shaxsiy Telegram account ulanganda — agent Inbox'ni
+  // birinchi marta ochganda (yoki hali tanlamagan bo'lsa) qaysi accountdan
+  // YANGI suhbat boshlashni tanlashi kerak.
+  const [showAccountSelect, setShowAccountSelect] = useState(false);
+  const [telegramAccounts, setTelegramAccounts] = useState<any[]>([]);
   const [showInvoice, setShowInvoice] = useState(false);
   // v10.2: amoCRM-uslubidagi mijoz kontekst paneli (o'ng tomonda)
   const [showContext, setShowContext] = useState(true);
@@ -128,10 +133,16 @@ function InboxPageInner() {
     }
   });
 
-  // Check if user has personal Telegram account
+  // Check if user has (access to) a personal Telegram account, and whether
+  // an account-selection prompt is needed (v17: 2+ ta account ulanganda).
   useEffect(() => {
-    userTelegramApi.getMyAccount()
-      .then(r => setHasPersonalAccount(!!r.data))
+    userTelegramApi.getPreferredAccount()
+      .then((r: any) => {
+        const accounts = r.data?.accounts || [];
+        setTelegramAccounts(accounts);
+        setHasPersonalAccount(accounts.length > 0);
+        if (r.data?.needsSelection) setShowAccountSelect(true);
+      })
       .catch(() => {});
   }, []);
 
@@ -1076,6 +1087,16 @@ function InboxPageInner() {
           }}
         />
       )}
+      {showAccountSelect && (
+        <AccountSelectModal
+          accounts={telegramAccounts}
+          onClose={() => setShowAccountSelect(false)}
+          onChosen={(accountId: string) => {
+            setShowAccountSelect(false);
+            toast.success('Saqlandi — endi yangi suhbatlar shu accountdan boshlanadi');
+          }}
+        />
+      )}
     </CrmLayout>
   );
 }
@@ -1396,6 +1417,67 @@ function SendInvoiceModal({ conversation, onClose, onSent }: any) {
         </>
       )}
     </Modal>
+  );
+}
+
+// ─── v17: Bir nechta shaxsiy Telegram account ulanganda — agent Inbox'ni
+// birinchi marta ochganda (yoki yangi suhbat boshlaganda) qaysi accountdan
+// foydalanishni tanlaydi. Tanlov DOIMIY saqlanadi (Sozlamalar'dan keyin
+// o'zgartirilishi mumkin).
+function AccountSelectModal({ accounts, onClose, onChosen }: any) {
+  const [saving, setSaving] = useState<string | null>(null);
+
+  async function choose(accountId: string) {
+    setSaving(accountId);
+    try {
+      await userTelegramApi.setPreferredAccount(accountId);
+      onChosen(accountId);
+    } catch (e: any) {
+      toast.error(errMsg(e));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ position: 'relative', background: 'var(--bg)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+        <h2 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700 }}>📱 Qaysi Telegram account?</h2>
+        <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--fg-3)' }}>
+          Kompaniyada bir nechta shaxsiy Telegram account ulangan. Siz yangi suhbat
+          boshlaganda qaysi biridan foydalanishni tanlang — mavjud suhbatlarga javob
+          har doim o'sha suhbat tegishli bo'lgan accountdan ketaveradi.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+          {accounts.map((a: any) => (
+            <button
+              key={a.id}
+              onClick={() => choose(a.id)}
+              disabled={!!saving}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 12px', borderRadius: 10, textAlign: 'left',
+                border: '1px solid var(--border)', background: 'var(--bg-3)',
+                cursor: saving ? 'default' : 'pointer', opacity: saving && saving !== a.id ? 0.5 : 1,
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{a.name || a.phoneNumber || 'Telegram'}</div>
+                {a.phoneNumber && <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{a.phoneNumber}</div>}
+              </span>
+              <span style={{ fontSize: 11, color: a.isOnline ? '#22c55e' : 'var(--fg-4)' }}>
+                {a.isOnline ? '● Ulangan' : '○ Oflayn'}
+              </span>
+              {saving === a.id && <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>...</span>}
+            </button>
+          ))}
+        </div>
+        <button onClick={onClose} style={{
+          width: '100%', padding: '8px', borderRadius: 8, border: '1px solid var(--border)',
+          background: 'transparent', color: 'var(--fg-3)', cursor: 'pointer', fontSize: 12,
+        }}>Keyinroq (Sozlamalar'dan tanlashingiz mumkin)</button>
+      </div>
+    </div>
   );
 }
 
