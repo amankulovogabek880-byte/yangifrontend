@@ -3835,7 +3835,7 @@ function KPITab() {
       <Card style={{ marginBottom: 16 }}>
         <h3 style={{ margin: 0, fontSize: 15, marginBottom: 12 }}>💰 Commission Tiers</h3>
         <p style={{ fontSize: 11, color: 'var(--fg-3)', margin: 0 }}>
-          Agent foizini daromad bo'yicha o'rnating. Misol: 0-2000 = 8%, 2000-4000 = 10%
+          Agent foizini qo'ygan markup (foyda) miqdoriga qarab o'rnating. Misol: 0-2000 markup = 8%, 2000-4000 markup = 10%
         </p>
       </Card>
 
@@ -3845,7 +3845,7 @@ function KPITab() {
           <Card key={i} style={{ padding: 14, background: 'var(--bg-3)' }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 4 }}>Daromad:</div>
+                <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 4 }}>Markup (foyda):</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Input 
                     type="number" 
@@ -3888,14 +3888,14 @@ function KPITab() {
             type="number" 
             value={newTier.minRevenue} 
             onChange={(e) => setNewTier({ ...newTier, minRevenue: parseFloat(e.target.value) || 0 })}
-            placeholder="Min daromad"
+            placeholder="Min markup"
             style={{ flex: 1 }}
           />
           <Input 
             type="number" 
             value={newTier.maxRevenue || ''} 
             onChange={(e) => setNewTier({ ...newTier, maxRevenue: e.target.value ? parseFloat(e.target.value) : null })}
-            placeholder="Max daromad (ixtiyoriy)"
+            placeholder="Max markup (ixtiyoriy)"
             style={{ flex: 1 }}
           />
           <Input 
@@ -3920,8 +3920,8 @@ function KPITab() {
       <Card style={{ marginTop: 16, padding: 12, background: 'var(--bg-2)' }}>
         <div style={{ fontSize: 11, color: 'var(--fg-2)', lineHeight: '1.6' }}>
           <strong>📌 Qanday ishlaydi:</strong><br/>
-          Agent daromadi qancha bo'lsa, shunga mos foiz qo'llaniladi.<br/>
-          Misol: Agar daromad 2500 bo'lsa, 2000-4000 tier'ni qo'llaydi (10%)
+          Agent oy davomida qo'ygan jami markup (foyda = sotuv narxi − provayder narxi) qancha bo'lsa, shunga mos foiz qo'llaniladi va komissiya SHU MARKUPDAN olinadi (umumiy daromaddan emas).<br/>
+          Misol: Agar oylik markup 2500 bo'lsa, 2000-4000 tier'ni qo'llaydi (10%) va agentga 2500 × 10% = 250 to'lanadi.
         </div>
       </Card>
     </>
