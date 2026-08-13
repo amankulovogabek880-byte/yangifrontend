@@ -73,17 +73,22 @@ export function useSocket() {
     window.addEventListener('online', forceReconnectIfNeeded);
     window.addEventListener('focus', forceReconnectIfNeeded);
 
+    // BUG TUZATISH: bu handler'lar ilgari `attach()` ICHIDA e'lon qilinardi
+    // — shu sabab pastdagi cleanup ularga murojaat qila olmasdi va
+    // majburan handler'siz `s.off('connect')` (barchasini o'chiruvchi)
+    // ishlatilardi. Endi tashqi scope'da — shu bilan aynan O'ZIMIZ
+    // qo'shgan handler'nigina cleanup'da nishonlab o'chira olamiz.
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+    const onError = (err: any) => {
+      console.warn('Socket error:', err.message);
+      setConnected(false);
+    };
+
     function attach() {
       const s = socketInstance;
       if (!s || cancelled) return;
       setSocket(s);
-
-      const onConnect = () => setConnected(true);
-      const onDisconnect = () => setConnected(false);
-      const onError = (err: any) => {
-        console.warn('Socket error:', err.message);
-        setConnected(false);
-      };
 
       s.on('connect', onConnect);
       s.on('disconnect', onDisconnect);
@@ -118,11 +123,33 @@ export function useSocket() {
       cancelled = true;
       if (pollTimer) clearInterval(pollTimer);
       cleanupListeners();
+      // XOTIRA SIZISHI / BUG TUZATILDI: ilgari bu yerda `s.off('connect')`,
+      // `s.off('disconnect')`, `s.off('error')` HANDLER'SIZ chaqirilardi.
+      // Socket.IO'da `.off(event)` (ikkinchi argumentsiz) o'sha event uchun
+      // REGISTRATSIYADAN O'TGAN BARCHA listener'larni o'chirib tashlaydi —
+      // faqat shu hook chaqirgan handler'ni emas!
+      //
+      // `socketInstance` BUTUN ILOVA uchun UMUMIY singleton (yuqoriga
+      // qarang), va `useSocket()` ni CrmLayout ichidagi NotificationBell
+      // kabi ko'plab komponentlar chaqiradi. Sizda `CrmLayout` 24 ta
+      // sahifada ALOHIDA-ALOHIDA import qilingan (haqiqiy Next.js umumiy
+      // layout emas) — demak har bir sahifaga o'tishda butunlay
+      // unmount/mount bo'ladi. Har bir unmount'da eski kod boshqa hali
+      // MOUNT bo'lib turgan komponentlarning connect/disconnect/error
+      // listener'larini ham "ko'r-ko'rona" o'chirib yuborardi — bu holat
+      // qayta-qayta yangi listener qo'shish/noto'g'ri o'chirish
+      // tsikliga olib kelib, ulanish holati (`connected`) ko'plab
+      // joylarda sinxronsiz qolishi va socket'ning o'zi tez-tez keraksiz
+      // qayta-ulanishga (`reconnectionAttempts: Infinity` bilan) urinishi
+      // mumkin edi.
+      //
+      // ENDI: faqat O'ZIMIZ qo'shgan aniq handler'lar o'chiriladi —
+      // boshqa komponentlarning listener'lariga tegilmaydi.
       const s = socketInstance;
       if (s) {
-        s.off('connect');
-        s.off('disconnect');
-        s.off('error');
+        s.off('connect', onConnect);
+        s.off('disconnect', onDisconnect);
+        s.off('error', onError);
       }
     };
   }, []);
