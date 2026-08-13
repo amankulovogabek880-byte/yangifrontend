@@ -149,12 +149,58 @@ export default function ClientsPage() {
     else toast.error(`${ok} ta muvaffaqiyatli, ${fail} ta xato`);
   }
 
-  // Tanlanganlarni CSV qilib yuklab olish
-  function exportCsv() {
-    const chosen = rows.filter((c) => selected.has(c.id));
-    const list = chosen.length > 0 ? chosen : rows;
+  // v41 FIX: ilgari bu funksiya faqat `rows` (ekranda ko'rinib turgan
+  // BITTA sahifa — 25 ta) ni eksport qilardi, chunki `load()` har doim
+  // `limit: 25` bilan so'rov yuboradi. Endi: agar hech narsa tanlanmagan
+  // bo'lsa, joriy filtrlar (qidiruv/manba/bosqich) bo'yicha MOS KELGAN
+  // BARCHA mijozlarni sahifalab (100 tadan, backend maksimal limiti)
+  // to'liq yuklab olib, shundan keyin CSV yasaydi. Agar bir nechta mijoz
+  // "Tanlash" rejimida belgilangan bo'lsa — avvalgidek faqat o'shalar
+  // eksport qilinadi.
+  //
+  // Sarlavha ham "FISH" dan "F.I.Sh" ga o'zgartirildi — backend import
+  // funksiyasi "FISH" so'zini "Ism" ustuni deb tanimas edi, shu sabab
+  // shu yerdan eksport qilingan faylni boshqa account'ga qayta import
+  // qilishga urinilganda "Ism ustuni topilmadi" xatosi chiqardi.
+  const [exportBusy, setExportBusy] = useState(false);
+  async function exportCsv() {
+    const chosenSelected = rows.filter((c) => selected.has(c.id));
+    let list: any[];
+
+    if (chosenSelected.length > 0) {
+      list = chosenSelected;
+    } else {
+      setExportBusy(true);
+      try {
+        list = [];
+        let p = 1;
+        const limit = 100; // backend /clients maksimal limiti (paginate maxLimit=100)
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const params: any = { page: p, limit };
+          Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
+          const r: any = await clientsApi.list(params);
+          const pageRows = r.data?.data || [];
+          list = list.concat(pageRows);
+          const total = r.data?.meta?.total ?? list.length;
+          if (list.length >= total || pageRows.length === 0) break;
+          p += 1;
+        }
+      } catch (e) {
+        toast.error(errMsg(e));
+        setExportBusy(false);
+        return;
+      }
+      setExportBusy(false);
+    }
+
+    if (list.length === 0) {
+      toast.error('Eksport qilish uchun mijoz topilmadi');
+      return;
+    }
+
     const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['FISH', 'Telefon', 'Email', 'Bosqich', 'Manba', 'Tier', 'Agent'];
+    const header = ['F.I.Sh', 'Telefon', 'Email', 'Bosqich', 'Manba', 'Tier', 'Agent'];
     const lines = list.map((c) => [
       esc(c.fullName), esc(c.phone), esc(c.email),
       esc(stageLabel(c)),
@@ -188,7 +234,13 @@ export default function ClientsPage() {
               style={isMobile ? { flex: '1 1 auto' } : undefined}>
               {selectMode ? t('clients.selectClose') : t('clients.select')}
             </Btn>
-            {!isMobile && <Btn variant="secondary" icon={<Download size={14} />} onClick={exportCsv}>CSV</Btn>}
+            {!isMobile && (
+              <Btn variant="secondary" disabled={exportBusy}
+                icon={exportBusy ? <Loader2 size={14} className="spin" style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
+                onClick={exportCsv}>
+                {exportBusy ? 'Yuklanmoqda...' : 'CSV'}
+              </Btn>
+            )}
             <Btn variant="secondary" icon={<Upload size={14} />} onClick={() => setShowImport(true)} style={isMobile ? { flex: '1 1 auto' } : undefined}>Import</Btn>
             <Btn variant="secondary" icon={<UserX size={14} />} onClick={() => setShowLostLeads(true)} style={isMobile ? { flex: '1 1 auto' } : undefined}>{t('clients.lost')}</Btn>
             <Btn icon={<UserPlus size={14} />} onClick={() => setShowAdd(true)} style={isMobile ? { flex: '1 1 100%' } : undefined}>{t('clients.newClient')}</Btn>
@@ -243,7 +295,7 @@ export default function ClientsPage() {
                 {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </Select>
             </div>
-            <Btn size="sm" variant="secondary" icon={<Download size={13} />} disabled={bulkBusy} onClick={exportCsv}>CSV</Btn>
+            <Btn size="sm" variant="secondary" icon={<Download size={13} />} disabled={bulkBusy || exportBusy} onClick={exportCsv}>CSV</Btn>
             {bulkBusy && <Loader2 size={15} className="spin" style={{ color: 'var(--primary)', animation: 'spin 1s linear infinite' }} />}
             <button onClick={() => setSelected(new Set())} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-3)', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
               <X size={13} /> {t('clients.cancel2')}
